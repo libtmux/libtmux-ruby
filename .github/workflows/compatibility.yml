@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: compatibility-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: compatibility-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -96,11 +96,26 @@ jobs:
           path: build/matrix/
           if-no-files-found: warn
       - name: Debug the selected macOS cell
+        id: debug
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && matrix.platform.system == 'macos' && matrix.ruby == '4.0.7' && matrix.tmux == '3.7c' }}
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3
         timeout-minutes: 10
         with:
+          detached: true
           limit-access-to-actor: true
+      - name: Save the restricted debug SSH address
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && steps.debug.outputs.ssh-address != '' }}
+        env:
+          TMATE_SSH_ADDRESS: ${{ steps.debug.outputs.ssh-address }}
+        run: printf '%s\n' "$TMATE_SSH_ADDRESS" > "$RUNNER_TEMP/tmate-ssh-address.txt"
+      - name: Retain the restricted debug connection
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && steps.debug.outputs.ssh-address != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tmate-connection
+          path: ${{ runner.temp }}/tmate-ssh-address.txt
+          retention-days: 1
+          if-no-files-found: error
 
   report:
     name: All 36 required cells
