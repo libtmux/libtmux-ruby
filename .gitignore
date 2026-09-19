@@ -1,0 +1,35 @@
+# Generated output
+/build/
+/dist/
+/coverage/
+/tmp/
+*.log
+
+# Ruby tooling and packages
+/.bundle/
+/.ruby-lsp/
+/vendor/bundle/
+/pkg/
+*.gem
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local environment and worktrees
+/.direnv/
+/.envrc.local
+.env
+.env.*
+!.env.example
+/.worktrees/
+/scratch/
+
+# Local agent configuration
+CLAUDE.local.md
+.claude/settings.local.json
