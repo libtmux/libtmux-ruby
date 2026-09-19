@@ -4,6 +4,7 @@ require "fileutils"
 require "fiddle"
 require "fcntl"
 require "libtmux/child"
+require "libtmux/socket_readiness"
 require "tmpdir"
 
 module LibTmuxTest
@@ -96,13 +97,12 @@ module LibTmuxTest
     end
 
     def start
-      raise Error, "foreground tmux fixture currently requires Linux inotify" unless RUBY_PLATFORM.include?("linux")
-
       config_path = File.join(@directory, "tmux.conf")
       File.write(config_path, "set-option -g default-shell /bin/sh\n")
-      watch_socket do
+      watch_socket do |readiness|
         # -D keeps the daemon as our child; its exit can be observed and reaped.
-        @server = spawn_owned(@executable, "-D", "-S", @socket_path, "-f", config_path)
+        @server = spawn_owned(@executable, "-D", *readiness.arguments, "-S", @socket_path,
+          "-f", config_path, **readiness.spawn_options)
         @server.first.close
       end
       _, error, status = capture("new-session", "-d", "-s", "fixture", "-x", "80", "-y", "24", "cat")
@@ -205,7 +205,7 @@ module LibTmuxTest
       result
     end
 
-    def spawn_owned(*arguments)
+    def spawn_owned(*arguments, **options)
       streams = []
       observer = OwnedChild.new(@process_wait)
       begin
@@ -214,7 +214,7 @@ module LibTmuxTest
         error, child_error = IO.pipe.tap { |pair| streams.concat(pair) }
         streams.each(&:binmode)
         pid = Process.spawn(CLEAN_ENV, *arguments, in: child_input, out: child_output,
-          err: child_error, close_others: true)
+          err: child_error, close_others: true, **options)
         observer.spawned(pid)
         [child_input, child_output, child_error].each(&:close)
         [input, output, error, observer]
@@ -240,40 +240,24 @@ module LibTmuxTest
     end
 
     def watch_socket
-      libc = Fiddle::Handle::DEFAULT
-      initialize_watch = Fiddle::Function.new(libc["inotify_init1"], [Fiddle::TYPE_INT], Fiddle::TYPE_INT)
-      add_watch = Fiddle::Function.new(libc["inotify_add_watch"],
-        [Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
-      fd = initialize_watch.call(Fcntl::O_NONBLOCK)
-      raise SystemCallError.new("inotify_init1", Fiddle.last_error) if fd.negative?
-
-      events = IO.for_fd(fd, autoclose: true)
+      readiness = LibTmux::Internal.const_get(:SocketReadiness, false).new(@directory)
       begin
-        events.close_on_exec = true
-        watch = add_watch.call(fd, @directory, 0x00000004) # IN_ATTRIB
-        raise SystemCallError.new("inotify_add_watch", Fiddle.last_error) if watch.negative?
-
-        yield
+        yield readiness
+        child = @server.last
         deadline = monotonic + DEADLINE_SECONDS
         loop do
-          wait_readable([events], deadline)
-          bytes = events.read_nonblock(4096, exception: false)
-          next unless bytes.is_a?(String)
-
-          offset = 0
-          while offset < bytes.bytesize
-            descriptor, mask, _, size = bytes.byteslice(offset, 16).unpack("iIII")
-            name = bytes.byteslice(offset + 16, size).delete("\0")
-            # tmux chmods the socket after bind/listen, before accepting clients.
-            return if descriptor == watch && mask & 0x00000004 != 0 && name == "socket"
-
-            raise Error, "fixture filesystem event queue overflowed" if mask & 0x00004000 != 0
-
-            offset += 16 + size
+          if child.observed? || child.observation_error || child.complete?
+            raise Error, "owned fixture daemon exited before becoming ready"
           end
+          if readiness.ready?(child)
+            readiness.close
+            readiness.remove_files(child.pid)
+            return
+          end
+          wait_readable([readiness.reader, child.reader], deadline)
         end
       ensure
-        events.close
+        readiness.close
       end
     end
 

@@ -2,6 +2,7 @@
 
 require "minitest/autorun"
 require "libtmux/process_wait"
+require "libtmux/process"
 require_relative "../support/tmux_fixture"
 
 class TmuxFixtureTest < Minitest::Test
@@ -127,7 +128,9 @@ class TmuxFixtureTest < Minitest::Test
       LibTmuxTest::TmuxFixture.open do |fixture|
         directory = File.dirname(fixture.socket_path)
         pid = server_pid(fixture)
-        parent = File.read("/proc/#{pid}/status")[/^PPid:\s+(\d+)/, 1].to_i
+        identity = LibTmux::Internal::ProcessExecutor.new.run(["ps", "-o", "ppid=", "-p", pid.to_s], timeout: 0.5)
+        assert identity.success?
+        parent = Integer(identity.text.strip, 10)
         assert_equal Process.pid, parent, "fixture server must remain an owned child"
         raise failure
       end
@@ -157,8 +160,9 @@ class TmuxFixtureTest < Minitest::Test
 
     fixture, pid = startup
     assert fixture.tmux("wait-for", "dispatched").last.success?
-    children = File.read("/proc/self/task/#{worker.native_thread_id}/children").split.map(&:to_i)
-    clients = children - [pid]
+    clients = fixture.instance_variable_get(:@clients_mutex).synchronize do
+      fixture.instance_variable_get(:@clients).keys
+    end
     assert_equal 1, clients.length, "expected one dispatched child client"
     worker.raise(Interrupt, "cancel fixture")
     assert_raises(Interrupt) { worker.join(0.5) }

@@ -3,6 +3,7 @@
 require "fcntl"
 require "libtmux/server"
 require "libtmux/child"
+require "libtmux/socket_readiness"
 
 module LibTmux
   class Server
@@ -18,58 +19,6 @@ module LibTmux
   end
 
   module Internal
-    class SocketReadiness
-      attr_reader :reader
-
-      def initialize(directory)
-        unless RUBY_PLATFORM.include?("linux")
-          raise UnsupportedFeatureError.new("owned daemon readiness currently requires Linux inotify", phase: :startup)
-        end
-        libc = Fiddle::Handle::DEFAULT
-        init = Fiddle::Function.new(libc["inotify_init1"], [Fiddle::TYPE_INT], Fiddle::TYPE_INT)
-        add = Fiddle::Function.new(libc["inotify_add_watch"],
-          [Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
-        fd = init.call(Fcntl::O_NONBLOCK)
-        raise SystemCallError.new("inotify_init1", Fiddle.last_error) if fd.negative?
-
-        @reader = IO.for_fd(fd, autoclose: true)
-        @reader.close_on_exec = true
-        @watch = add.call(fd, directory, 0x00000004) # IN_ATTRIB
-        raise SystemCallError.new("inotify_add_watch", Fiddle.last_error) if @watch.negative?
-      rescue Exception
-        close
-        raise
-      end
-
-      def ready?(pid)
-        bytes = @reader.read_nonblock(16_384, exception: false)
-        return false unless bytes.is_a?(String)
-
-        offset = 0
-        found = false
-        while offset < bytes.bytesize
-          header = bytes.byteslice(offset, 16)
-          raise ProtocolError.new("truncated socket readiness event", phase: :startup, pid: pid, delivery: :possibly_sent) unless header.bytesize == 16
-
-          descriptor, mask, _, size = header.unpack("iIII")
-          if mask & 0x00004000 != 0 # IN_Q_OVERFLOW
-            raise CapacityError.new("socket readiness events overflowed", phase: :startup, pid: pid, delivery: :possibly_sent)
-          end
-          name = bytes.byteslice(offset + 16, size)
-          raise ProtocolError.new("truncated socket readiness name", phase: :startup, pid: pid, delivery: :possibly_sent) unless name && name.bytesize == size
-
-          # tmux's initial chmod follows bind/listen; no client can cause it yet.
-          found ||= descriptor == @watch && mask & 0x00000004 != 0 && name.delete("\0") == "socket"
-          offset += 16 + size
-        end
-        found
-      end
-
-      def close
-        @reader.close if @reader && !@reader.closed?
-      end
-    end
-
     class OwnedDaemon
       attr_reader :endpoint
 
@@ -107,8 +56,8 @@ module LibTmux
                 check_cancel(cancel)
                 check_deadline(deadline)
                 pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil},
-                  @endpoint.executable, "-u", "-D", "-S", @endpoint.socket_path, "-f", config,
-                  in: File::NULL, out: File::NULL, err: File::NULL, close_others: true)
+                  @endpoint.executable, "-u", "-D", *@readiness.arguments, "-S", @endpoint.socket_path, "-f", config,
+                  in: File::NULL, out: File::NULL, err: File::NULL, close_others: true, **@readiness.spawn_options)
               rescue SystemCallError, IOError => error
                 raise TransportError.new("owned daemon could not start (#{error.class})", phase: :spawn), cause: nil
               ensure
@@ -116,6 +65,7 @@ module LibTmux
               end
               Thread.handle_interrupt(Exception => :immediate) { await_ready(deadline, cancel) }
               @readiness.close
+              @readiness.remove_files(@child.pid)
             rescue Exception => error
               failure = error
               begin
@@ -169,6 +119,7 @@ module LibTmux
               attempt(errors, "observer close") { @child.close } if @child.complete?
             end
             if !@child || @child.complete?
+              attempt(errors, "startup log removal") { @readiness&.remove_files(@child&.pid) }
               attempt(errors, "socket removal") do
                 File.unlink(@endpoint.socket_path) if @endpoint && File.exist?(@endpoint.socket_path)
               end
@@ -200,7 +151,10 @@ module LibTmux
             raise TransportError.new("owned tmux daemon exited before becoming ready", phase: :startup,
               pid: @child.pid, delivery: :possibly_sent)
           end
-          return if @readiness.ready?(@child.pid)
+          if @readiness.ready?(@child)
+            check_deadline(deadline)
+            return
+          end
 
           check_cancel(cancel)
           check_deadline(deadline)

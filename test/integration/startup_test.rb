@@ -6,6 +6,54 @@ require "libtmux"
 require "libtmux/owned" if File.exist?(File.expand_path("../../gems/libtmux/lib/libtmux/owned.rb", __dir__))
 
 class StartupTest < Minitest::Test
+  def test_log_readiness_disables_logging_before_exposing_the_owned_server
+    readiness = LibTmux::Internal.const_get(:SocketReadiness, false)
+    original = readiness.method(:new)
+    log_readiness = nil
+    readiness.define_singleton_method(:new) do |directory|
+      log_readiness = LibTmux::Internal.const_get(:LogSocketReadiness, false).new(directory)
+    end
+    path = pid = nil
+    LibTmux::Server.start(timeout: 0.5) do |server|
+      path = File.dirname(server.endpoint.socket_path)
+      pid = Integer(server.run(["display-message", "-p", '#{pid}']).text)
+      assert log_readiness.stopped?
+      assert_operator log_readiness.bytes_read, :>, 0
+      assert_operator log_readiness.bytes_read, :<=, 1 << 20
+      assert_empty Dir[File.join(path, "*.log")]
+      assert_equal "ready-without-logging\n", server.run(["display-message", "-p", "ready-without-logging"]).text
+      assert_empty Dir[File.join(path, "*.log")]
+    end
+    assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
+    refute File.exist?(path)
+  ensure
+    readiness&.define_singleton_method(:new, original) if original
+  end
+
+  def test_oversized_startup_log_fails_closed_and_reaps_its_writer
+    readiness = LibTmux::Internal.const_get(:SocketReadiness, false)
+    original = readiness.method(:new)
+    readiness.define_singleton_method(:new) do |directory|
+      LibTmux::Internal.const_get(:LogSocketReadiness, false).new(directory)
+    end
+    Dir.mktmpdir("libtmux-ruby-log-writer-") do |directory|
+      executable = File.join(directory, "writer")
+      record = File.join(directory, "owned-path")
+      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\n" \
+        "File.write(#{record.inspect}, Dir.pwd)\n" \
+        "File.binwrite(\"tmux-server-\#{Process.pid}.log\", 'x' * ((1 << 20) + 1))\nIO.select([])\n")
+      File.chmod(0o700, executable)
+      error = assert_raises(LibTmux::CapacityError) { LibTmux::Server.start(executable: executable, timeout: 0.5) }
+      assert_equal :possibly_sent, error.delivery
+      assert_equal :startup, error.phase
+      assert_raises(Errno::ECHILD) { Process.waitpid(error.pid, Process::WNOHANG) }
+      refute File.exist?(File.read(record))
+      assert_empty error.cleanup_errors
+    end
+  ensure
+    readiness&.define_singleton_method(:new, original) if original
+  end
+
   def test_explicit_start_owns_an_empty_daemon_and_cleanup_preserves_borrowed_server
     owned_path = daemon_pid = nil
     LibTmuxTest::TmuxFixture.open do |fixture|
