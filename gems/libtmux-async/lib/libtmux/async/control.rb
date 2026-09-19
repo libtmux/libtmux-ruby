@@ -213,15 +213,6 @@ module LibTmux
         @driver&.__send__(:notify_state)
       end
 
-      def pending_write
-        @mutex.synchronize do
-          return nil if @stopping
-
-          @active ||= @queue.shift
-          @active if @active && @active.offset < @active.wire.bytesize
-        end
-      end
-
       def receive_bytes(bytes)
         @parser.feed(bytes) { |record| receive(record) }
         @writer_changed.signal
@@ -246,6 +237,8 @@ module LibTmux
             delivery: request.offset.zero? ? :not_sent : :possibly_sent, phase: :control, pid: @pid))
         end
         @queue.clear
+        @replies.clear
+        @writing = nil
         @subscriptions.each { |subscription| subscription.__send__(:finish, failure) }
         @writer_changed.signal
       end

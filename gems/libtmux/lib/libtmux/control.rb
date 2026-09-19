@@ -561,6 +561,7 @@ module LibTmux
       @binding_key, @session_id = binding_key, session_id.dup.freeze
       @mutex = Mutex.new
       @queue, @requests, @request_pipes, @subscriptions, @resources = [], {}, {}, [], []
+      @replies = []
       @next_id, @queued_bytes, @sequence = 0, 0, 0
       if @previous_generation
         @sequence += 1
@@ -617,7 +618,8 @@ module LibTmux
         delivery = request.offset.zero? ? :not_sent : :possibly_sent
         if request.offset.zero?
           @queue.delete(request)
-          @active = nil if @active.equal?(request)
+          @replies.delete(request)
+          @writing = nil if @writing.equal?(request)
         else
           # Do not reuse an undrained boundary after cancellation.
           @stopping = true
@@ -675,11 +677,8 @@ module LibTmux
       failure, exit_deadline = nil, nil
       streams = [@output, @error_output]
       loop do
-        writing, stopping = @mutex.synchronize do
-          @active ||= @queue.shift
-          [@active && @active.offset < @active.wire.bytesize, @stopping]
-        end
-        break if stopping
+        writing = pending_write
+        break if @mutex.synchronize { @stopping }
         raise TransportError.new("control client exited while a pipe remained open", phase: :read) if exit_deadline && clock >= exit_deadline
 
         ready = IO.select(streams + [@wake_reader, @exit_reader], writing ? [@input] : nil,
@@ -713,7 +712,7 @@ module LibTmux
         end
         unless ready[1].empty?
           @mutex.synchronize do
-            request = @active
+            request = @writing
             if request && !@stopping
               sent = @input.write_nonblock(request.wire.byteslice(request.offset, 16_384), exception: false)
               request.offset += sent if sent.is_a?(Integer)
@@ -734,6 +733,8 @@ module LibTmux
             complete(request, error: error)
           end
           @queue.clear
+          @replies.clear
+          @writing = nil
           @subscriptions.each { |subscription| subscription.send(:finish, failure) }
         end
         cleanup
@@ -741,9 +742,22 @@ module LibTmux
       end
     end
 
+    def pending_write
+      @mutex.synchronize do
+        return nil if @stopping
+
+        @writing = nil if @writing && @writing.offset == @writing.wire.bytesize
+        unless @writing
+          @writing = @queue.shift
+          @replies << @writing if @writing
+        end
+        @writing
+      end
+    end
+
     def receive(record)
       @mutex.synchronize do
-        request = @active
+        request = @replies.first
         if record.is_a?(GuardedBlock) && request
           if marker?(record, request.start_marker)
             raise ProtocolError.new("duplicate control start boundary", phase: :read) if request.started
@@ -755,7 +769,7 @@ module LibTmux
 
             reply = GuardedReply.new(request_id: request.id, blocks: request.blocks, generation: @generation)
             complete(request, result: reply)
-            @active = nil
+            @replies.shift
             return
           elsif request.started
             request.bytes += record.bytesize

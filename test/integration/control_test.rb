@@ -175,6 +175,46 @@ class ControlIntegrationTest < Minitest::Test
     end
   end
 
+  def test_pipeline_writes_complete_requests_before_prior_replies
+    with_control do |fixture, _, control|
+      fixture.tmux("set-option", "-s", "command-alias[99]",
+        "pipeline-probe=wait-for -S pipeline-ready ; wait-for pipeline-held ; display-message -p pipeline-first ; kill-session -t missing ; display-message -p never")
+      fixture.tmux("set-hook", "-g", "command-error", "display-message -p pipeline-hook")
+      reader, writer = IO.pipe
+      sent = +"".b
+      input = control.instance_variable_get(:@input)
+      input.define_singleton_method(:write_nonblock) do |bytes, **options|
+        result = super(bytes.byteslice(0, 7), **options)
+        if result.is_a?(Integer)
+          sent << bytes.byteslice(0, result)
+          writer.write_nonblock("x") if /pipeline-second\nlibtmux_boundary_[0-9a-f]+\n\z/.match?(sent)
+        end
+        result
+      end
+      first = Thread.new do
+        control.exchange("pipeline-probe", timeout: 0.5)
+      end
+      fixture.tmux("wait-for", "pipeline-ready")
+      second = Thread.new { control.exchange("display-message -p pipeline-second", timeout: 0.5) }
+      assert IO.select([reader], nil, nil, 0.2), "second request bytes waited for the first reply"
+      assert first.alive?, "the first reply must remain pending at the wire witness"
+      assert second.alive?, "tmux must retain the second request behind WAIT"
+      fixture.tmux("wait-for", "-S", "pipeline-held")
+      earlier = first.value
+      assert_includes earlier.blocks.map(&:body).join, "pipeline-first\n"
+      refute_includes earlier.blocks.map(&:body).join, "pipeline-second\n"
+      refute_includes earlier.blocks.map(&:body).join, "never\n"
+      assert earlier.blocks.any? { |block| block.terminator == :error }
+      assert_equal "pipeline-second\n", second.value.blocks.map(&:body).join
+      assert_empty control.instance_variable_get(:@requests)
+    ensure
+      fixture.tmux("wait-for", "-S", "pipeline-held") if first&.alive?
+      [first, second].compact.each { |thread| thread.join(0.5) }
+      input&.singleton_class&.remove_method(:write_nonblock)
+      [reader, writer].compact.each(&:close)
+    end
+  end
+
   def test_slow_subscriber_overflows_without_blocking_replies
     with_control do |fixture, _, control|
       events = control.subscribe(max_events: 1, max_bytes: 1024)

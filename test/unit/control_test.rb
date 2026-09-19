@@ -61,7 +61,7 @@ class ControlTest < Minitest::Test
     control.instance_variable_set(:@wake_writer, wake_writer)
     request = control.send(:admit, "refresh-client -A '%0:pause'", nil, flow: ["%0", :pause])
     request.offset = request.wire.bytesize
-    control.instance_variable_set(:@active, request)
+    control.instance_variable_get(:@replies) << request
     parser = LibTmux::Internal::ControlParser.new
     parser.feed("%pause %0\n") { |record| control.send(:receive, record) }
     reply = LibTmux::GuardedReply.new(request_id: request.id, blocks: [], generation: control.generation)

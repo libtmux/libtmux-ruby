@@ -387,6 +387,61 @@ class AsyncTest < Minitest::Test
     end
   end
 
+  def test_control_pipeline_preserves_reply_ownership_and_cancel_delivery
+    [false, true].each do |cancel_first|
+      with_scope do |scope, parent|
+        control = scope.server.open_control(session: scope.server.list_sessions.first.ref)
+        token = LibTmux::Internal::Cancellation.new
+        reader, writer = IO.pipe
+        sent = +"".b
+        input = control.instance_variable_get(:@driver).instance_variable_get(:@writer)
+        input.define_singleton_method(:write_nonblock) do |bytes, **options|
+          result = super(bytes.byteslice(0, 7), **options)
+          if result.is_a?(Integer)
+            sent << bytes.byteslice(0, result)
+            writer.write_nonblock("x") if /pipeline-second\nlibtmux_boundary_[0-9a-f]+\n\z/.match?(sent)
+          end
+          result
+        end
+        first = parent.async do
+          control.exchange("wait-for -S pipeline-ready ; wait-for pipeline-held ; display-message -p pipeline-first", timeout: 0.5, cancel: token)
+        rescue LibTmux::Error => error
+          error
+        end
+        assert scope.server.run(["wait-for", "pipeline-ready"]).success?
+        second = parent.async do
+          control.exchange("display-message -p pipeline-second", timeout: 0.5)
+        rescue LibTmux::Error => error
+          error
+        end
+        assert Fiber.scheduler.io_wait(reader, IO::READABLE, 0.2), "second request bytes waited for the first reply"
+        refute first.finished?
+        refute second.finished?
+        if cancel_first
+          token.cancel
+          failure, later = first.wait, second.wait
+          assert_instance_of LibTmux::Cancelled, failure
+          assert_instance_of LibTmux::ClosedError, later
+          assert_equal [:possibly_sent, :possibly_sent], [failure.delivery, later.delivery]
+        else
+          assert scope.server.run(["wait-for", "-S", "pipeline-held"]).success?
+          assert_equal "pipeline-first\n", first.wait.blocks.map(&:body).join
+          assert_equal "pipeline-second\n", second.wait.blocks.map(&:body).join
+        end
+        control.close
+        assert_empty control.instance_variable_get(:@requests)
+        assert_empty control.instance_variable_get(:@replies)
+        assert_raises(Errno::ECHILD) { Process.waitpid(control.pid, Process::WNOHANG) }
+      ensure
+        control&.close
+        [first, second].compact.each(&:wait)
+        input&.singleton_class&.remove_method(:write_nonblock)
+        [reader, writer].compact.each(&:close)
+        token&.close
+      end
+    end
+  end
+
   def test_control_overflow_and_tail_gaps_do_not_block_replies
     with_scope do |scope, parent|
       scope.server.open_control(session: scope.server.list_sessions.first.ref) do |control|
