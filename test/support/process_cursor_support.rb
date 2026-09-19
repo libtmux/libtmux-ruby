@@ -6,6 +6,21 @@ module LibTmuxTest
       version = scope.server.run(["display-message", "-p", '#{version}']).text.strip
       parts = /\A(\d+)\.(\d+)/.match(version)
       supported = parts && ([parts[1].to_i, parts[2].to_i] <=> [3, 3]) >= 0
+      if supported && /\A(?:arm64|x86_64)-darwin/.match?(RUBY_PLATFORM)
+        snapshot = scope.server.snapshot
+        failure = lease = nil
+        begin
+          lease = LibTmux::MCP.const_get(:ProcessIdentity).acquire(scope.server,
+            server_pid: snapshot.server_info.fetch(:pid), pane_pid: snapshot.panes.first.pid,
+            budget: scope.server.__send__(:operation_budget, 0.5, nil))
+        rescue LibTmux::Error => error
+          failure = error
+        ensure
+          lease&.close
+        end
+        assert_nil failure, "Darwin process identity is required: #{failure&.class}: #{failure&.message}"
+        return
+      end
       begin
         identity = LibTmux::MCP.const_get(:ProcessIdentity)
         namespace = identity.procfs_namespace
