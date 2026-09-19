@@ -22,8 +22,12 @@ Gem::Specification.new do |spec|
     lib/libtmux/mcp/version.rb
     lib/libtmux/mcp/stdio_transport.rb
     lib/libtmux/mcp/catalog.rb
+    lib/libtmux/mcp/catalog_tool.rb
     lib/libtmux/mcp/application.rb
     lib/libtmux/mcp/mutations.rb
+    lib/libtmux/mcp/resources.rb
+    lib/libtmux/mcp/observation.rb
+    lib/libtmux/mcp/process_identity.rb
     lib/libtmux/mcp/cli.rb
     sig/libtmux-mcp.rbs
     sig/transport.rbs

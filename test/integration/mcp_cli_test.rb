@@ -11,6 +11,12 @@ class McpCLIIntegrationTest < Minitest::Test
       reader, input = IO.pipe
       output, writer = IO.pipe
       errors = StringIO.new
+      application_closes = []
+      trace = TracePoint.new(:call) do |event|
+        if event.defined_class == LibTmux::MCP::Application && event.method_id == :close
+          application_closes << Fiber.scheduler
+        end
+      end
       worker = Thread.new do
         LibTmux::MCP::CLI.run(["--socket", fixture.socket_path, "--endpoint", "test"],
           input: reader, out: writer, err: errors)
@@ -26,12 +32,16 @@ class McpCLIIntegrationTest < Minitest::Test
         result = frame(output).dig("result", "structuredContent")
         assert result.fetch("ok")
         assert_equal "test", result.fetch("data").fetch("endpoint")
+        trace.enable
         input.close
         assert worker.join(0.5), "MCP CLI did not retire after EOF"
         assert_equal 0, worker.value
+        assert_equal 1, application_closes.length
+        refute_nil application_closes.first
         assert_empty errors.string
         assert fixture.tmux("has-session").last.success?
       ensure
+        trace.disable
         input.close unless input.closed?
         worker.join(0.5)
         worker.raise(Interrupt) if worker.alive?

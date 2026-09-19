@@ -53,21 +53,23 @@ module LibTmux
             app = Application.new(server: scope.server, endpoint_name: @options.fetch(:endpoint_name),
               enabled_tools: @options.fetch(:tools).uniq, request_timeout: @options.fetch(:timeout),
               max_response_bytes: @options.fetch(:max_response_bytes))
-            transport = StdioTransport.new(server: app.sdk_server, parent: task, input: @input, output: @output,
-              concurrency: @options.fetch(:concurrency), max_requests: @options.fetch(:max_requests),
-              max_frame_bytes: @options.fetch(:max_frame_bytes), max_output_bytes: @options.fetch(:max_output_bytes),
-              request_timeout: @options.fetch(:timeout))
-            failure = nil
+            failure = transport = nil
             begin
+              transport = StdioTransport.new(server: app.sdk_server, parent: task, input: @input, output: @output,
+                concurrency: @options.fetch(:concurrency), max_requests: @options.fetch(:max_requests),
+                max_frame_bytes: @options.fetch(:max_frame_bytes), max_output_bytes: @options.fetch(:max_output_bytes),
+                request_timeout: @options.fetch(:timeout))
               transport.run
             rescue Exception => error
               failure = error
             ensure
-              begin
-                transport.close
-              rescue Exception => cleanup
-                @error.puts("MCP cleanup also failed (#{cleanup.class}).") if failure
-                failure ||= cleanup
+              [transport, app].compact.each do |owner|
+                begin
+                  owner.close
+                rescue Exception => cleanup
+                  @error.puts("MCP cleanup also failed (#{cleanup.class}).") if failure
+                  failure ||= cleanup
+                end
               end
             end
             raise failure if failure
