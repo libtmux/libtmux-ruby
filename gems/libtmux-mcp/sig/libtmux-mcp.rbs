@@ -1,6 +1,12 @@
 module LibTmux
   module MCP
     VERSION: String
+    interface _ShellInvitation
+      def reference: () -> LibTmux::EntityRef
+      def shell_arguments: () -> Array[String]
+      def expires_at: () -> Float
+      def inspect: () -> String
+    end
     class CLI
       private def self.new: (*untyped, **untyped) -> instance
       def run: () -> Integer
@@ -11,6 +17,8 @@ module LibTmux
       def initialize: (server: LibTmux::Async::Server, endpoint_name: String, ?enabled_tools: Array[String], ?max_captures: Integer, ?max_capture_bytes: Integer, ?capture_ttl: Numeric, ?request_timeout: Numeric, ?max_response_bytes: Integer) -> void
       def sdk_server: () -> untyped
       def call: (String, ?Hash[untyped, untyped], ?cancellation: untyped) -> untyped
+      def invite_shell: (LibTmux::EntityRef, ?timeout: Numeric?, ?expires_in: Numeric, ?cancellation: untyped) -> _ShellInvitation
+      def accept_shell: (_ShellInvitation, ?timeout: Numeric?, ?cancellation: untyped) -> LibTmux::EntityRef
       def close: () -> nil
       def inspect: () -> String
     end

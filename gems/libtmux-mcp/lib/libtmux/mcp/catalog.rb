@@ -4,7 +4,7 @@ module LibTmux
   module MCP
     module Catalog
       READ_ONLY = %w[tmux_capabilities tmux_snapshot].freeze
-      MUTATIONS = %w[tmux_send tmux_create tmux_close].freeze
+      MUTATIONS = %w[tmux_send tmux_create tmux_close tmux_run].freeze
       OBSERVATIONS = %w[tmux_capture tmux_wait].freeze
       NAMES = (READ_ONLY + MUTATIONS + OBSERVATIONS).freeze
       MUTATION_BYTES = 1 << 16
@@ -20,6 +20,11 @@ module LibTmux
 
       def self.input(name)
         return object({}) if name == "tmux_capabilities"
+        if name == "tmux_run"
+          return object({"target" => reference("pane"), "script" => mutation_text,
+            "stdout_limit" => {"type" => "integer", "minimum" => 0, "maximum" => 262144},
+            "stderr_limit" => {"type" => "integer", "minimum" => 0, "maximum" => 262144}}, %w[target script])
+        end
         return mutation_input(name) if MUTATIONS.include?(name)
         return observation_input(name) if OBSERVATIONS.include?(name)
 
@@ -143,7 +148,10 @@ module LibTmux
       end
 
       def self.output(name)
-        payload = if MUTATIONS.include?(name)
+        payload = if name == "tmux_run"
+          object({"target" => reference("pane"), "authorization" => authorization,
+            "completion" => run_completion, "stdout" => run_bytes, "stderr" => run_bytes})
+        elsif MUTATIONS.include?(name)
           mutation_output(name)
         elsif name == "tmux_capture"
           capture_output
@@ -155,6 +163,12 @@ module LibTmux
             "criteria_schema" => {"type" => "object"},
             "limits" => {"type" => "object", "additionalProperties" => {"type" => "number"}},
             "owns_daemon" => {"const" => false}, "resource_subscriptions" => {"const" => false},
+            "authored_run" => object({"availability" => {"enum" => %w[conditional unsupported]},
+              "shell_profile" => {"const" => "zsh-5.9-zle"}, "enrollment" => {"const" => "explicit_source"},
+              "authorization" => {"const" => "exact_generation_at_queue_grant"},
+              "stdin" => {"const" => "closed"}, "persistent_shell_changes" => {"const" => false},
+              "descendant_termination" => {"const" => "unobserved"},
+              "requirements" => {"type" => "array", "items" => text}}),
             "observation" => object({"screen" => {"const" => "bounded_rows"}, "history_continuity" => {"const" => "unknown"},
               "process_cursor" => {"enum" => %w[conditional unsupported]}, "requirements" => {"type" => "array", "items" => text},
               "wait_conditions" => {"type" => "array", "items" => {"enum" => %w[screen_contains process_exit]}}})})
@@ -172,7 +186,34 @@ module LibTmux
         {"oneOf" => [object({"ok" => {"const" => true}, "data" => payload}),
           object({"ok" => {"const" => false}, "error" => object({"code" => text,
             "message" => text, "delivery" => {"enum" => %w[not_sent possibly_sent observed]},
-            "effects" => effects}, %w[code message delivery])})]}
+            "effects" => name == "tmux_run" ? run_effects : effects}, %w[code message delivery])})]}
+      end
+
+      def self.authorization
+        token = text.merge("pattern" => "^[a-f0-9]{32}$", "maxLength" => 32)
+        object({"state" => {"const" => "authorized"}, "run_id" => token,
+          "script_digest" => text.merge("pattern" => "^[a-f0-9]{64}$", "maxLength" => 64),
+          "server_generation" => text.merge("minLength" => 1, "maxLength" => 128),
+          "pane_id" => text.merge("pattern" => "^%[0-9]+$", "maxLength" => 32),
+          "enrollment_generation" => token, "process_generation" => token})
+      end
+
+      def self.run_completion
+        {"oneOf" => [object({"state" => {"const" => "exited"},
+          "exit_status" => {"type" => "integer", "minimum" => 0, "maximum" => 255}, "signal" => {"type" => "null"}}),
+          object({"state" => {"const" => "signaled"}, "exit_status" => {"type" => "null"},
+            "signal" => {"type" => "integer", "minimum" => 1, "maximum" => 255}})]}
+      end
+
+      def self.run_bytes
+        object({"encoding" => {"enum" => %w[utf-8 base64]}, "data" => text.merge("maxLength" => 349528),
+          "bytes" => {"type" => "integer", "minimum" => 0, "maximum" => 262144}, "truncated" => {"const" => false}})
+      end
+
+      def self.run_effects
+        object({"state" => {"enum" => %w[none known unknown]},
+          "authorization" => {"oneOf" => [authorization, {"type" => "null"}]},
+          "completion" => {"oneOf" => [object({"state" => {"const" => "unobserved"}}), *run_completion.fetch("oneOf")]}})
       end
 
       def self.effects
@@ -193,10 +234,12 @@ module LibTmux
       end
 
       def self.description(name)
-        if name == "tmux_capture"
-          "Read exact-pane screen/history rows preserving LF. Defaults: 200 lines, 65536 bytes, zero history lines, track=false. Limits: 1000 lines/history, 262144 bytes. UTF-8 or base64; truncation is separate from unknown history continuity. Tracked Linux/tmux>=3.3 process cursors require peer pidfds and namespace proof; continuation returns an exact state row splice, not a live-output journal. Refuses capture after-hooks."
+        if name == "tmux_run"
+          "Run an authored POSIX script in an explicitly enrolled idle, empty zsh 5.9 editor. Opt-in; no terminal injection. Exact queue authorization binds the existing shell generation; execution may follow a later pane replacement without retargeting it. Inherits cwd/exported environment, closed stdin, separate bounded UTF-8/base64 outputs. Defaults: 65536 bytes per output, 65536 script bytes; overflow refuses completion. Reports native exit/signal only from the helper; cancellation never proves descendants stopped."
+        elsif name == "tmux_capture"
+          "Read exact-pane screen/history rows preserving LF. Defaults: 200 lines, 65536 bytes, zero history lines, track=false. Limits: 1000 lines/history, 262144 bytes. UTF-8 or base64; truncation is separate from unknown history continuity. Tracked process cursors require tmux>=3.3 and a native process identity backend: Linux peer pidfds with matching PID namespaces, or Darwin kqueue process observation. Continuation returns an exact state row splice, not a live-output journal. Refuses capture after-hooks."
         elsif name == "tmux_wait"
-          "Wait for observed literal screen text or the initial pane process exit. Deadline in seconds is capped by the application limit. Uses control events/process descriptors; no polling. Requires Linux peer pidfds, same PID namespace and tmux>=3.3. Reports observed evidence, never remote termination caused by cancellation or an inferred process exit status."
+          "Wait for observed literal screen text or the initial pane process exit. Deadline in seconds is capped by the application limit. Uses control events/process descriptors; no polling. Requires tmux>=3.3 and Linux peer pidfds with matching PID namespaces or Darwin kqueue process observation. Reports observed evidence, never remote termination caused by cancellation or an inferred process exit status."
         elsif name == "tmux_send"
           "Send literal UTF-8 text or named keys to one exact pane. Opt-in mutation; 64 KiB total text bytes, at most 256 keys. Reports tmux client completion and input dispatch only; never shell completion."
         elsif name == "tmux_create"

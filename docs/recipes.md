@@ -176,16 +176,20 @@ runner = parent.async { transport.run }
 ```
 <!-- /example -->
 
-The installed executable also exercises explicitly enabled create, send and
-close tools, then closes stdin and verifies that EOF preserves the borrowed
-daemon:
+The installed executable also exercises explicitly enabled create, send,
+close and authored-run tools. Its complete program creates a zsh pane whose
+startup file explicitly sources the CLI's mode-0600 enrollment file, waits
+for the authenticated acknowledgement, and checks binary stderr and native
+exit status. It closes stdin and verifies enrollment cleanup and borrowed
+daemon survival. An unsupported advertised process backend exercises the
+structured refusal instead; that is not positive enrollment evidence.
 
 <!-- example: mcp_protocol/cli -->
 ```ruby
 executable = Gem.bin_path("libtmux-mcp", "libtmux-mcp")
 Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endpoint.socket_path,
   "--tmux", Example.executable, "--endpoint", "installed", "--enable-tool", "tmux_create", "--enable-tool", "tmux_send",
-  "--enable-tool", "tmux_close") do |input, output, errors, process|
+  "--enable-tool", "tmux_close", "--enable-tool", "tmux_run", *enrollment_arguments) do |input, output, errors, process|
   request = lambda do |id, method, params = {}|
     input.write(JSON.generate({jsonrpc: "2.0", id: id, method: method, params: params}) + "\n")
     Example.check(IO.select([output], nil, nil, id == 1 ? 1.0 : 0.5), "installed MCP did not return a frame")
@@ -197,7 +201,7 @@ Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endp
     clientInfo: {name: "recipe", version: "1"}})
   input.write(JSON.generate({jsonrpc: "2.0", method: "notifications/initialized"}) + "\n")
   names = request.call(2, "tools/list").fetch("tools").map { |tool| tool.fetch("name") }
-  Example.check(names.sort == %w[tmux_capabilities tmux_close tmux_create tmux_send tmux_snapshot], "tool policy differs")
+  Example.check(names.sort == %w[tmux_capabilities tmux_close tmux_create tmux_run tmux_send tmux_snapshot], "tool policy differs")
   created = request.call(3, "tools/call", {name: "tmux_create", arguments: {
     kind: "session", name: "via-protocol", argv: ["/bin/cat"]}}).fetch("structuredContent")
   Example.check(created.fetch("ok"), "protocol creation failed")
@@ -206,11 +210,32 @@ Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endp
   sent = request.call(4, "tools/call", {name: "tmux_send", arguments: {
     target: pane, input: {type: "text", text: "literal;"}}}).fetch("structuredContent")
   Example.check(sent.fetch("data").fetch("completion") == "dispatch_only", "send claimed shell completion")
-  closed = request.call(5, "tools/call", {name: "tmux_close", arguments: {target: data.fetch("entity")}})
+  target = pane
+  if channel
+    Example.check(File.stat(setup).mode & 0o777 == 0o600, "enrollment setup permissions differ")
+    channel.puts(setup)
+    Example.check(IO.select([channel], nil, nil, 0.5) && channel.gets == "ready\n", "shell enrollment was not acknowledged")
+    target = pane.merge("id" => shell_pane.id)
+  end
+  script = 'printf "%s:%s" "$EXAMPLE_CONTEXT" "$TMUX_PANE"; printf "\\000\\377" >&2; exit 9'
+  run = request.call(5, "tools/call", {name: "tmux_run", arguments: {
+    target: target, script: script, stdout_limit: 128, stderr_limit: 2}}).fetch("structuredContent")
+  if channel
+    Example.check(run.fetch("ok"), "installed authored run failed")
+    result = run.fetch("data")
+    Example.check(result.fetch("stdout").fetch("data") == "installed:#{shell_pane.id}", "authored shell context differs")
+    Example.check(result.fetch("stderr") == {"encoding" => "base64", "data" => "AP8=", "bytes" => 2, "truncated" => false}, "authored bytes differ")
+    Example.check(result.fetch("completion") == {"state" => "exited", "exit_status" => 9, "signal" => nil}, "native completion differs")
+    Example.check(result.fetch("authorization").fetch("state") == "authorized", "authorization receipt missing")
+  else
+    Example.check(run.dig("error", "code") == "unsupported" && run.dig("error", "delivery") == "not_sent", "unsupported enrollment did not refuse")
+  end
+  closed = request.call(6, "tools/call", {name: "tmux_close", arguments: {target: data.fetch("entity")}})
   Example.check(closed.fetch("structuredContent").fetch("ok"), "protocol close failed")
   input.close
   Example.check(process.join(0.5), "MCP EOF did not retire its process")
   Example.check(process.value.success? && errors.read.empty?, "MCP executable failed")
+  Example.check(!File.exist?(setup), "enrollment setup survived EOF")
 end
 ```
 <!-- /example -->

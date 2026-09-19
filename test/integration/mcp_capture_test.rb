@@ -9,7 +9,9 @@ class MCPCaptureTest < Minitest::Test
   include LibTmuxTest::ProcessCursorSupport
   def test_sdk_capture_retains_exact_bounded_states_and_rejects_foreign_or_respawned_cursors
     with_application do |app, sdk, scope, source|
-      require_process_cursor_support(app, scope)
+      supported = require_process_cursor_support(app, scope)
+      assert_includes [true, false], supported, "process support must select a proved positive or refusal branch"
+      next unless supported
       pane = scope.server.list_panes.first
       target = wire_ref(pane.ref)
       first = invoke(sdk, target: target, track: true, max_lines: 24)
@@ -46,9 +48,11 @@ class MCPCaptureTest < Minitest::Test
   def test_screen_capture_refuses_after_hooks_and_preserves_split_utf8_bytes
     with_application do |app, sdk, scope, source|
       session = scope.server.new_session(name: "one-row", command: ["cat"], width: 20, height: 1)
-      pane = session.list_windows.first.list_panes.first
+      window = session.list_windows.first
+      window.resize(width: 20, height: 1)
+      pane = window.list_panes.first
       target = wire_ref(pane.ref)
-      with_output(scope, pane, session: session) { pane.send_text("éé") }
+      with_output(scope, pane, session: session, expected: "éé") { pane.send_text("éé") }
       full = invoke(sdk, target: target, max_lines: 1).fetch("data")
       limited = invoke(sdk, target: target, max_lines: 1, max_bytes: 4).fetch("data")
       assert_equal "base64", limited.fetch("encoding")
@@ -92,12 +96,20 @@ class MCPCaptureTest < Minitest::Test
     {"generation" => ref.binding_key, "kind" => ref.kind.to_s, "id" => ref.id}
   end
 
-  def with_output(scope, pane, session: scope.server.list_sessions.first)
+  def with_output(scope, pane, session: scope.server.list_sessions.first, expected: nil)
     scope.server.open_control(session: session.ref) do |control|
       events = control.subscribe(pane_id: pane.id)
       control.exchange("display-message -p ready", timeout: 0.5)
       yield
-      loop { break if events.next(timeout: 0.5).kind == :output }
+      received = +"".b
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
+      loop do
+        event = events.next(timeout: deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC))
+        next unless event.kind == :output
+
+        received << event.data
+        break unless expected && !received.include?(expected.b)
+      end
     ensure
       events&.close
     end

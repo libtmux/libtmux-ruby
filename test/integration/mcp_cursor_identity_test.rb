@@ -248,8 +248,7 @@ class MCPCursorIdentityTest < Minitest::Test
           LibTmux::Async.open(server: source, parent: task) do |scope|
             app = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "test", enabled_tools: ["tmux_capture"], **options)
             begin
-              require_process_cursor_support(app, scope)
-              yield app, scope, fixture
+              yield app, scope, fixture if require_process_cursor_support(app, scope)
             ensure
               app.close
             end

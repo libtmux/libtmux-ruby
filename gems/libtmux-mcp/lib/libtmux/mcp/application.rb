@@ -5,6 +5,7 @@ require "libtmux/mcp/catalog_tool"
 require "libtmux/mcp/mutations"
 require "libtmux/mcp/observation"
 require "libtmux/mcp/resources"
+require "libtmux/mcp/enrollment"
 
 module LibTmux
   module MCP
@@ -12,6 +13,37 @@ module LibTmux
       CursorError = Class.new(LibTmux::Error)
       Capture = Data.define(:rows, :metadata, :limit, :expires, :bytes)
       private_constant :CursorError, :Capture
+
+      class RequestRetirement
+        def initialize(token, cancellation, callback)
+          @token, @cancellation, @callback = token, cancellation, callback
+        end
+
+        def close
+          failure = nil
+          if @callback
+            begin
+              @cancellation.off_cancel(@callback)
+              @callback = nil
+            rescue Exception => error
+              failure = error
+            end
+          end
+          if @token
+            begin
+              @token.close
+              @token = nil
+            rescue Exception => error
+              ProcessIdentity.attach_cleanup(failure, ["cancellation token retirement failed (#{error.class})"]) if failure
+              failure ||= error
+            end
+          end
+          raise failure if failure
+
+          nil
+        end
+      end
+      private_constant :RequestRetirement
 
       attr_reader :tools
 
@@ -40,11 +72,14 @@ module LibTmux
           "capture_ttl_seconds" => capture_ttl, "request_timeout_seconds" => request_timeout,
           "max_response_bytes" => max_response_bytes, "max_mutation_bytes" => Catalog::MUTATION_BYTES,
           "max_observers" => max_captures,
+          "max_enrollments" => 8, "default_enrollment_seconds" => 60, "max_enrollment_seconds" => 300,
+          "max_script_bytes" => 65_536, "default_run_output_bytes" => 65_536, "max_run_output_bytes" => 262_144,
           "min_mutation_response_bytes" => Catalog::MIN_MUTATION_RESPONSE_BYTES}.freeze
         @thread, @pid, @scheduler = Thread.current, Process.pid, Fiber.scheduler
         @captures, @retained_bytes = {}, 0
         @observers, @retiring = [], []
         @calls, @calls_changed = {}, ::Async::Notification.new
+        @parent = ::Async::Task.current
         application = self
         @tools = @enabled.map do |name|
           CatalogTool.define(name: name, description: Catalog.description(name),
@@ -66,66 +101,81 @@ module LibTmux
         end
       end
 
+      def invite_shell(reference, timeout: nil, expires_in: 60, cancellation: nil)
+        shell_request(cancellation) do |registry, token|
+          registry.invite(reference, timeout: timeout || @limits.fetch("request_timeout_seconds"),
+            expires_in: expires_in, cancel: token)
+        end
+      end
+
+      def accept_shell(invitation, timeout: nil, cancellation: nil)
+        shell_request(cancellation) do |registry, token|
+          registry.accept(invitation, timeout: timeout, cancel: token).reference
+        end
+      end
+
       def call(name, arguments = {}, cancellation: nil)
         unless Process.pid == @pid && Thread.current.equal?(@thread) && Fiber.scheduler.equal?(@scheduler)
           raise ClosedError.new("MCP application belongs to another scheduler", phase: :admission)
         end
         return failure_response("policy_denied", "The configured policy denies this operation.") unless @enabled.include?(name)
         return failure_response("closed", "The application is closed.") if @closed
+        return failure_response("capacity", "Request cleanup remains pending.") unless @retiring.empty?
 
-        tool = @by_name.fetch(name)
-        tool.input_schema_value
-        tool.output_schema_value
-        wire = JSON.generate(arguments)
-        raise CapacityError.new("MCP input exceeds its byte limit", phase: :admission) if wire.bytesize > 1 << 20
-        arguments = JSON.parse(wire, max_nesting: 68, allow_nan: false, allow_duplicate_key: false)
-        tool.input_schema_value.validate_arguments(arguments)
-        token = Internal::Cancellation.new
-        @calls[token] = ::Async::Task.current
-        callback = cancellation&.on_cancel { token.cancel }
-        raise Cancelled.new("MCP request was cancelled", phase: :admission) if token.cancelled?
+        begin
+          tool = @by_name.fetch(name)
+          tool.input_schema_value
+          tool.output_schema_value
+          wire = JSON.generate(arguments)
+          raise CapacityError.new("MCP input exceeds its byte limit", phase: :admission) if wire.bytesize > 1 << 20
+          arguments = JSON.parse(wire, max_nesting: 68, allow_nan: false, allow_duplicate_key: false)
+          tool.input_schema_value.validate_arguments(arguments)
+          token = Internal::Cancellation.new
+          @calls[token] = ::Async::Task.current
+          callback = cancellation&.on_cancel { token.cancel }
+          raise Cancelled.new("MCP request was cancelled", phase: :admission) if token.cancelled?
 
-        result = case name
-        when "tmux_capabilities" then capabilities(token)
-        when "tmux_snapshot" then snapshot(arguments, token)
-        when "tmux_capture" then capture_screen(arguments, token)
-        when "tmux_wait" then wait_for_observation(arguments, token)
-        else
-          mutation = Mutation.new(server: @server, arguments: arguments, timeout: @limits.fetch("request_timeout_seconds"),
-            cancel: token, max_snapshot_bytes: [@limits.fetch("max_capture_bytes"), 1 << 20].min)
-          mutation.call(name)
+          result = case name
+          when "tmux_capabilities" then capabilities(token)
+          when "tmux_snapshot" then snapshot(arguments, token)
+          when "tmux_capture" then capture_screen(arguments, token)
+          when "tmux_wait" then wait_for_observation(arguments, token)
+          when "tmux_run" then run_script(arguments, token)
+          else
+            mutation = Mutation.new(server: @server, arguments: arguments, timeout: @limits.fetch("request_timeout_seconds"),
+              cancel: token, max_snapshot_bytes: [@limits.fetch("max_capture_bytes"), 1 << 20].min)
+            mutation.call(name)
+          end
+          structured = {"ok" => true, "data" => result}
+          validate_response_size(structured)
+          tool.output_schema_value.validate_result(structured)
+          ::MCP::Tool::Response.new([{type: "text", text: "#{name} completed; structuredContent contains the result."}], structured_content: structured)
+        ensure
+          finish_request(token, cancellation, callback, primary: $!)
         end
-        structured = {"ok" => true, "data" => result}
-        validate_response_size(structured)
-        tool.output_schema_value.validate_result(structured)
-        ::MCP::Tool::Response.new([{type: "text", text: "#{name} completed; structuredContent contains the result."}], structured_content: structured)
       rescue ::MCP::Tool::InputSchema::ValidationError, JSON::JSONError, ArgumentError
         failure_response("invalid_input", "Input does not match the operation schema.")
       rescue CursorError, Observation::StaleCursor
         failure_response("stale_cursor", "The cursor is unknown, expired, or outside its captured result.")
-      rescue LibTmux::Error => error
+      rescue LibTmux::Error, SystemCallError, IOError => error
         code = {InvalidFilterError => "invalid_filter", FieldDecodeError => "decode_error",
           IncompleteSnapshotError => "incomplete_snapshot", Cancelled => "cancelled",
           DeadlineExceeded => "deadline", CapacityError => "capacity", TargetNotFoundError => "stale_target",
           CommandError => "command_failed", UnsupportedFeatureError => "unsupported", ClosedError => "closed",
           Observation::LostObservation => "observation_lost"}.fetch(error.class, "transport_error")
-        delivery = mutation ? mutation.delivery(error) : error.delivery
-        effects = if Catalog::MUTATIONS.include?(name)
+        delivery = error.respond_to?(:delivery) ? (mutation ? mutation.delivery(error) : error.delivery) : :possibly_sent
+        delivery = :observed if result
+        effects = if name == "tmux_run"
+          receipt = result && result["authorization"] || (error.run_receipt if error.respond_to?(:run_receipt))
+          delivery = error.run_delivery || delivery if error.respond_to?(:run_delivery)
+          completion = result && result["completion"] || (error.run_completion if error.respond_to?(:run_completion))
+          {"state" => receipt ? "known" : delivery == :not_sent ? "none" : "unknown", "authorization" => receipt,
+            "completion" => completion || {"state" => "unobserved"}}
+        elsif Catalog::MUTATIONS.include?(name)
           created = result && result["created"]
           {"state" => created ? "known" : delivery == :not_sent ? "none" : "unknown", "created" => created || []}
         end
         failure_response(code, "The operation could not establish its requested result.", delivery.to_s, effects: effects)
-      ensure
-        begin
-          cancellation&.off_cancel(callback) if callback
-        ensure
-          begin
-            token&.close
-          ensure
-            @calls.delete(token) if token
-            @calls_changed.signal if token
-          end
-        end
       end
 
       def inspect
@@ -161,6 +211,14 @@ module LibTmux
           end
         end
         errors << "admitted requests remain active" unless @calls.empty?
+        if @shells
+          begin
+            @shells.close(timeout: [deadline - clock, 0].max)
+          rescue Exception => error
+            interrupted ||= error if error.is_a?(::Async::Cancel)
+            errors << "shell enrollment retirement failed (#{error.class})"
+          end
+        end
         @captures.keys.each do |key|
           begin
             evict(key)
@@ -189,6 +247,78 @@ module LibTmux
       end
 
       private
+
+      def shell_request(cancellation)
+        unless Process.pid == @pid && Thread.current.equal?(@thread) && Fiber.scheduler.equal?(@scheduler)
+          raise ClosedError.new("MCP application belongs to another scheduler", phase: :admission)
+        end
+        raise UnsupportedFeatureError.new("shell enrollment is disabled by policy", phase: :admission) unless @enabled.include?("tmux_run")
+        raise ClosedError.new("MCP application is closed", phase: :admission) if @closed
+        raise CapacityError.new("request cleanup remains pending", phase: :admission) unless @retiring.empty?
+
+        token = Internal::Cancellation.new
+        @calls[token] = ::Async::Task.current
+        callback = cancellation&.on_cancel { token.cancel }
+        raise Cancelled.new("MCP request was cancelled", phase: :admission) if token.cancelled?
+
+        yield shell_registry, token
+      ensure
+        finish_request(token, cancellation, callback, primary: $!)
+      end
+
+      def finish_request(token, cancellation, callback, primary:)
+        return unless token || callback
+
+        retirement = RequestRetirement.new(token, cancellation, callback)
+        failure = nil
+        begin
+          retirement.close
+        rescue Exception => error
+          @retiring << retirement
+          details = ["request retirement failed (#{error.class})"]
+          if primary
+            ProcessIdentity.attach_cleanup(primary, details)
+          elsif error.is_a?(::Async::Cancel)
+            failure = error
+          else
+            failure = TransportError.new("request cleanup remains pending", phase: :retire, cleanup_errors: details)
+          end
+        ensure
+          @calls.delete(token) if token
+          @calls_changed.signal if token
+        end
+        raise failure, cause: nil if failure
+      end
+
+      def shell_registry
+        @shells ||= EnrollmentRegistry.new(server: @server, parent: @parent, max_enrollments: @limits.fetch("max_enrollments"))
+      end
+
+      def run_script(arguments, token)
+        stdout_limit, stderr_limit = arguments.fetch("stdout_limit", 65_536), arguments.fetch("stderr_limit", 65_536)
+        if 4096 + 6 * (stdout_limit + stderr_limit) > @limits.fetch("max_response_bytes")
+          raise CapacityError.new("authored output exceeds response reservation", phase: :admission)
+        end
+        target = arguments.fetch("target")
+        reference = @server.__send__(:with_bound_endpoint) do |_endpoint, pin|
+          unless target.fetch("generation") == pin.key
+            raise TargetNotFoundError.new("authored target belongs to another binding", phase: :admission)
+          end
+          EntityRef.__send__(:new, binding_key: pin.key, kind: :pane, id: target.fetch("id"))
+        end
+        result = shell_registry.run(reference, script: arguments.fetch("script"), timeout: @limits.fetch("request_timeout_seconds"),
+          cancel: token, stdout_limit: stdout_limit, stderr_limit: stderr_limit)
+        {"target" => target, "authorization" => result.receipt,
+          "completion" => {"state" => result.signal ? "signaled" : "exited", "exit_status" => result.exit_status, "signal" => result.signal},
+          "stdout" => run_bytes(result.stdout), "stderr" => run_bytes(result.stderr)}
+      end
+
+      def run_bytes(bytes)
+        text = bytes.dup.force_encoding(Encoding::UTF_8)
+        valid = text.valid_encoding?
+        {"encoding" => valid ? "utf-8" : "base64", "data" => valid ? text : [bytes].pack("m0"),
+          "bytes" => bytes.bytesize, "truncated" => false}
+      end
 
       def observation(arguments, cancel)
         if !@retiring.empty? || @observers.length >= @limits.fetch("max_observers")
@@ -270,10 +400,16 @@ module LibTmux
 
       def capabilities(cancel)
         snapshot = acquire(cancel)
+        observation = Observation.capabilities(snapshot.server_info.fetch(:version))
         {"endpoint" => @endpoint, "server_identity" => identity(snapshot), "enabled_tools" => @enabled,
           "criteria_schema" => FilterExpr.json_schema, "limits" => @limits,
           "owns_daemon" => false, "resource_subscriptions" => false,
-          "observation" => Observation.capabilities(snapshot.server_info.fetch(:version))}
+          "observation" => observation,
+          "authored_run" => {"availability" => observation.fetch("process_cursor"),
+            "shell_profile" => "zsh-5.9-zle", "enrollment" => "explicit_source",
+            "authorization" => "exact_generation_at_queue_grant", "stdin" => "closed",
+            "persistent_shell_changes" => false, "descendant_termination" => "unobserved",
+            "requirements" => observation.fetch("requirements") + ["explicit idle/empty ZLE enrollment", "installed Ruby/core helper dependencies"]}}
       end
 
       def snapshot(arguments, cancel)

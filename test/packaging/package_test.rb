@@ -82,10 +82,68 @@ class PackageTest < Minitest::Test
         output, status = Open3.capture2e(environment, Gem.ruby, "-e", source, import, chdir: directory)
         assert status.success?, "#{name} import failed: #{output}"
         assert_empty output, "#{name} import wrote output"
+        run_installed_shell_helper(environment, directory) if name == "libtmux-mcp"
         run_installed_examples(name, environment, directory)
         run_installed_type_consumer(name, environment, directory)
       end
     end
+  end
+
+  private
+
+  def run_installed_shell_helper(environment, directory)
+    source = <<~'RUBY'
+      require 'libtmux/mcp'
+      require 'libtmux/mcp/enrollment'
+      path = File.join(Dir.pwd, 'helper.sock')
+      listener = UNIXServer.new(path)
+      invitation = LibTmux::MCP.const_get(:EnrollmentRegistry)::Invitation.new(reference: nil, capture: nil, listener: listener, path: path)
+      _integration, _path, token, ruby, helper, load_path = invitation.shell_arguments
+      installed_home = File.realpath(ENV.fetch('GEM_HOME')) + File::SEPARATOR
+      raise 'helper is outside installed gem' unless File.realpath(helper).start_with?(installed_home)
+      poison = File.join(Dir.pwd, 'untrusted-ruby')
+      Dir.mkdir(poison)
+      Dir.mkdir(File.join(poison, 'libtmux'))
+      %w[socket.rb digest.rb libtmux/process.rb poison.rb].each do |name|
+        File.write(File.join(poison, name), "raise 'ambient Ruby dependency was loaded'\n")
+      end
+      script = "printf '%s\\n' \"$PWD\" \"$TMUX\" \"$TMUX_PANE\"; printf '\\000\\377' >&2; exit 9"
+      digest = Digest::SHA256.hexdigest(script)
+      run_id = 'a' * 32
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
+      command = ['/usr/bin/env', 'TMUX=literal $value;#', 'TMUX_PANE=%23', "RUBYOPT=-r#{poison}/poison", "RUBYLIB=#{poison}",
+        "GEM_HOME=#{poison}", "GEM_PATH=#{poison}", ruby, '--disable=rubyopt,gems', '-I', load_path, helper, [path].pack('m0'), token, deadline.to_s, run_id, digest, 'ready']
+      worker = Thread.new { LibTmux::Internal::ProcessExecutor.new.run(command, timeout: 0.5) }
+      begin
+        raise 'installed helper did not connect' unless IO.select([listener], nil, nil, 0.5)
+        peer = listener.accept
+        read_line = lambda do
+          line = +''.b
+          until line.end_with?("\n")
+            remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            raise 'installed helper response deadline' unless remaining.positive? && IO.select([peer], nil, nil, remaining)
+            line << peer.readpartial(1)
+          end
+          line.chomp
+        end
+        raise 'helper identity frame' unless read_line.call == "READY #{run_id} #{token} #{digest} #{Process.pid}"
+        peer.write("GRANT #{run_id} #{token} #{digest}\n")
+        raise 'helper grant frame' unless read_line.call == "AUTHORIZED #{run_id} #{token} #{digest}"
+        peer.write("SCRIPT #{run_id} #{token} #{digest} #{script.bytesize} 4096 4096\n#{script}")
+        expected = "#{Dir.pwd}\nliteral $value;#\n%23\n".b
+        raise 'helper native status' unless read_line.call == "RESULT #{run_id} #{token} #{digest} EXIT 9 #{expected.bytesize} 2"
+        raise 'helper output bytes' unless peer.read(expected.bytesize + 2) == expected + "\x00\xff".b
+      ensure
+        peer&.close
+        listener.close
+        File.unlink(path)
+        raise 'helper owner did not settle' unless worker.join(0.5)
+      end
+      raise 'helper failed' unless worker.value.success?
+    RUBY
+    output, status = Open3.capture2e(environment, Gem.ruby, '-W:no-experimental', '-e', source, chdir: directory)
+    assert status.success?, "installed authored helper closure failed: #{output}"
+    assert_empty output, 'installed authored helper wrote protocol data outside its socket'
   end
 
 end

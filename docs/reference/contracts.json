@@ -448,9 +448,11 @@
       "id": "mcp-application",
       "title": "MCP application",
       "methods": [
+        "LibTmux::MCP::Application#accept_shell",
         "LibTmux::MCP::Application#call",
         "LibTmux::MCP::Application#close",
         "LibTmux::MCP::Application#inspect",
+        "LibTmux::MCP::Application#invite_shell",
         "LibTmux::MCP::Application#sdk_server",
         "LibTmux::MCP::Application#tools",
         "LibTmux::MCP::Application.new"

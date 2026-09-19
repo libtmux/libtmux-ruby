@@ -32,11 +32,17 @@ module LibTmux
 
       def self.capabilities(version)
         parsed = /\A(\d+)\.(\d+)/.match(version)
-        conditional = /\A(?:x86_64|aarch64)-linux/.match?(RUBY_PLATFORM) && parsed && ([parsed[1].to_i, parsed[2].to_i] <=> [3, 3]) >= 0
+        native = case RUBY_PLATFORM
+        when /\A(?:x86_64|aarch64)-linux/
+          ["64-bit Linux with peer pidfds (kernel >= 6.6)", "same PID namespace and matching procfs"]
+        when /\A(?:x86_64|arm64)-darwin/
+          ["64-bit Darwin with kqueue NOTE_EXIT/NOTE_REAP", "fresh pinned-route daemon identity"]
+        end
+        conditional = native && Fiddle::SIZEOF_LONG == 8 && parsed && ([parsed[1].to_i, parsed[2].to_i] <=> [3, 3]) >= 0
         {"screen" => "bounded_rows", "history_continuity" => "unknown",
           "process_cursor" => conditional ? "conditional" : "unsupported",
-          "requirements" => ["tmux >= 3.3", "Linux x86_64/aarch64 with peer pidfds (kernel >= 6.6)",
-            "same PID namespace and matching procfs", "live pane process", "empty effective capture hook"],
+          "requirements" => ["tmux >= 3.3", *(native || ["supported 64-bit Linux or Darwin process identity backend"]),
+            "live pane process", "empty effective capture hook"],
           "wait_conditions" => %w[screen_contains process_exit]}
       end
 

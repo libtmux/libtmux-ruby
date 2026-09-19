@@ -466,18 +466,20 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#call](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L69) | `untyped` | [MCP application](behavior.md#mcp-application) |
-| [#close](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L135) | `nil` | [MCP application](behavior.md#mcp-application) |
-| [#inspect](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L131) | `::String` | [MCP application](behavior.md#mcp-application) |
-| [#sdk_server](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L59) | `untyped` | [MCP application](behavior.md#mcp-application) |
-| [#tools](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L16) | `::Array[untyped]` | [MCP application](behavior.md#mcp-application) |
-| [.new](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L18) | `::LibTmux::MCP::Application` | [MCP application](behavior.md#mcp-application) |
+| [#accept_shell](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L111) | `::LibTmux::EntityRef` | [MCP application](behavior.md#mcp-application) |
+| [#call](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L117) | `untyped` | [MCP application](behavior.md#mcp-application) |
+| [#close](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L185) | `nil` | [MCP application](behavior.md#mcp-application) |
+| [#inspect](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L181) | `::String` | [MCP application](behavior.md#mcp-application) |
+| [#invite_shell](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L104) | `::LibTmux::MCP::_ShellInvitation` | [MCP application](behavior.md#mcp-application) |
+| [#sdk_server](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L94) | `untyped` | [MCP application](behavior.md#mcp-application) |
+| [#tools](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L48) | `::Array[untyped]` | [MCP application](behavior.md#mcp-application) |
+| [.new](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L50) | `::LibTmux::MCP::Application` | [MCP application](behavior.md#mcp-application) |
 
 ## LibTmux::MCP::CLI
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#run](../../gems/libtmux-mcp/lib/libtmux/mcp/cli.rb#L21) | `::Integer` | [MCP CLI](behavior.md#mcp-cli) |
+| [#run](../../gems/libtmux-mcp/lib/libtmux/mcp/cli.rb#L23) | `::Integer` | [MCP CLI](behavior.md#mcp-cli) |
 | [.run](../../gems/libtmux-mcp/lib/libtmux/mcp/cli.rb#L9) | `::Integer` | [MCP CLI](behavior.md#mcp-cli) |
 
 ## LibTmux::MCP::StdioTransport
