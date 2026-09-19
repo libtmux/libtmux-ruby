@@ -92,6 +92,35 @@ class CreationTest < Minitest::Test
     end
   end
 
+  def test_global_and_hidden_environment_control_child_inheritance
+    LibTmuxTest::TmuxFixture.open do |fixture|
+      directory = File.dirname(fixture.socket_path)
+      listener = UNIXServer.new(File.join(directory, "environment"))
+      begin
+        LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
+          server.set_environment("ROOT", "global")
+          server.set_environment("CHILD", "global secret", hidden: true)
+          assert_equal "global", server.environment("ROOT")
+          assert_equal "global secret", server.environment("CHILD", hidden: true)
+          session = server.new_session(name: "environment", command: child_command(listener.path), cwd: directory)
+          assert_equal [File.realpath(directory), "global", nil, nil], receive(listener)
+          session.set_environment("ROOT", "session")
+          session.set_environment("LITERAL", "session secret", hidden: true)
+          assert_equal "session secret", session.environment("LITERAL", hidden: true)
+          session.new_window(name: "override", command: child_command(listener.path), cwd: directory)
+          assert_equal [File.realpath(directory), "session", nil, nil], receive(listener)
+          session.unset_environment("ROOT")
+          session.new_window(name: "fallback", command: child_command(listener.path), cwd: directory)
+          assert_equal [File.realpath(directory), "global", nil, nil], receive(listener)
+          server.unset_environment("CHILD")
+          assert_raises(LibTmux::CommandError) { server.environment("CHILD", hidden: true) }
+        end
+      ensure
+        listener.close
+      end
+    end
+  end
+
   private
 
   def child_command(path)

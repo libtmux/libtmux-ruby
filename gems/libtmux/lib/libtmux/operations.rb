@@ -127,7 +127,11 @@ module LibTmux
     end
 
     def builtin_spellings(*commands, budget:)
-      aliases = options(scope: :server).list(name: "command-alias", **budget.options).filter_map do |option|
+      inventory = options(scope: :server).list(name: "command-alias", **budget.options)
+      unless !inventory.empty? && inventory.all? { |option| option.name == "command-alias" && option.array? }
+        raise UnsupportedFeatureError.new("tmux command alias inventory is unavailable", phase: :admission)
+      end
+      aliases = inventory.filter_map do |option|
         option.raw.split("=", 2).first if option.present?
       end
       result = execute_typed(["list-commands", "-F", metadata_format(%w[command_list_name command_list_alias])], **budget.options)
