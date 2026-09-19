@@ -15,7 +15,7 @@ class CaptureSemanticsTest < Minitest::Test
       result = super
       return result unless argv.first == "list-commands" && argv.last == "capture-pane"
 
-      name, usage = LibTmux::Internal::Metadata.decode(result.stdout, fields: 2).first
+      name, usage = LibTmux::Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).first
       usage = usage.delete("MT")
       LibTmux::CommandResult.new(stdout: "#{name.bytesize}:#{name}#{usage.bytesize}:#{usage}\n",
         stderr: result.stderr, status: result.status, elapsed_seconds: result.elapsed_seconds,

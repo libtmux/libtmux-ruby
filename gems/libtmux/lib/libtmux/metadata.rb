@@ -7,7 +7,28 @@ module LibTmux
     module Metadata
       module_function
 
-      def decode(bytes, fields:, max_field_bytes: 1 << 20, max_bytes: 1 << 20, max_rows: 10_000)
+      def format(fields)
+        fields.map { |field| "\#{n:#{field}}:\#{q:#{field}}" }.join
+      end
+
+      # q doubles literal backslashes before tmux 3.5's VIS_NOSLASH output
+      # escaping. Decode that transport layer before using original byte lengths.
+      def unquote(value)
+        escapes = {"a" => "\a", "b" => "\b", "t" => "\t", "n" => "\n", "v" => "\v",
+          "f" => "\f", "r" => "\r", "s" => " ", "E" => "\e"}
+        value.b.gsub(/\\([0-7]{3}|.)/n) do
+          escaped = Regexp.last_match(1)
+          if escaped.match?(/\A[0-7]{3}\z/)
+            byte = escaped.to_i(8)
+            protocol_error("invalid metadata byte escape") if byte > 255
+            byte.chr(Encoding::BINARY)
+          else
+            escapes.fetch(escaped, escaped)
+          end
+        end
+      end
+
+      def decode(bytes, fields:, max_field_bytes: 1 << 20, max_bytes: 1 << 20, max_rows: 10_000, quoted: false)
         unless bytes.is_a?(String) && fields.is_a?(Integer) && fields.between?(1, 64)
           raise ArgumentError, "metadata requires String bytes and between 1 and 64 fields"
         end
@@ -16,7 +37,7 @@ module LibTmux
         end
         capacity_error("metadata output exceeds its byte limit") if bytes.bytesize > max_bytes
 
-        bytes = bytes.b
+        bytes = quoted ? unquote(bytes) : bytes.b
         rows = []
         offset = 0
         while offset < bytes.bytesize

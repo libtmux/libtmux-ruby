@@ -9,7 +9,7 @@ class OperationsTest < Minitest::Test
     with_server do |server, _fixture|
       session = server.list_sessions.fetch(0)
       pane = session.list_panes.fetch(0)
-      value = "first\n\#{pane_id};\\\n\xff\t'\"$`".b
+      value = "first\n\#{pane_id};\\\n\\377\xff\\001\x01\t'\"$`".b
       server.options(scope: :session).set("@literal", value)
       inherited = session.options.get("@literal")
       assert_equal value.b, inherited.raw

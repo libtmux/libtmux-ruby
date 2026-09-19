@@ -65,7 +65,7 @@ module LibTmux
 
     def list_buffers(timeout: 5.0, cancel: nil)
       result = execute_typed(["list-buffers", "-F", metadata_format(%w[buffer_name buffer_size])], timeout: timeout, cancel: cancel)
-      Internal::Metadata.decode(result.stdout, fields: 2).map do |name, size|
+      Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).map do |name, size|
         {name: name, size: decode_integer(size, "buffer size")}.freeze
       end.freeze
     end
@@ -93,7 +93,7 @@ module LibTmux
     def list_clients(timeout: 5.0, cancel: nil)
       fields = %w[client_name client_pid client_created client_tty session_id client_control_mode]
       result = execute_typed(["list-clients", "-F", metadata_format(fields)], timeout: timeout, cancel: cancel)
-      Internal::Metadata.decode(result.stdout, fields: fields.length).map do |name, pid, created, tty, session_id, control|
+      Internal::Metadata.decode(result.stdout, fields: fields.length, quoted: true).map do |name, pid, created, tty, session_id, control|
         unless ["0", "1"].include?(control)
           raise FieldDecodeError.new("client control mode is malformed", phase: :decode, delivery: :observed)
         end
@@ -131,7 +131,7 @@ module LibTmux
         option.raw.split("=", 2).first if option.present?
       end
       result = execute_typed(["list-commands", "-F", metadata_format(%w[command_list_name command_list_alias])], **budget.options)
-      catalog = Internal::Metadata.decode(result.stdout, fields: 2).to_h
+      catalog = Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).to_h
       commands.uniq.to_h do |name|
         candidates = [name, catalog[name], *(1...name.length).map { |length| name[0, length] }.reverse].compact
         spelling = candidates.find do |candidate|
@@ -178,7 +178,7 @@ module LibTmux
     end
 
     def metadata_format(fields)
-      fields.map { |field| "\#{n:#{field}}:\#{#{field}}" }.join
+      Internal::Metadata.format(fields)
     end
 
     def decode_integer(value, label)
@@ -190,7 +190,7 @@ module LibTmux
 
     def require_command_flag(command, flag, budget:)
       result = execute_typed(["list-commands", "-F", metadata_format(%w[command_list_name command_list_usage]), command], **budget.options)
-      commands = Internal::Metadata.decode(result.stdout, fields: 2).to_h
+      commands = Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).to_h
       usage = commands.fetch(command) do
         raise UnsupportedFeatureError.new("tmux does not advertise #{command}", phase: :admission)
       end
@@ -201,7 +201,7 @@ module LibTmux
 
     def acquire_links(flags, timeout: 5.0, cancel: nil)
       result = execute_typed(["list-windows", *flags, "-F", metadata_format(%w[session_id window_index window_id])], timeout: timeout, cancel: cancel)
-      Internal::Metadata.decode(result.stdout, fields: 3).map do |session_id, index, id|
+      Internal::Metadata.decode(result.stdout, fields: 3, quoted: true).map do |session_id, index, id|
         ref = EntityRef.__send__(:new, binding_key: @pin.key, kind: :window_link, id: id,
           session_id: session_id, index: decode_integer(index, "window index"))
         WindowLink.__send__(:new, self, ref)
@@ -221,12 +221,13 @@ module LibTmux
 
     def read_environment(flags, name, hidden:, timeout: 5.0, cancel: nil)
       name = environment_name(name)
-      result = execute_typed(["show-environment", *flags, *(hidden ? ["-h"] : []), "--", name], timeout: timeout, cancel: cancel)
-      return nil if result.stdout == "-#{name}\n"
-      unless result.stdout.start_with?("#{name}=") && result.stdout.end_with?("\n")
+      result = execute_typed(["show-environment", "-s", *flags, *(hidden ? ["-h"] : []), "--", name], timeout: timeout, cancel: cancel)
+      return nil if result.stdout == "unset #{name};\n"
+      prefix, suffix = "#{name}=\"", "\"; export #{name};\n"
+      unless result.stdout.start_with?(prefix) && result.stdout.end_with?(suffix)
         raise ProtocolError.new("tmux returned an unexpected environment record", phase: :decode, delivery: :observed)
       end
-      result.stdout.byteslice(name.bytesize + 1, result.stdout.bytesize - name.bytesize - 2).freeze
+      Internal::Metadata.unquote(result.stdout.byteslice(prefix.bytesize, result.stdout.bytesize - prefix.bytesize - suffix.bytesize)).freeze
     end
   end
 
