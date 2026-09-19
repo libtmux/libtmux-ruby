@@ -3,12 +3,12 @@
 This repository contains the bootstrap for libtmux for Ruby. It has no library
 implementation, package manifest, test suite, or release workflow yet.
 
-Read [AGENTS.md](AGENTS.md) for change discipline and [WRITING.md](WRITING.md)
+Read [AGENTS.md](../AGENTS.md) for change discipline and [WRITING.md](WRITING.md)
 for prose and commit conventions.
 
 ## Setup
 
-[.tool-versions](.tool-versions) pins the development interpreter. It does not
+[.tool-versions](../.tool-versions) pins the development interpreter. It does not
 establish a supported Ruby version range.
 
 Install the pinned tool with mise:
