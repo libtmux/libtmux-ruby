@@ -293,7 +293,7 @@ module LibTmux
           end
           unless @child.observed? || @child.observation_error.is_a?(Errno::ECHILD)
             signal("TERM", errors)
-            @child.wait_observed(@cleanup_timeout / 2)
+            # Reserve the cleanup budget for reaping; timer grace can overrun it.
             signal("KILL", errors) unless @child.observed?
           end
           @child.finish_signalling

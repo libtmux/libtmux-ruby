@@ -30,6 +30,12 @@ not a successful close. A cancelled mutating request can already have effects.
 A timed-out WAIT lock request can still acquire its queued remote lock after
 a later unlock; retiring the client does not roll back tmux's command queue.
 
+Client cancellation sends TERM, then KILL if exit is still unobserved, and
+uses the remaining cleanup deadline to reap the owned child. There is no
+scheduled grace period for a TERM handler. This policy applies to owned
+command clients; cancelling their requests does not terminate borrowed panes
+or daemons.
+
 Workspace compensation is explicit. It removes only a positively created
 session whose current windows and panes all belong to the creation ledger,
 checked in the same tmux command turn. A borrowed window or pane moved into

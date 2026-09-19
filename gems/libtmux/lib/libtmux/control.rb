@@ -818,9 +818,6 @@ module LibTmux
       attempt.call("control input close") { @input.close if @input && !@input.closed? }
       if @pid
         attempt.call("control client termination") { signal("TERM") }
-        attempt.call("control exit observer join") do
-          @child.wait_observed([deadline - clock, 0.05].min.clamp(0, 0.05))
-        end
         attempt.call("control client forced termination") { signal("KILL") } unless @child.observed?
         @child.finish_signalling
         attempt.call("control exit observer join") do

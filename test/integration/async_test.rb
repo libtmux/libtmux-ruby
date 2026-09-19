@@ -122,12 +122,14 @@ class AsyncTest < Minitest::Test
   def test_repeated_caller_cancellation_reaps_a_child_ignoring_term
     with_scope(cleanup_timeout: 0.08) do |scope, parent, fixture|
       listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "async-cancel"))
+      reaping, notify = IO.pipe
+      release = Queue.new
+      observer = nil
       code = <<~RUBY
         require "socket"
         UNIXSocket.open(ARGV.fetch(0)) do |io|
           io.sync = true
-          notification = io.dup
-          trap("TERM") { notification.syswrite("term\\n") }
+          trap("TERM") {}
           io.write(Process.pid.to_s + "\\n")
           io.read(1)
         end
@@ -139,9 +141,18 @@ class AsyncTest < Minitest::Test
       end
       peer = listener.accept
       pid = Integer(peer.gets, 10)
+      trace = TracePoint.new(:c_call) do |event|
+        next unless event.method_id == :wait2 && !observer
+
+        observer = Thread.current
+        notify.syswrite("reaping\n")
+        release.pop
+      end
+      trace.enable
       request.cancel
-      assert_equal "term\n", peer.gets
+      assert_equal "reaping\n", reaping.gets
       request.cancel
+      release << true
       failure = request.wait
       assert_instance_of LibTmux::Cancelled, failure
       assert_equal :possibly_sent, failure.delivery
@@ -150,6 +161,11 @@ class AsyncTest < Minitest::Test
       assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
       assert scope.server.run(["has-session", "-t", "$0"]).success?
     ensure
+      trace&.disable
+      release << true if release
+      observer&.join(0.5)
+      reaping&.close
+      notify&.close
       peer&.close
       listener&.close
     end
@@ -176,14 +192,24 @@ class AsyncTest < Minitest::Test
   def test_map_failure_survives_repeated_cancellation_while_siblings_retire
     with_scope(cleanup_timeout: 0.08) do |scope, parent, fixture|
       listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "async-map-error"))
+      reaping, notify = IO.pipe
+      release = Queue.new
+      observer = nil
       original = RuntimeError.new("first map failure")
       peer = pid = nil
+      trace = TracePoint.new(:c_call) do |event|
+        next unless event.method_id == :wait2 && !observer
+
+        observer = Thread.current
+        notify.syswrite("reaping\n")
+        release.pop
+      end
+      trace.enable
       code = <<~RUBY
         require "socket"
         UNIXSocket.open(ARGV.fetch(0)) do |io|
           io.sync = true
-          notification = io.dup
-          trap("TERM") { notification.syswrite("term\\n") }
+          trap("TERM") {}
           io.write(Process.pid.to_s + "\\n")
           io.read(1)
         end
@@ -196,9 +222,11 @@ class AsyncTest < Minitest::Test
             peer = listener.accept
             pid = Integer(peer.gets, 10)
             parent.async do
-              assert_equal "term\n", peer.gets
+              assert_equal "reaping\n", reaping.gets
               parent.cancel
               parent.cancel
+            ensure
+              release << true
             end
             raise original
           end
@@ -208,6 +236,11 @@ class AsyncTest < Minitest::Test
       assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
       assert scope.server.run(["has-session", "-t", "$0"]).success?
     ensure
+      trace&.disable
+      release << true if release
+      observer&.join(0.5)
+      reaping&.close
+      notify&.close
       peer&.close
       listener&.close
     end

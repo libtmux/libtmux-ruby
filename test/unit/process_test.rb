@@ -206,29 +206,40 @@ class ProcessExecutorTest < Minitest::Test
   def test_repeated_thread_cancellation_does_not_replace_the_first_failure
     original = RuntimeError.new("first cancellation")
     later = RuntimeError.new("cleanup cancellation")
+    release = Queue.new
+    observer = nil
     with_child_readiness do |ready, environment|
+      trace = TracePoint.new(:c_call) do |event|
+        next unless event.method_id == :wait2 && !observer
+
+        observer = Thread.current
+        ready.syswrite("reaping\n")
+        release.pop
+      end
+      trace.enable
       worker = task do
         executor(cleanup_timeout: 0.15).run(ruby(<<~RUBY), env: environment)
           input, output = IO.pipe
-          trap('TERM') do
-            File.write(ENV.fetch('READY'), "terminating\n")
-            input.read(1)
-          end
+          trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input.read(1)
         RUBY
       end
       pid = Integer(read_event(ready), 10)
       worker.raise(original)
-      assert_equal "terminating", read_event(ready)
+      assert_equal "reaping", read_event(ready)
       worker.raise(later)
+      release << true
       assert worker.join(0.5), "repeated cancellation stranded cleanup"
 
       assert_same original, worker.value
       assert_reaped(pid)
     ensure
+      trace&.disable
+      release << true
       worker&.kill
       worker&.join(0.5)
+      observer&.join(0.5)
     end
   end
 
