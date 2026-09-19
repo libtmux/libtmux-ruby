@@ -1,0 +1,35 @@
+module LibTmux
+  class FilterExpr
+    PROFILE: String
+    VERSION: Integer
+    attr_reader entity: Symbol
+    def self.build: (Symbol, ?untyped, **untyped) -> FilterExpr
+    def self.from_json: (String) -> FilterExpr
+    def self.json_schema: () -> Hash[String, untyped]
+    def and: (FilterExpr) -> FilterExpr
+    def or: (FilterExpr) -> FilterExpr
+    def not: () -> FilterExpr
+    def call: (untyped) -> bool
+    alias === call
+    def to_proc: () -> ^(untyped) -> bool
+    def to_h: () -> Hash[String, untyped]
+    def to_json: (*untyped) -> String
+    def inspect: () -> String
+  end
+
+  module SessionWhere
+    def self.build: (?untyped, **untyped) -> FilterExpr
+  end
+  module WindowWhere
+    def self.build: (?untyped, **untyped) -> FilterExpr
+  end
+  module PaneWhere
+    def self.build: (?untyped, **untyped) -> FilterExpr
+  end
+  module WindowLinkWhere
+    def self.build: (?untyped, **untyped) -> FilterExpr
+  end
+  module ClientWhere
+    def self.build: (?untyped, **untyped) -> FilterExpr
+  end
+end

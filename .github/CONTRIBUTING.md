@@ -1,7 +1,8 @@
 # Contributing
 
-This repository contains the bootstrap for libtmux for Ruby. It has no library
-implementation, package manifest, test suite, or release workflow yet.
+This repository contains the unreleased libtmux gem suite. Installed-import
+tests establish package boundaries; consumer APIs, documentation recipes and
+the supported-version matrix remain implementation work.
 
 Read [AGENTS.md](../AGENTS.md) for change discipline and [WRITING.md](WRITING.md)
 for prose and commit conventions.
@@ -17,14 +18,65 @@ Install the pinned tool with mise:
 $ mise install
 ```
 
-No dependency installation or build command exists at this stage. Document
-those commands here when the corresponding tooling is added.
+Keep development dependencies in the ignored local bundle directory:
+
+```console
+$ mise exec -- bundle config set --local path vendor/bundle
+```
+
+Install the development bundle outside the test loops:
+
+```console
+$ mise exec -- bundle install
+```
+
+The root Gemfile.lock records the development dependency set for all four
+gems. Gem specifications declare each artifact's runtime requirements.
+Declared Ruby and dependency ranges remain candidates until their matrix
+cells pass; a successful bundle install establishes dependency resolution.
 
 ## Checks
 
-For bootstrap documentation and configuration changes, review the diff, check
-relative links and symlink targets, and confirm that ignore rules leave source
-and shared configuration visible to Git.
+Run a focused unit test through the timed inner loop:
+
+```console
+$ /usr/bin/time -p mise exec -- bundle exec ruby test/unit/process_test.rb
+```
+
+Run all unit tests and Ruby syntax checks in the mid loop:
+
+```console
+$ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check mid
+```
+
+Run unit, isolated tmux integration, installed-artifact recipes, rendered
+documentation and RBS declaration checks in the outer loop:
+
+```console
+$ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check outer
+```
+
+The same runner accepts `integration`, `packaging` and `types` separately.
+It fails when a requested suite has no tests. RBS validation checks the
+shipped declarations; it does not prove implementation typing or complete
+signature coverage. The outer packaging test builds artifacts, copies only
+their declared dependency closure from the installed bundle, then installs
+the project gems into temporary gem homes and imports them outside the
+checkout. It uses no network and preserves the host gem installation.
+
+Build distributable artifacts locally:
+
+```console
+$ mise exec -- bundle exec rake build
+```
+
+Artifacts appear in ignored `pkg/`. No publication happens during the build.
+The mid loop checks generated fields/schema/signatures and the executable
+example manifest. The outer loop installs each declared dependency closure,
+runs the copied recipes outside the checkout, renders YARD and Markdown, and
+checks local links and fragments. External URL availability is separate.
+The full support matrix, benchmarks and implementation type coverage remain
+separate required gates; one local outer pass does not establish them.
 
 Check unstaged changes for whitespace errors:
 
@@ -63,7 +115,7 @@ full sweep below one hour; reduce the workload if needed.
 
 ## Testing tmux behavior
 
-When implementation work begins, verify tmux behavior against a real server.
+Verify tmux behavior against a real server.
 Use focused unit tests for code that does not need tmux. A bug fix should carry
 a regression test shown to fail for the original defect. Avoid tests that
 only repeat implementation details.

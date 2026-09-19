@@ -1,0 +1,98 @@
+# frozen_string_literal: true
+
+require "json"
+require "pathname"
+
+# Maintainer tool: one manifest owns executable discovery and source excerpts.
+class ExampleManifest
+  Error = Class.new(StandardError)
+  PACKAGES = %w[libtmux libtmux-async libtmux-mcp libtmux-workspace].freeze
+  MARKER = /<!-- example: ([a-z0-9_\/-]+) -->\n(.*?)<!-- \/example -->/m
+  attr_reader :root, :data
+
+  def initialize(root)
+    @root = File.expand_path(root)
+    @data = JSON.parse(File.read(File.join(root, "examples/manifest.json")))
+  end
+
+  def check(write: false)
+    raise Error, "unsupported example manifest" unless data.fetch("version") == 1
+    programs = data.fetch("programs")
+    duplicates!(programs.map { |entry| entry.fetch("id") }, "program IDs")
+    programs.each do |entry|
+      raise Error, "unknown package for example: #{entry.fetch('id')}" unless PACKAGES.include?(entry.fetch("gem"))
+      unless /\A[a-z][a-z0-9_]*\z/.match?(entry.fetch("id")) && /\Aexamples\/.+\.rb\z/.match?(entry.fetch("path"))
+        raise Error, "invalid executable example entry"
+      end
+    end
+    declared = programs.map { |entry| entry.fetch("path") } + data.fetch("support")
+    duplicates!(declared, "example paths")
+    discovered = Dir.glob("examples/**/*", base: root).select { |path| File.file?(File.join(root, path)) } - ["examples/manifest.json"]
+    raise Error, "unlisted example files: #{(discovered - declared).join(', ')}" unless (discovered - declared).empty?
+    raise Error, "missing example files: #{(declared - discovered).join(', ')}" unless (declared - discovered).empty?
+    declared.each { |path| safe_path(path) }
+    snippets = data.fetch("snippets")
+    duplicates!(snippets.map { |entry| entry.fetch("id") }, "snippet IDs")
+    expected = snippets.to_h do |entry|
+      raise Error, "snippet source is not a declared example" unless declared.include?(entry.fetch("source"))
+      source = File.read(safe_path(entry.fetch("source")))
+      if entry["region"]
+        region = Regexp.escape(entry.fetch("region"))
+        matches = source.scan(/^\s*# docs:begin #{region}\n(.*?)^\s*# docs:end #{region}\n/m)
+        raise Error, "snippet requires exactly one source region: #{entry.fetch('id')}" unless matches.length == 1
+        source = matches.first.first
+        indentation = source.lines.reject { |line| line.strip.empty? }.map { |line| line[/\A */].size }.min || 0
+        source = source.lines.map { |line| line.sub(/\A {0,#{indentation}}/, "") }.join
+      end
+      [entry.fetch("id"), "```#{entry.fetch('language')}\n#{source.chomp}\n```\n"]
+    end
+    documents = Dir.glob(["README.md", "gems/*/README.md", "docs/**/*.md"], base: root).sort
+    unless documents == data.fetch("documents").sort
+      raise Error, "document discovery differs from manifest"
+    end
+    used = []
+    documents.each do |path|
+      content = File.read(safe_path(path))
+      rendered = content.gsub(MARKER) do
+        id, original = Regexp.last_match(1), Regexp.last_match(2)
+        replacement = expected.fetch(id) { raise Error, "unknown documented snippet: #{id}" }
+        used << id
+        raise Error, "excerpt differs from source: #{path} #{id}" unless write || original == replacement
+        "<!-- example: #{id} -->\n#{replacement}<!-- /example -->"
+      end
+      remainder = rendered.gsub(MARKER, "")
+      if remainder.match?(/^```(?:ruby|yaml|json)\s*$/)
+        raise Error, "unregistered source excerpt: #{path}"
+      end
+      File.write(safe_path(path), rendered) if write && content != rendered
+    end
+    raise Error, "undocumented snippets: #{(expected.keys - used).join(', ')}" unless (expected.keys - used).empty?
+    true
+  rescue KeyError, JSON::ParserError => error
+    raise Error, "malformed example manifest (#{error.class})"
+  end
+
+  private
+
+  def safe_path(path)
+    raise Error, "invalid manifest path" unless path.is_a?(String) && !Pathname.new(path).absolute?
+    full = File.expand_path(path, root)
+    raise Error, "manifest path escapes repository" unless full.start_with?(root + File::SEPARATOR)
+    full
+  end
+
+  def duplicates!(values, label)
+    raise Error, "duplicate #{label}" unless values.uniq.length == values.length
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  abort "usage: ruby scripts/examples [--check|--write]" unless ARGV.empty? || [%w[--check], %w[--write]].include?(ARGV)
+  begin
+    manifest = ExampleManifest.new(File.expand_path("..", __dir__))
+    manifest.check(write: ARGV == ["--write"])
+    puts "Examples: #{manifest.data.fetch('programs').length} programs; source excerpts current"
+  rescue ExampleManifest::Error => error
+    abort error.message
+  end
+end

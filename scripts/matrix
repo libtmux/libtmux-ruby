@@ -1,0 +1,127 @@
+# frozen_string_literal: true
+
+require "json"
+require "optparse"
+require "digest"
+require "fileutils"
+require "open3"
+
+module CompatibilityMatrix
+  RUBIES = %w[3.3.12 3.4.10 4.0.7].freeze
+  TMUXES = %w[3.2a 3.3a 3.4 3.5a 3.6 3.7c].freeze
+  SYSTEMS = %w[linux macos].freeze
+  ROOT = File.expand_path("..", __dir__)
+
+  def self.cells
+    SYSTEMS.product(RUBIES, TMUXES).map do |os, ruby, tmux|
+      {"id" => [os, ruby, tmux].join("/"), "os" => os, "ruby" => ruby, "tmux" => tmux, "status" => "UNVERIFIED"}
+    end
+  end
+
+  def self.digest
+    names, status = Open3.capture2("git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", chdir: ROOT)
+    raise "could not enumerate source files" unless status.success?
+
+    digest = Digest::SHA256.new
+    names.split("\0").uniq.sort.each do |name|
+      path = File.join(ROOT, name)
+      digest << name << "\0" << File.binread(path) << "\0" if File.file?(path)
+    end
+    digest.hexdigest
+  end
+
+  def self.execute(cell, rubies, tmuxes, directory)
+    host = RUBY_PLATFORM.include?("linux") ? "linux" : RUBY_PLATFORM.include?("darwin") ? "macos" : "unsupported"
+    return cell.merge("status" => "MISSING_RUNNER") unless host == cell.fetch("os")
+
+    ruby, tmux = rubies[cell.fetch("ruby")], tmuxes[cell.fetch("tmux")]
+    unless [ruby, tmux].all? { |path| path && File.file?(path) && File.executable?(path) }
+      return cell.merge("status" => "MISSING_TOOLCHAIN")
+    end
+    $LOAD_PATH.unshift(File.join(ROOT, "gems/libtmux/lib"))
+    require "libtmux/process"
+    base = defined?(Bundler) ? Bundler.unbundled_env : ENV.to_h
+    environment = (ENV.keys - base.keys).to_h { |key| [key, nil] }.merge(base)
+    environment.merge!("PATH" => [File.dirname(ruby), File.dirname(tmux), base.fetch("PATH", "")].join(File::PATH_SEPARATOR),
+      "LIBTMUX_TEST_TMUX" => tmux, "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile"), "BUNDLE_FROZEN" => "true")
+    executor = LibTmux::Internal::ProcessExecutor.new(stdout_limit: 16 << 20, stderr_limit: 4 << 20)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    ruby_identity = executor.run([ruby, "--disable=gems", "-e", "print RUBY_VERSION"], env: environment).text
+    tmux_identity = executor.run([tmux, "-V"], env: environment).text.strip
+    unless ruby_identity == cell.fetch("ruby") && tmux_identity == "tmux #{cell.fetch('tmux')}"
+      return cell.merge("status" => "WRONG_TOOLCHAIN", "observed_ruby" => ruby_identity, "observed_tmux" => tmux_identity)
+    end
+    result = executor.run([ruby, "-S", "bundle", "exec", ruby, "scripts/check", "outer"], env: environment, timeout: 300)
+    log = cell.fetch("id").tr("/", "-") + ".log"
+    File.binwrite(File.join(directory, log), result.stdout + result.stderr)
+    summaries = result.stdout.scan(/(\d+) runs, (\d+) assertions, (\d+) failures, (\d+) errors, (\d+) skips/)
+    skipped = summaries.any? { |row| row.last.to_i.positive? }
+    status = !result.success? ? "FAIL" : skipped ? "INCOMPLETE" : summaries.length < 3 ? "INCOMPLETE" : "PASS"
+    cell.merge("status" => status, "exit_status" => result.status.exitstatus, "log" => log,
+      "observed_ruby" => ruby_identity, "observed_tmux" => tmux_identity,
+      "ruby_sha256" => Digest::SHA256.file(ruby).hexdigest, "tmux_sha256" => Digest::SHA256.file(tmux).hexdigest,
+      "suites" => summaries.map { |row| %w[tests assertions failures errors skips].zip(row.map(&:to_i)).to_h },
+      "whole_monotonic_seconds" => (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(3))
+  rescue StandardError => error
+    cell.merge("status" => "FAIL", "error_class" => error.class.name)
+  end
+
+  def self.run(arguments)
+    options = {rubies: {}, tmuxes: {}, directory: File.join(ROOT, "build/matrix")}
+    parser = OptionParser.new do |args|
+      args.banner = "Usage: ruby scripts/matrix [--plan | --run | --merge DIR] [options]"
+      args.on("--plan", "Print all 36 required cells without executing") { options[:plan] = true }
+      args.on("--run", "Run available local cells; retain all missing cells") { options[:run] = true }
+      args.on("--cell ID", "Limit execution to os/ruby/tmux; other cells remain visible") { |value| options[:cell] = value; options[:run] = true }
+      args.on("--ruby VERSION=PATH", "Explicit interpreter; repeat for local matrix") { |value| key, path = value.split("=", 2); options[:rubies][key] = path && File.expand_path(path) }
+      args.on("--tmux VERSION=PATH", "Explicit tmux binary; repeat for local matrix") { |value| key, path = value.split("=", 2); options[:tmuxes][key] = path && File.expand_path(path) }
+      args.on("--output DIR", "JSON report and per-cell logs") { |value| options[:directory] = File.expand_path(value) }
+      args.on("--merge DIR", "Merge cell reports without omitting missing or failed cells") { |value| options[:merge] = File.expand_path(value) }
+      args.on("--require-all", "Exit unsuccessfully unless every required cell passes") { options[:require_all] = true }
+    end
+    parser.parse!(arguments)
+    raise ArgumentError, "unexpected arguments" unless arguments.empty?
+    raise ArgumentError, "unknown cell" if options[:cell] && !cells.any? { |cell| cell.fetch("id") == options[:cell] }
+    raise ArgumentError, "unknown Ruby version" unless (options[:rubies].keys - RUBIES).empty?
+    raise ArgumentError, "unknown tmux version" unless (options[:tmuxes].keys - TMUXES).empty?
+    fingerprint = digest
+    report_cells = cells
+    if options[:merge]
+      inputs = Dir[File.join(options[:merge], "**/matrix.json")].sort.map { |path| JSON.parse(File.read(path)) }
+      raise ArgumentError, "matrix reports use different source digests" unless inputs.all? { |input| input.fetch("source_digest") == fingerprint }
+      report_cells = cells.map do |cell|
+        evidence = inputs.flat_map { |input| input.fetch("cells") }.select do |item|
+          item.fetch("id") == cell.fetch("id") && item.fetch("status") != "UNVERIFIED"
+        end
+        evidence.find { |item| item.fetch("status") != "PASS" } || evidence.first || cell
+      end
+    elsif options[:run]
+      FileUtils.mkdir_p(options[:directory])
+      Dir.chdir(ROOT) do
+        report_cells = report_cells.map do |cell|
+          options[:cell] && cell.fetch("id") != options[:cell] ? cell : execute(cell, options[:rubies], options[:tmuxes], options[:directory])
+        end
+      end
+    end
+    changed = fingerprint != digest
+    report_cells.each { |cell| cell["status"] = "STALE_SOURCE" if changed && cell["status"] == "PASS" }
+    report = {"required_cells" => 36, "source_digest" => fingerprint,
+      "status" => report_cells.all? { |cell| cell.fetch("status") == "PASS" } ? "PASS" : "PARTIAL", "cells" => report_cells}
+    json = JSON.pretty_generate(report) + "\n"
+    if options[:run] || options[:merge]
+      FileUtils.mkdir_p(options[:directory])
+      File.write(File.join(options[:directory], "matrix.json"), json)
+    end
+    puts json
+    required = options[:require_all] || (!options[:cell] && options[:run]) || options[:merge]
+    return report.fetch("status") == "PASS" ? 0 : 1 if required
+    return report_cells.find { |cell| cell.fetch("id") == options[:cell] }.fetch("status") == "PASS" ? 0 : 1 if options[:cell]
+
+    0
+  rescue ArgumentError, OptionParser::ParseError => error
+    warn "Matrix configuration error: #{error.message}"
+    2
+  end
+end
+
+exit CompatibilityMatrix.run(ARGV) if $PROGRAM_NAME == __FILE__

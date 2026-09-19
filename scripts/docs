@@ -1,0 +1,122 @@
+# frozen_string_literal: true
+
+require "cgi"
+require "fileutils"
+require "pathname"
+require "tmpdir"
+require "uri"
+require "open3"
+load File.expand_path("examples", __dir__) unless defined?(ExampleManifest)
+
+class DocumentationSite
+  Error = Class.new(StandardError)
+  REFERENCES = /<(?:a|link|script|img)\b[^>]*?\b(?:href|src)=["']([^"']+)["']/i
+
+  def self.validate(directory)
+    directory = File.expand_path(directory)
+    html = Dir[File.join(directory, "**/*.html")].to_h { |path| [path, File.read(path)] }
+    raise Error, "no rendered documentation" if html.empty?
+    anchors = html.transform_values { |body| body.scan(/\b(?:id|name)=["']([^"']+)["']/).flatten }
+    html.each do |path, body|
+      body.scan(REFERENCES).flatten.each do |reference|
+        reference = CGI.unescapeHTML(reference)
+        next if reference.match?(/\A(?:[a-z][a-z0-9+.-]*:|\/\/)/i)
+        location, fragment = reference.split("#", 2)
+        location = URI::DEFAULT_PARSER.unescape(location.split("?", 2).first.to_s)
+        target = location.empty? ? path : File.expand_path(location, File.dirname(path))
+        unless target.start_with?(directory + "/") && File.file?(target)
+          raise Error, "missing destination: #{relative(path, directory)} -> #{reference}"
+        end
+        if fragment && !fragment.empty? && anchors.key?(target) &&
+            !anchors.fetch(target).include?(URI::DEFAULT_PARSER.unescape(fragment))
+          raise Error, "missing fragment: #{relative(path, directory)} -> #{reference}"
+        end
+      end
+    end
+    html.length
+  end
+
+  def self.relative(path, root)
+    Pathname.new(path).relative_path_from(Pathname.new(root)).to_s
+  end
+
+  def initialize(root)
+    @root = File.expand_path(root)
+  end
+
+  def build(directory)
+    require "yard"
+    manifest = ExampleManifest.new(@root)
+    manifest.check
+    FileUtils.mkdir_p(directory)
+    files = manifest.data.fetch("documents") + %w[AGENTS.md .github/CONTRIBUTING.md .github/WRITING.md]
+    files.each do |file|
+      source = File.read(File.join(@root, file))
+      body = YARD::Templates::Helpers::Markup::HybridMarkdown.new(source).to_html
+      seen = Hash.new(0)
+      body = body.gsub(/<h([1-6])\b[^>]*>(.*?)<\/h\1>/m) do
+        level, text = Regexp.last_match(1), Regexp.last_match(2)
+        id = CGI.unescapeHTML(text.gsub(/<[^>]*>/, "")).downcase.gsub(/[^\p{Alnum}_\- ]/, "").tr(" ", "-")
+        count = seen[id]
+        seen[id] += 1
+        id += "-#{count}" unless count.zero?
+        "<h#{level} id=\"#{CGI.escapeHTML(id)}\">#{text}</h#{level}>"
+      end
+      body = body.gsub(/href="([^"#?]+)\.md([#?][^"]*)?"/) { "href=\"#{Regexp.last_match(1)}.html#{Regexp.last_match(2)}\"" }
+      output = File.join(directory, file.sub(/\.md\z/, ".html"))
+      FileUtils.mkdir_p(File.dirname(output))
+      navigation = self.class.relative(File.join(directory, "docs/index.html"), File.dirname(output))
+      api = self.class.relative(File.join(directory, "api/index.html"), File.dirname(output))
+      title = source.lines.first.to_s.sub(/\A#+\s*/, "").strip
+      File.write(output, "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>#{CGI.escapeHTML(title)}</title></head>" \
+        "<body><nav><a href=\"#{navigation}\">Guide</a> | <a href=\"#{api}\">API reference</a></nav><main>#{body}</main></body></html>\n")
+    end
+    Dir[File.join(directory, "**/*.html")].each do |html|
+      File.read(html).scan(REFERENCES).flatten.each do |reference|
+        location = CGI.unescapeHTML(reference).split(/[?#]/, 2).first
+        next if location.match?(/\A(?:[a-z][a-z0-9+.-]*:|\/\/)/i) || location.end_with?(".html")
+        destination = File.expand_path(location, File.dirname(html))
+        next unless destination.start_with?(File.expand_path(directory) + "/")
+        relative = self.class.relative(destination, directory)
+        original = File.join(@root, relative)
+        next unless File.file?(original)
+        FileUtils.mkdir_p(File.dirname(destination))
+        FileUtils.cp(original, destination)
+      end
+    end
+    Dir.mktmpdir("libtmux-ruby-yard-") do |scratch|
+      introduction = File.join(scratch, "api-introduction.md")
+      File.write(introduction, "# API reference\n\n[Guide](../docs/index.html) | [Recipes](../docs/recipes.html)\n\nPrivate declarations are included so referenced constants resolve; they are not public API. Behavioral documentation coverage remains incomplete.\n")
+      sources = Dir.glob("gems/*/lib/**/*.rb", base: @root).sort
+      sources.each do |source|
+        destination = File.join(scratch, source)
+        FileUtils.mkdir_p(File.dirname(destination))
+        FileUtils.cp(File.join(@root, source), destination)
+      end
+      output, status = Open3.capture2e(Gem.ruby, Gem.bin_path("yard", "yard"), "doc", "--no-save", "--no-stats", "--no-progress",
+        "--private", "--protected", "--output-dir", File.join(directory, "api"), "--markup", "markdown", "--markup-provider", "yard",
+        "--readme", File.basename(introduction), *sources, "-", File.basename(introduction), chdir: scratch)
+      raise Error, "YARD rendering failed: #{output}" unless status.success?
+      raise Error, "YARD reported a warning: #{output}" if output.include?("[warn]") || output.include?("[error]")
+    end
+    count = self.class.validate(directory)
+    puts "Documentation: #{count} rendered pages; local destinations and fragments valid"
+    count
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  abort "usage: ruby scripts/docs [--output DIRECTORY]" unless ARGV.empty? || (ARGV.length == 2 && ARGV.first == "--output")
+  begin
+    site = DocumentationSite.new(File.expand_path("..", __dir__))
+    if ARGV.empty?
+      Dir.mktmpdir("libtmux-ruby-docs-") { |directory| site.build(directory) }
+    else
+      output = File.expand_path(ARGV.fetch(1))
+      abort "documentation output must be absent or empty" if File.exist?(output) && (!File.directory?(output) || !Dir.empty?(output))
+      site.build(output)
+    end
+  rescue DocumentationSite::Error, ExampleManifest::Error => error
+    abort error.message
+  end
+end

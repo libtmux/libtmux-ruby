@@ -1,0 +1,16 @@
+module LibTmux
+  module MCP
+    class StdioTransport
+      def initialize: (server: untyped, parent: untyped, input: IO, output: IO,
+        ?concurrency: Integer, ?max_requests: Integer, ?max_frame_bytes: Integer,
+        ?max_request_bytes: Integer, ?max_output_bytes: Integer,
+        ?request_timeout: Numeric, ?write_timeout: Numeric, ?cleanup_timeout: Numeric) -> void
+      def run: () -> nil
+      def close: () -> nil
+      def closed?: () -> bool
+      def send_response: (untyped) -> nil
+      def send_notification: (String, ?untyped, ?related_request_id: untyped, **untyped) -> bool
+      def send_request: (*untyped) -> bot
+    end
+  end
+end

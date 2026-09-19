@@ -1,0 +1,67 @@
+module LibTmux
+  class Workspace
+    VERSION: String
+    PROFILE: String
+    CONFIG_VERSION: Integer
+
+    class ConfigError < LibTmux::Error
+      def initialize: (?String, ?path: String, ?expected: String?) -> void
+    end
+    class ConflictError < LibTmux::Error
+    end
+    class ApplyError < LibTmux::Error
+      attr_reader result: ApplyResult
+      attr_reader failure_class: String
+      def initialize: (ApplyResult, Exception) -> void
+    end
+
+    class ApplyResult
+      class Effect < Data
+        attr_reader step_id: Integer?
+        attr_reader action: Symbol
+        attr_reader outcome: :observed | :dispatch_only
+      end
+      attr_reader completed_steps: Array[Integer]
+      attr_reader created_refs: Hash[String, LibTmux::EntityRef]
+      attr_reader effects: Array[Effect]
+      attr_reader failed_step: Integer?
+      attr_reader failed_action: Symbol?
+      attr_reader compensation: :not_requested | :nothing_owned | :completed | :failed
+      attr_reader cleanup_errors: Array[String]
+      def success?: () -> bool
+      def uncertain?: () -> bool
+      def to_h: () -> Hash[String, untyped]
+      def inspect: () -> String
+    end
+
+    class CLI
+      def self.run: (Array[String], ?out: untyped, ?err: untyped, ?directory: String, ?environment: untyped) -> Integer
+    end
+
+    def self.load: (String, ?format: :yaml | :json | nil, ?expand_environment: bool, ?environment: Hash[String, String], **Integer) -> Workspace
+    def self.parse: (String, format: :yaml | :json, base_directory: String, ?expand_environment: bool, ?environment: Hash[String, String], **Integer) -> Workspace
+    def to_h: () -> Hash[String, untyped]
+    def plan: (?snapshot: LibTmux::Snapshot?) -> Plan
+    def inspect: () -> String
+
+    class Plan
+      class Step < Data
+        attr_reader id: Integer
+        attr_reader operation: Symbol
+        attr_reader target: String
+        attr_reader arguments: Hash[String, untyped]
+        attr_reader produces: Array[String]
+        attr_reader effect: Symbol
+        def inspect: () -> String
+      end
+
+      attr_reader mode: :offline_create | :captured_create
+      attr_reader preconditions: Hash[String, String?]
+      attr_reader steps: Array[Step]
+      def initialize: (Workspace, ?snapshot: LibTmux::Snapshot?) -> void
+      def to_h: () -> Hash[String, untyped]
+      def apply: (server: LibTmux::Server, ?timeout: Numeric, ?cancel: untyped, ?compensate: bool) -> ApplyResult
+      def inspect: () -> String
+    end
+  end
+end

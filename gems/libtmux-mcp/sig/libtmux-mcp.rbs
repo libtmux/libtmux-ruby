@@ -1,0 +1,15 @@
+module LibTmux
+  module MCP
+    VERSION: String
+    class CLI
+      def self.run: (Array[String], ?input: IO, ?out: untyped, ?err: untyped) -> Integer
+    end
+    class Application
+      attr_reader tools: Array[untyped]
+      def initialize: (server: LibTmux::Async::Server, endpoint_name: String, ?enabled_tools: Array[String], ?max_captures: Integer, ?max_capture_bytes: Integer, ?capture_ttl: Numeric, ?request_timeout: Numeric, ?max_response_bytes: Integer) -> void
+      def sdk_server: () -> untyped
+      def call: (String, ?Hash[untyped, untyped], ?cancellation: untyped) -> untyped
+      def inspect: () -> String
+    end
+  end
+end

@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "programs": [
+    {
+      "id": "list_filter",
+      "path": "examples/list_filter.rb",
+      "gem": "libtmux"
+    },
+    {
+      "id": "layout_io",
+      "path": "examples/layout_io.rb",
+      "gem": "libtmux"
+    },
+    {
+      "id": "window_links",
+      "path": "examples/window_links.rb",
+      "gem": "libtmux"
+    },
+    {
+      "id": "async_cancel",
+      "path": "examples/async_cancel.rb",
+      "gem": "libtmux-async"
+    },
+    {
+      "id": "control_overflow",
+      "path": "examples/control_overflow.rb",
+      "gem": "libtmux"
+    },
+    {
+      "id": "failed_group",
+      "path": "examples/failed_group.rb",
+      "gem": "libtmux"
+    },
+    {
+      "id": "mcp_protocol",
+      "path": "examples/mcp_protocol.rb",
+      "gem": "libtmux-mcp"
+    },
+    {
+      "id": "workspace_apply",
+      "path": "examples/workspace_apply.rb",
+      "gem": "libtmux-workspace"
+    }
+  ],
+  "support": [
+    "examples/support.rb",
+    "examples/workspace.yaml"
+  ],
+  "documents": [
+    "README.md",
+    "docs/index.md",
+    "docs/modes.md",
+    "docs/ownership-errors.md",
+    "docs/recipes.md",
+    "docs/reference/fields.md",
+    "gems/libtmux-async/README.md",
+    "gems/libtmux-mcp/README.md",
+    "gems/libtmux-workspace/README.md",
+    "gems/libtmux/README.md"
+  ],
+  "snippets": [
+    {
+      "id": "list_filter/main",
+      "source": "examples/list_filter.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "layout_io/main",
+      "source": "examples/layout_io.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "window_links/main",
+      "source": "examples/window_links.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "async_cancel/main",
+      "source": "examples/async_cancel.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "control_overflow/main",
+      "source": "examples/control_overflow.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "failed_group/main",
+      "source": "examples/failed_group.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "mcp_protocol/main",
+      "source": "examples/mcp_protocol.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "workspace_apply/main",
+      "source": "examples/workspace_apply.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "workspace/config",
+      "source": "examples/workspace.yaml",
+      "language": "yaml"
+    },
+    {
+      "id": "mcp_protocol/cli",
+      "source": "examples/mcp_protocol.rb",
+      "region": "cli",
+      "language": "ruby"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+session_name: work
+environment:
+  PROJECT_MODE: development
+windows:
+  - window_name: editor
+    window_index: 1
+    layout: tiled
+    panes:
+      - shell_command: printf 'editor ready\n'
+      - {}

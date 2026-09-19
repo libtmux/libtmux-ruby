@@ -1,0 +1,7 @@
+module LibTmux
+  class Server
+    def self.start: (?executable: String, ?config: String?, ?timeout: Numeric, ?cancel: untyped, **untyped) -> Server
+                  | [T] (?executable: String, ?config: String?, ?timeout: Numeric, ?cancel: untyped, **untyped) { (Server) -> T } -> T
+    def owned?: () -> bool
+  end
+end

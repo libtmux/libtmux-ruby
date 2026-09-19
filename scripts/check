@@ -1,0 +1,44 @@
+# frozen_string_literal: true
+
+require "rbconfig"
+
+root = File.expand_path("..", __dir__)
+Dir.chdir(root)
+
+mode = ARGV.shift || "mid"
+unless %w[unit mid integration packaging types outer].include?(mode)
+  abort "usage: ruby scripts/check [unit|mid|integration|packaging|types|outer] [test files]"
+end
+abort "test file arguments require unit mode" if mode != "unit" && !ARGV.empty?
+
+run = lambda do |*command|
+  system(*command) || exit($?.exitstatus || 1)
+end
+
+if %w[mid outer].include?(mode)
+  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile scripts/check scripts/generate scripts/examples scripts/docs scripts/matrix]
+  files.each { |file| RubyVM::InstructionSequence.compile_file(file) }
+  puts "Syntax: #{files.length} files"
+  run.call(Gem.ruby, "scripts/generate", "--check")
+  run.call(Gem.ruby, "scripts/examples", "--check")
+end
+
+suites = case mode
+when "unit", "mid" then ["unit"]
+when "outer" then %w[unit integration packaging]
+when "types" then []
+else [mode]
+end
+
+suites.each do |suite|
+  files = ARGV.empty? ? Dir["test/#{suite}/**/*_test.rb"].sort : ARGV
+  abort "no #{suite} tests found" if files.empty?
+  run.call(Gem.ruby, "-Itest", "-e", "ARGV.each { |file| require File.expand_path(file) }", *files)
+end
+
+if %w[types outer].include?(mode)
+  paths = Dir["gems/*/sig"].sort.flat_map { |path| ["-I", path] }
+  run.call(Gem.ruby, Gem.bin_path("rbs", "rbs"), *paths, "validate")
+end
+
+run.call(Gem.ruby, "scripts/docs") if mode == "outer"

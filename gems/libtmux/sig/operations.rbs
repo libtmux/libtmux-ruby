@@ -1,0 +1,88 @@
+module LibTmux
+  class OptionValue
+    attr_reader name: String
+    attr_reader index: Integer?
+    attr_reader raw: String
+    def inherited?: () -> bool
+    def array?: () -> bool
+    def present?: () -> bool
+    def as: (:bytes | :string) -> String
+          | (:integer) -> Integer
+          | (:boolean) -> bool
+  end
+
+  class Options
+    def list: (?name: String?, ?inherited: bool, ?timeout: Numeric, ?cancel: untyped) -> Array[OptionValue]
+    def get: (String, ?index: Integer?, ?inherited: bool, ?timeout: Numeric, ?cancel: untyped) -> OptionValue
+    def set: (String, String | Integer | bool, ?index: Integer?, ?append: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def unset: (String, ?index: Integer?, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class Hooks < Options
+    def set: (String, command: String, ?index: Integer?, ?append: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def run: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class Server
+    def options: (?scope: :server | :session | :window) -> Options
+    def hooks: (?scope: :session | :window) -> Hooks
+    def display: (String, ?target: EntityRef?, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def source_file: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def wait_for: (String, ?action: :wait | :signal | :lock | :unlock, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def write_buffer: (name: String, data: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def read_buffer: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def delete_buffer: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def list_buffers: (?timeout: Numeric, ?cancel: untyped) -> Array[{ name: String, size: Integer }]
+    def list_window_links: (?timeout: Numeric, ?cancel: untyped) -> Array[WindowLink]
+    def window_link: (EntityRef) -> WindowLink
+    def list_clients: (?timeout: Numeric, ?cancel: untyped) -> Array[{ name: String, pid: Integer, created: Integer, tty: String?, session_id: String?, control: bool }]
+    def set_environment: (String, String, ?hidden: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def environment: (String, ?hidden: bool, ?timeout: Numeric, ?cancel: untyped) -> String?
+    def unset_environment: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class Entity
+    def options: () -> Options
+    def hooks: () -> Hooks
+    def display: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class Session
+    def rename: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def list_window_links: (?timeout: Numeric, ?cancel: untyped) -> Array[WindowLink]
+    def link_window: (EntityRef, index: Integer, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def set_environment: (String, String, ?hidden: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def environment: (String, ?hidden: bool, ?timeout: Numeric, ?cancel: untyped) -> String?
+    def unset_environment: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class Window
+    def rename: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def respawn: (command: Array[String], ?kill: bool, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def resize: (?width: Integer?, ?height: Integer?, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class Pane
+    def select: (?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def resize: (?width: Integer?, ?height: Integer?, ?direction: :left | :right | :up | :down | nil, ?amount: Integer, ?zoom: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def swap: (EntityRef, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def join: (EntityRef, direction: :horizontal | :vertical, ?before: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def move: (EntityRef, direction: :horizontal | :vertical, ?before: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def break_out: (session: EntityRef, name: String, ?timeout: Numeric, ?cancel: untyped) -> Window
+    def respawn: (command: Array[String], ?kill: bool, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def paste: (buffer: String, ?delete: bool, ?bracketed: bool, ?separator: String?, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def pipe: (?shell_command: String?, ?input: bool, ?output: bool, ?only_if_closed: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def copy_mode: (?scroll_up: bool, ?exit_on_bottom: bool, ?mouse_drag: bool, ?cancel_mode: bool, ?page_down: bool, ?source: EntityRef?, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def copy_command: (String, *String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class WindowLink < Entity
+    def index: () -> Integer
+    def window: () -> Window
+    def session: () -> Session
+    def select: (?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def unlink: (?force: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def move: (session: EntityRef, index: Integer, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def swap: (EntityRef, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+end

@@ -1,0 +1,13 @@
+module LibTmux
+  class TerminalResult
+    attr_reader status: Process::Status
+    attr_reader pid: Integer
+    attr_reader elapsed_seconds: Float
+    def success?: () -> bool
+    def delivery: () -> :observed
+    def inspect: () -> String
+  end
+  class Server
+    def attach: (session: EntityRef, terminal: IO, term: String, ?read_only: bool, ?timeout: Numeric?, ?cancel: untyped) -> TerminalResult
+  end
+end

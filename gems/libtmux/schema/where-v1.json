@@ -1,0 +1,2291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:libtmux-ruby:where:1",
+  "title": "Ruby libtmux criteria version 1",
+  "description": "The Ruby decoder additionally enforces byte, depth and node limits, rejects duplicate keys and floating-point tokens for integer fields.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "profile",
+        "version",
+        "entity",
+        "where"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "const": "libtmux-ruby.where"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "entity": {
+          "const": "session"
+        },
+        "where": {
+          "$ref": "#/$defs/session"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "profile",
+        "version",
+        "entity",
+        "where"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "const": "libtmux-ruby.where"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "entity": {
+          "const": "window"
+        },
+        "where": {
+          "$ref": "#/$defs/window"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "profile",
+        "version",
+        "entity",
+        "where"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "const": "libtmux-ruby.where"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "entity": {
+          "const": "pane"
+        },
+        "where": {
+          "$ref": "#/$defs/pane"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "profile",
+        "version",
+        "entity",
+        "where"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "const": "libtmux-ruby.where"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "entity": {
+          "const": "window_link"
+        },
+        "where": {
+          "$ref": "#/$defs/window_link"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "profile",
+        "version",
+        "entity",
+        "where"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "const": "libtmux-ruby.where"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "entity": {
+          "const": "client"
+        },
+        "where": {
+          "$ref": "#/$defs/client"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "session.id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/session.id"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            }
+          }
+        }
+      ]
+    },
+    "session.name": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/session.name"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            },
+            "contains": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "startsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "endsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "session.created": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            "not": {
+              "$ref": "#/$defs/session.created"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            }
+          }
+        }
+      ]
+    },
+    "session.attached": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/session.attached"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "session.window_count": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/session.window_count"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/session"
+          },
+          "maxItems": 2048
+        },
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/session"
+          },
+          "maxItems": 2048
+        },
+        "not": {
+          "$ref": "#/$defs/session"
+        },
+        "id": {
+          "$ref": "#/$defs/session.id"
+        },
+        "name": {
+          "$ref": "#/$defs/session.name"
+        },
+        "created": {
+          "$ref": "#/$defs/session.created"
+        },
+        "attached": {
+          "$ref": "#/$defs/session.attached"
+        },
+        "windowCount": {
+          "$ref": "#/$defs/session.window_count"
+        },
+        "windows": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "some": {
+              "$ref": "#/$defs/window"
+            },
+            "every": {
+              "$ref": "#/$defs/window"
+            },
+            "none": {
+              "$ref": "#/$defs/window"
+            }
+          }
+        },
+        "windowLinks": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "some": {
+              "$ref": "#/$defs/window_link"
+            },
+            "every": {
+              "$ref": "#/$defs/window_link"
+            },
+            "none": {
+              "$ref": "#/$defs/window_link"
+            }
+          }
+        },
+        "panes": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "some": {
+              "$ref": "#/$defs/pane"
+            },
+            "every": {
+              "$ref": "#/$defs/pane"
+            },
+            "none": {
+              "$ref": "#/$defs/pane"
+            }
+          }
+        },
+        "currentWindow": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "is": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/window"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "isNot": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/window"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "window.id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/window.id"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            }
+          }
+        }
+      ]
+    },
+    "window.name": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/window.name"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            },
+            "contains": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "startsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "endsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "window.width": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/window.width"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "window.height": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/window.height"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "window.pane_count": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/window.pane_count"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "window.layout": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/window.layout"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            },
+            "contains": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "startsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "endsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/window"
+          },
+          "maxItems": 2048
+        },
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/window"
+          },
+          "maxItems": 2048
+        },
+        "not": {
+          "$ref": "#/$defs/window"
+        },
+        "id": {
+          "$ref": "#/$defs/window.id"
+        },
+        "name": {
+          "$ref": "#/$defs/window.name"
+        },
+        "width": {
+          "$ref": "#/$defs/window.width"
+        },
+        "height": {
+          "$ref": "#/$defs/window.height"
+        },
+        "paneCount": {
+          "$ref": "#/$defs/window.pane_count"
+        },
+        "layout": {
+          "$ref": "#/$defs/window.layout"
+        },
+        "panes": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "some": {
+              "$ref": "#/$defs/pane"
+            },
+            "every": {
+              "$ref": "#/$defs/pane"
+            },
+            "none": {
+              "$ref": "#/$defs/pane"
+            }
+          }
+        },
+        "windowLinks": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "some": {
+              "$ref": "#/$defs/window_link"
+            },
+            "every": {
+              "$ref": "#/$defs/window_link"
+            },
+            "none": {
+              "$ref": "#/$defs/window_link"
+            }
+          }
+        },
+        "activePane": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "is": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/pane"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "isNot": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/pane"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "pane.id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/pane.id"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pane.window_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/pane.window_id"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pane.index": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/pane.index"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "pane.pid": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "not": {
+              "$ref": "#/$defs/pane.pid"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          }
+        }
+      ]
+    },
+    "pane.current_command": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/pane.current_command"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            },
+            "contains": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "startsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "endsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "pane.current_path": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "x-maxUtf8Bytes": 65536
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "not": {
+              "$ref": "#/$defs/pane.current_path"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "x-maxUtf8Bytes": 65536
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "contains": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "startsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "endsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "pane.title": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/pane.title"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            },
+            "contains": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "startsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "endsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "pane.active": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "boolean"
+            },
+            "not": {
+              "$ref": "#/$defs/pane.active"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pane.dead": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "boolean"
+            },
+            "not": {
+              "$ref": "#/$defs/pane.dead"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "pane.dead_status": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "not": {
+              "$ref": "#/$defs/pane.dead_status"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255
+            }
+          }
+        }
+      ]
+    },
+    "pane.width": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/pane.width"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "pane.height": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/pane.height"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "pane": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pane"
+          },
+          "maxItems": 2048
+        },
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pane"
+          },
+          "maxItems": 2048
+        },
+        "not": {
+          "$ref": "#/$defs/pane"
+        },
+        "id": {
+          "$ref": "#/$defs/pane.id"
+        },
+        "windowId": {
+          "$ref": "#/$defs/pane.window_id"
+        },
+        "index": {
+          "$ref": "#/$defs/pane.index"
+        },
+        "pid": {
+          "$ref": "#/$defs/pane.pid"
+        },
+        "currentCommand": {
+          "$ref": "#/$defs/pane.current_command"
+        },
+        "currentPath": {
+          "$ref": "#/$defs/pane.current_path"
+        },
+        "title": {
+          "$ref": "#/$defs/pane.title"
+        },
+        "active": {
+          "$ref": "#/$defs/pane.active"
+        },
+        "dead": {
+          "$ref": "#/$defs/pane.dead"
+        },
+        "deadStatus": {
+          "$ref": "#/$defs/pane.dead_status"
+        },
+        "width": {
+          "$ref": "#/$defs/pane.width"
+        },
+        "height": {
+          "$ref": "#/$defs/pane.height"
+        },
+        "window": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "is": {
+              "$ref": "#/$defs/window"
+            },
+            "isNot": {
+              "$ref": "#/$defs/window"
+            }
+          }
+        }
+      }
+    },
+    "window_link.session_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/window_link.session_id"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            }
+          }
+        }
+      ]
+    },
+    "window_link.window_id": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/window_link.window_id"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            }
+          }
+        }
+      ]
+    },
+    "window_link.index": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "not": {
+              "$ref": "#/$defs/window_link.index"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          }
+        }
+      ]
+    },
+    "window_link.active": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "boolean"
+            },
+            "not": {
+              "$ref": "#/$defs/window_link.active"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "window_link": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/window_link"
+          },
+          "maxItems": 2048
+        },
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/window_link"
+          },
+          "maxItems": 2048
+        },
+        "not": {
+          "$ref": "#/$defs/window_link"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/window_link.session_id"
+        },
+        "windowId": {
+          "$ref": "#/$defs/window_link.window_id"
+        },
+        "index": {
+          "$ref": "#/$defs/window_link.index"
+        },
+        "active": {
+          "$ref": "#/$defs/window_link.active"
+        },
+        "session": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "is": {
+              "$ref": "#/$defs/session"
+            },
+            "isNot": {
+              "$ref": "#/$defs/session"
+            }
+          }
+        },
+        "window": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "is": {
+              "$ref": "#/$defs/window"
+            },
+            "isNot": {
+              "$ref": "#/$defs/window"
+            }
+          }
+        }
+      }
+    },
+    "client.name": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536,
+          "x-maxUtf8Bytes": 65536
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "not": {
+              "$ref": "#/$defs/client.name"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-maxUtf8Bytes": 65536
+              }
+            },
+            "contains": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "startsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "endsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "client.pid": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "not": {
+              "$ref": "#/$defs/client.pid"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2147483647
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            }
+          }
+        }
+      ]
+    },
+    "client.created": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            "not": {
+              "$ref": "#/$defs/client.created"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            }
+          }
+        }
+      ]
+    },
+    "client.tty": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "x-maxUtf8Bytes": 65536
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "not": {
+              "$ref": "#/$defs/client.tty"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "x-maxUtf8Bytes": 65536
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "contains": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "startsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            "endsWith": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            }
+          }
+        }
+      ]
+    },
+    "client.session_id": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "x-maxUtf8Bytes": 65536
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "x-maxUtf8Bytes": 65536
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "not": {
+              "$ref": "#/$defs/client.session_id"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "x-maxUtf8Bytes": 65536
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "client.width": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "not": {
+              "$ref": "#/$defs/client.width"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "client.height": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "not": {
+              "$ref": "#/$defs/client.height"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "lt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "lte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "gte": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ]
+    },
+    "client.read_only": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "boolean"
+            },
+            "not": {
+              "$ref": "#/$defs/client.read_only"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "client.utf8": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "boolean"
+            },
+            "not": {
+              "$ref": "#/$defs/client.utf8"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "client.control_mode": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "type": "boolean"
+            },
+            "not": {
+              "$ref": "#/$defs/client.control_mode"
+            },
+            "in": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "client": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "and": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/client"
+          },
+          "maxItems": 2048
+        },
+        "or": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/client"
+          },
+          "maxItems": 2048
+        },
+        "not": {
+          "$ref": "#/$defs/client"
+        },
+        "name": {
+          "$ref": "#/$defs/client.name"
+        },
+        "pid": {
+          "$ref": "#/$defs/client.pid"
+        },
+        "created": {
+          "$ref": "#/$defs/client.created"
+        },
+        "tty": {
+          "$ref": "#/$defs/client.tty"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/client.session_id"
+        },
+        "width": {
+          "$ref": "#/$defs/client.width"
+        },
+        "height": {
+          "$ref": "#/$defs/client.height"
+        },
+        "readOnly": {
+          "$ref": "#/$defs/client.read_only"
+        },
+        "utf8": {
+          "$ref": "#/$defs/client.utf8"
+        },
+        "controlMode": {
+          "$ref": "#/$defs/client.control_mode"
+        },
+        "session": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "is": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/session"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "isNot": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/session"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

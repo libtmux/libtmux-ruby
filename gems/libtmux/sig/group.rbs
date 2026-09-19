@@ -1,0 +1,13 @@
+module LibTmux
+  class GroupResult
+    attr_reader result: CommandResult
+    attr_reader steps: Array[Hash[Symbol, Integer | Symbol]]
+    def success?: () -> bool
+    def delivery: () -> :observed
+    def inspect: () -> String
+  end
+
+  class Server
+    def run_group: (Array[Array[String]], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> GroupResult
+  end
+end

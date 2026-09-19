@@ -1,0 +1,68 @@
+module LibTmux
+  class CapturedRecord
+    attr_reader capture_id: String
+    def ref: () -> EntityRef
+    def raw: (Symbol) -> String?
+    def ==: (untyped) -> bool
+    alias eql? ==
+    def hash: () -> Integer
+    def inspect: () -> String
+  end
+
+  class Snapshot
+    attr_reader capture_id: String
+    attr_reader binding_key: String
+    attr_reader started_at: Float
+    attr_reader finished_at: Float
+    attr_reader reads: Array[Hash[Symbol, untyped]]
+    attr_reader server_info: Hash[Symbol, untyped]
+    attr_reader coverage: Hash[Symbol, untyped]
+    def resolve: (EntityRef) -> CapturedRecord
+    def inspect: () -> String
+    def sessions: () -> Selection[SessionSnapshot]
+    def windows: () -> Selection[WindowSnapshot]
+    def panes: () -> Selection[PaneSnapshot]
+    def window_links: () -> Selection[WindowLinkSnapshot]
+    def clients: () -> Selection[ClientSnapshot]
+  end
+
+  module Internal
+    module Catalog
+      class Field < Data
+        attr_reader id: String
+        attr_reader name: Symbol
+        attr_reader wire_name: String
+        attr_reader type: Symbol
+        attr_reader nullable: bool
+        attr_reader empty_is_null: bool
+        attr_reader min: Integer?
+        attr_reader max: Integer?
+        attr_reader operators: Array[Symbol]
+        attr_reader format: String
+        attr_reader min_version: String
+        attr_reader scope: Symbol
+        attr_reader capture_requirements: Array[Symbol]
+      end
+      class Relation < Data
+        attr_reader name: Symbol
+        attr_reader wire_name: String
+        attr_reader target: Symbol
+        attr_reader cardinality: Symbol
+        attr_reader nullable: bool
+        attr_reader capture_requirements: Array[Symbol]
+      end
+      class Schema < Data
+        attr_reader kind: Symbol
+        attr_reader wire_entity: String
+        attr_reader fields: Hash[Symbol, Field]
+        attr_reader relations: Hash[Symbol, Relation]
+      end
+      def self.entity: (Symbol) -> Schema
+      def self.kinds: () -> Array[Symbol]
+    end
+    class Capture
+      def initialize: (Server, binding_key: String) -> void
+      def call: (?timeout: Numeric, ?cancel: untyped, ?clients: bool, ?max_bytes: Integer, ?max_rows: Integer, ?max_field_bytes: Integer) -> Snapshot
+    end
+  end
+end

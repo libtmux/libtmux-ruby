@@ -1,0 +1,171 @@
+module LibTmux
+  VERSION: String
+
+  class Error < StandardError
+    attr_reader delivery: Symbol
+    attr_reader phase: Symbol?
+    attr_reader pid: Integer?
+    attr_reader cleanup_errors: Array[String]
+    attr_reader entity: Symbol?
+    attr_reader path: String?
+    attr_reader expected: String?
+    def initialize: (String, ?delivery: Symbol, ?phase: Symbol?, ?pid: Integer?, ?cleanup_errors: Array[String], ?entity: Symbol?, ?path: String?, ?expected: String?) -> void
+  end
+  class InvalidFilterError < Error
+    def initialize: (?String, ?entity: Symbol?, ?path: String, ?expected: String?, **untyped) -> void
+  end
+  class IncompleteSnapshotError < Error
+  end
+  class InconsistentSnapshotError < Error
+  end
+  class NoMatchError < Error
+  end
+  class MultipleMatchesError < Error
+  end
+  class TargetNotFoundError < Error
+  end
+  class FieldDecodeError < Error
+  end
+  class UnsupportedFeatureError < Error
+  end
+  class TransportError < Error
+  end
+  class ProtocolError < Error
+  end
+  class CapacityError < Error
+  end
+  class DeadlineExceeded < Error
+  end
+  class Cancelled < Error
+  end
+  class OutcomeUnknown < Error
+  end
+  class ClosedError < Error
+  end
+  class CommandError < Error
+    attr_reader result: CommandResult?
+    def initialize: (?String, ?result: CommandResult?, **untyped) -> void
+  end
+
+  class Endpoint
+    attr_reader executable: String
+    attr_reader socket_path: String
+    def initialize: (?socket_path: String?, ?socket_name: String?, ?executable: String, ?socket_directory: String?) -> void
+    def self.from_env: (?untyped, **untyped) -> Endpoint
+    def ==: (untyped) -> bool
+    alias eql? ==
+    def hash: () -> Integer
+    def inspect: () -> String
+  end
+
+  class CommandResult
+    attr_reader stdout: String
+    attr_reader stderr: String
+    attr_reader status: Process::Status
+    attr_reader elapsed_seconds: Float
+    attr_reader pid: Integer
+    attr_reader argv: Array[String]
+    def initialize: (stdout: String, stderr: String, status: Process::Status, elapsed_seconds: Float, pid: Integer, argv: Array[String]) -> void
+    def success?: () -> bool
+    def delivery: () -> :observed
+    def text: (?invalid: :strict | :replace) -> String
+    def inspect: () -> String
+  end
+
+  class EntityRef
+    attr_reader binding_key: String
+    attr_reader kind: :session | :window | :pane | :window_link
+    attr_reader id: String
+    attr_reader session_id: String?
+    attr_reader index: Integer?
+    def ==: (untyped) -> bool
+    alias eql? ==
+    def hash: () -> Integer
+    def inspect: () -> String
+  end
+
+  class CreationReceipt
+    attr_reader entity: Session | Window
+    attr_reader window: Window
+    attr_reader pane: Pane
+    attr_reader result: CommandResult
+    def inspect: () -> String
+  end
+
+  class Entity
+    attr_reader server: Server
+    attr_reader ref: EntityRef
+    def id: () -> String
+    def snapshot: (**untyped) -> CapturedRecord
+    def ==: (untyped) -> bool
+    alias eql? ==
+    def hash: () -> Integer
+    def kill: (?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def inspect: () -> String
+  end
+
+  class Session < Entity
+    def kill: (?expected_windows: Array[EntityRef]?, ?expected_panes: Array[EntityRef]?, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def new_window: (name: String, command: Array[String], receipt: true, ?index: Integer?, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> CreationReceipt
+                  | (name: String, command: Array[String], ?receipt: false, ?index: Integer?, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Window
+    def list_windows: (?timeout: Numeric, ?cancel: untyped) -> Array[Window]
+    def list_panes: (?timeout: Numeric, ?cancel: untyped) -> Array[Pane]
+  end
+
+  class Window < Entity
+    def list_panes: (?timeout: Numeric, ?cancel: untyped) -> Array[Pane]
+    def split: (direction: :horizontal | :vertical, command: Array[String], ?size: Integer | String | nil, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Pane
+    def select_layout: (String | Symbol, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class Pane < Entity
+    def split: (direction: :horizontal | :vertical, command: Array[String], ?size: Integer | String | nil, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Pane
+    def capture: (?start: Integer | String | nil, ?finish: Integer | String | nil, ?join: bool, ?escapes: bool, ?escape_bytes: bool, ?preserve_trailing: bool, ?trim_trailing: bool, ?alternate: bool, ?mode_screen: bool, ?pending: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def send_text: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def send_keys: (*String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+  end
+
+  class Server
+    attr_reader endpoint: Endpoint
+    def self.open: [T] (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) { (Server) -> T } -> T
+                 | (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> Server
+    def initialize: (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> void
+    def run: (Array[String], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def close: () -> nil
+    def kill: (?timeout: Numeric, ?cancel: untyped) -> CommandResult
+    def new_session: (name: String, command: Array[String], receipt: true, ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> CreationReceipt
+                   | (name: String, command: Array[String], ?receipt: false, ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> Session
+    def list_sessions: (?timeout: Numeric, ?cancel: untyped) -> Array[Session]
+    def list_windows: (?timeout: Numeric, ?cancel: untyped) -> Array[Window]
+    def list_panes: (?timeout: Numeric, ?cancel: untyped) -> Array[Pane]
+    def session: (EntityRef) -> Session
+    def window: (EntityRef) -> Window
+    def pane: (EntityRef) -> Pane
+    def snapshot: (?timeout: Numeric, ?cancel: untyped, ?clients: bool, ?max_bytes: Integer, ?max_rows: Integer, ?max_field_bytes: Integer) -> Snapshot
+    def search_panes: (?where: untyped, ?pushdown: Symbol, **untyped) -> Selection[PaneSnapshot]
+    def explain_panes: (?where: untyped, ?pushdown: Symbol) -> Hash[Symbol, untyped]
+    def open_control: [T] (session: EntityRef, ?reconnect: ControlConnection?, **untyped) { (ControlConnection) -> T } -> T
+                    | (session: EntityRef, ?reconnect: ControlConnection?, **untyped) -> ControlConnection
+  end
+
+  class Selection[Elem]
+    include Enumerable[Elem]
+    def initialize: (Enumerable[Elem], ?entity: Symbol?, ?graph: untyped) -> void
+    def each: () { (Elem) -> untyped } -> self
+            | () -> Enumerator[Elem, self]
+    def select: () { (Elem) -> untyped } -> Selection[Elem]
+              | () -> Enumerator[Elem, Selection[Elem]]
+    alias filter select
+    alias find_all select
+    def reject: () { (Elem) -> untyped } -> Selection[Elem]
+              | () -> Enumerator[Elem, Selection[Elem]]
+    def to_a: () -> Array[Elem]
+    def size: () -> Integer
+    alias length size
+    def empty?: () -> bool
+    def where: (?untyped, **untyped) -> Selection[Elem]
+    def one: (?untyped, **untyped) -> Elem
+    def one_or_nil: (?untyped, **untyped) -> Elem?
+    def exists?: (?untyped, **untyped) -> bool
+  end
+end

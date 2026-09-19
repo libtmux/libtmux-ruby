@@ -1,0 +1,70 @@
+module LibTmux
+  class GuardedBlock
+    attr_reader guard: Array[Integer]
+    attr_reader body: String
+    attr_reader terminator: :end | :error
+    attr_reader bytesize: Integer
+    def raw: () -> String
+    def guard_success?: () -> bool
+    def inspect: () -> String
+  end
+
+  class GuardedReply
+    attr_reader request_id: Integer
+    attr_reader blocks: Array[GuardedBlock]
+    attr_reader generation: String
+    def delivery: () -> :observed
+    def attribution: () -> :boundary_window
+    def inspect: () -> String
+  end
+
+  class ControlEvent
+    attr_reader kind: Symbol
+    attr_reader raw: String
+    attr_reader data: String?
+    attr_reader pane_id: String?
+    attr_reader sequence: Integer?
+    attr_reader generation: String?
+    attr_reader previous_generation: String?
+    attr_reader reason: Symbol?
+    attr_reader lost_sequences: Array[Integer]?
+    attr_reader dropped_bytes: Integer?
+    def bytesize: () -> Integer
+    def inspect: () -> String
+  end
+
+  class SubscriptionOverflow < CapacityError
+    attr_reader sequence: Integer?
+    def initialize: (sequence: Integer?) -> void
+  end
+
+  class ControlSubscription
+    include Enumerable[ControlEvent]
+    attr_reader generation: String?
+    def initialize: (?max_bytes: Integer, ?max_events: Integer, ?mode: :reliable | :tail, ?pane_id: String?, ?generation: String?) -> void
+    def next: (?timeout: Numeric?) -> ControlEvent
+    def each: () { (ControlEvent) -> untyped } -> self
+            | () -> Enumerator[ControlEvent, self]
+    def close: () -> nil
+    def closed?: () -> bool
+    def inspect: () -> String
+  end
+
+  class ControlConnection
+    attr_reader pid: Integer
+    attr_reader generation: String
+    attr_reader previous_generation: String?
+    attr_reader events: ControlSubscription
+    attr_reader cleanup_errors: Array[String]
+    def self.open: [T] (binding: untyped, session_id: String, ?reconnect: ControlConnection?, **Integer) { (ControlConnection) -> T } -> T
+                 | (binding: untyped, session_id: String, ?reconnect: ControlConnection?, **Integer) -> ControlConnection
+    def initialize: (binding: untyped, session_id: String, ?reconnect: ControlConnection?, ?max_requests: Integer, ?max_command_bytes: Integer, ?max_queue_bytes: Integer, ?max_line_bytes: Integer, ?max_reply_bytes: Integer, ?max_stderr_bytes: Integer, ?max_subscriptions: Integer) -> void
+    def exchange: (String, ?timeout: Numeric, ?cancel: untyped) -> GuardedReply
+    def pause_output: (pane_id: String, ?timeout: Numeric, ?cancel: untyped) -> GuardedReply
+    def resume_output: (pane_id: String, ?timeout: Numeric, ?cancel: untyped) -> GuardedReply
+    def subscribe: (?pane_id: String?, ?mode: :reliable | :tail, ?max_bytes: Integer, ?max_events: Integer) -> ControlSubscription
+    def close: (?timeout: Numeric) -> nil
+    def closed?: () -> bool
+    def inspect: () -> String
+  end
+end
