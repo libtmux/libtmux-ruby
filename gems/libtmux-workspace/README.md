@@ -166,7 +166,8 @@ $ libtmux-workspace load \
     workspace.yaml
 ```
 
-`--timeout` bounds apply or live capture and defaults to 5 seconds.
+`--timeout` bounds each apply, live capture or subsequent switch operation
+and defaults to 5 seconds.
 `--compensate` enables guarded cleanup after apply failure. Environment
 expansion requires both `--expand-environment` and explicit `--env NAME=VALUE`
 arguments; ambient environment variables are not copied into that mapping.
@@ -174,16 +175,25 @@ arguments; ambient environment variables are not copied into that mapping.
 `load --attach` opens the CLI's `/dev/tty` after creation and runs an owned
 terminal client until the user detaches. It requires a valid `TERM`. Failure
 to open or attach the terminal retains the successful apply ledger and
-returns status 3. `--switch` currently fails before creation because client
-incarnation identity is not implemented; attach and switch are mutually
-exclusive. No action picks the most recently used client implicitly.
+returns status 3. `load --switch CLIENT` switches the explicit current tmux
+client selector to the created session after apply, preserving the session's
+environment. It accepts a current client name, full TTY path or TTY path
+without `/dev/`; native first-match behavior applies. A missing client fails
+without fallback and retains the created session and ledger with status 3.
+Missing or invalid selector arguments fail before creation. Use
+`--switch=VALUE` for a selector beginning with `-`.
+
+The selector is resolved at dispatch; a reconnect matching it is eligible.
+It is not a captured client reference or proof of terminal ownership. Attach
+and switch are mutually exclusive. Neither operation infers a latest client,
+and library `Plan#apply` performs neither operation.
 
 | Exit status | Meaning |
 | --- | --- |
-| 0 | Validation, planning or apply succeeded; requested attachment ended successfully |
+| 0 | Validation, planning or apply succeeded; requested attach/switch succeeded |
 | 1 | Execution failed before known application effects |
 | 2 | Configuration or arguments are invalid |
-| 3 | Application was partial or uncertain, or a later attachment/cleanup failed |
+| 3 | Application was partial or uncertain, or a later attach/switch/cleanup failed |
 | 130 | Interrupted; available effect ledger is retained |
 
 JSON mode writes one result or error object to stdout. Apply errors include

@@ -99,6 +99,9 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
       reply = consumer.call("::LibTmux::ControlConnection", control, :exchange, "display-message -p typed", expected: "::LibTmux::GuardedReply")
       blocks = consumer.call("::LibTmux::GuardedReply", reply, :blocks, expected: "Array[::LibTmux::GuardedBlock]")
       consumer.call("::LibTmux::GuardedBlock", blocks.last, :raw, expected: "String")
+      client = server.list_clients.find { |entry| entry.fetch(:pid) == control.pid }.fetch(:name)
+      consumer.call("::LibTmux::Server", server, :switch_client, client: client, session: session.ref,
+        expected: "::LibTmux::CommandResult")
       stream = consumer.call("::LibTmux::ControlConnection", control, :subscribe, max_events: 2,
         expected: "::LibTmux::ControlSubscription")
       consumer.call("::LibTmux::ControlSubscription", stream, :close, expected: "nil")
@@ -116,6 +119,9 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
         consumer.call("::LibTmux::Async::Scope", scope, :map, panes, concurrency: 2, expected: "Array[::LibTmux::CommandResult]") { |pane| pane.capture }
         consumer.call("::LibTmux::Async::Server", facade, :open_control, session: session.ref, expected: ":checked") do |control|
           consumer.call("::LibTmux::Async::ControlConnection", control, :exchange, "display-message -p typed", expected: "::LibTmux::GuardedReply")
+          client = facade.list_clients.find { |entry| entry.fetch(:pid) == control.pid }.fetch(:name)
+          consumer.call("::LibTmux::Async::Server", facade, :switch_client, client: client, session: session.ref,
+            expected: "::LibTmux::CommandResult")
           :checked
         end
         :checked

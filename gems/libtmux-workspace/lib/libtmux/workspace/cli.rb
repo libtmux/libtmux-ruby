@@ -23,6 +23,11 @@ module LibTmux
         command = @arguments.shift
         raise ArgumentError unless %w[validate plan load].include?(command)
 
+        @arguments.take_while { |argument| argument != "--" }.each_with_index do |argument, index|
+          next unless argument == "--switch"
+          value = @arguments[index + 1]
+          raise OptionParser::MissingArgument, "--switch" if !value || value.start_with?("-")
+        end
         parser.parse!(@arguments)
         return help if @options[:help]
 
@@ -43,6 +48,10 @@ module LibTmux
         when "load"
           with_server do |server|
             @result = workspace.plan.apply(server: server, timeout: @options.fetch(:timeout), compensate: @options.fetch(:compensate))
+            if @options[:switch]
+              server.switch_client(client: @options.fetch(:switch), session: @result.created_refs.fetch("session"),
+                timeout: @options.fetch(:timeout))
+            end
             if @options[:attach]
               File.open("/dev/tty", "r+") do |terminal|
                 result = server.attach(session: @result.created_refs.fetch("session"), terminal: terminal, term: @environment.fetch("TERM"))
@@ -76,10 +85,10 @@ module LibTmux
           options.on("--json", "Write structured JSON to stdout") { @json = true }
           options.on("--socket PATH", "Explicit existing tmux socket for load or plan --live") { |value| @options[:socket] = value }
           options.on("--live", "Acquire a snapshot before planning") { @options[:live] = true }
-          options.on("--timeout SECONDS", Float, "Apply or live-capture deadline (default: 5)") { |value| @options[:timeout] = value }
+          options.on("--timeout SECONDS", Float, "Per-operation apply/capture/switch deadline (default: 5)") { |value| @options[:timeout] = value }
           options.on("--compensate", "Attempt guarded cleanup of positively created resources on failure") { @options[:compensate] = true }
           options.on("--attach", "Attach this CLI terminal after successful load") { @options[:attach] = true }
-          options.on("--switch", "Unavailable: client incarnation proof is not implemented") { @options[:switch] = true }
+          options.on("--switch CLIENT", "Switch the explicit current client after successful load") { |value| @options[:switch] = value }
           options.on("--expand-environment", "Expand ${NAME} in paths/environment using explicit --env values") { @options[:expand_environment] = true }
           options.on("--env NAME=VALUE", "Add an explicit expansion value; shell command text is unchanged") do |value|
             name, contents = value.split("=", 2)
@@ -102,10 +111,10 @@ module LibTmux
         raise ArgumentError unless @options.fetch(:timeout).finite? && @options.fetch(:timeout).positive?
         raise ArgumentError if @options[:attach] && @options[:switch]
         if @options[:switch]
-          @argument_message = "--switch is unavailable: client incarnation identity is not implemented."
-          raise ArgumentError
+          client = @options.fetch(:switch)
+          raise ArgumentError unless client.bytesize.between?(1, 1024) && !client.b.include?("\0")
         end
-        raise ArgumentError if command != "load" && (@options[:attach] || @options[:compensate])
+        raise ArgumentError if command != "load" && (@options[:attach] || @options[:switch] || @options[:compensate])
         raise ArgumentError if @options[:live] && command != "plan"
         live = command == "load" || @options[:live]
         raise ArgumentError if live && (!@options[:socket].is_a?(String) || @options[:socket].empty?)

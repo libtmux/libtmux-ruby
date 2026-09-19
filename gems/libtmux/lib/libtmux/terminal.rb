@@ -3,6 +3,7 @@
 require "io/console"
 require "libtmux/server"
 require "libtmux/child"
+require "libtmux/operations"
 
 module LibTmux
   # Terminal bytes go directly to the caller's TTY and are not captured.
@@ -29,6 +30,18 @@ module LibTmux
   end
 
   class Server
+    # Resolves the literal selector at dispatch; it is not a client reference.
+    def switch_client(client:, session:, timeout: 5.0, cancel: nil)
+      budget = operation_budget(timeout, cancel)
+      session_id = target(session, :session)
+      unless client.is_a?(String) && client.bytesize.between?(1, 1024) && !client.b.include?("\0")
+        raise ArgumentError, "client must be a nonempty String of at most 1024 bytes without NUL"
+      end
+      client = client.b.freeze
+      command = builtin_spellings("switch-client", budget: budget).fetch("switch-client")
+      execute_typed([command, "-E", "-c", client, "-t", session_id], **budget.options)
+    end
+
     # Blocks until the owned interactive client exits. The caller supplies and
     # retains its TTY. Cancellation detaches this client, not pane commands.
     def attach(session:, terminal:, term:, read_only: false, timeout: nil, cancel: nil)

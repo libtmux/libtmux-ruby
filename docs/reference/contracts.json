@@ -583,6 +583,13 @@
       ]
     },
     {
+      "id": "client-switching",
+      "title": "Client switching",
+      "methods": [
+        "LibTmux::Server#switch_client"
+      ]
+    },
+    {
       "id": "terminal-attachment",
       "title": "Terminal attachment",
       "methods": [

@@ -352,6 +352,26 @@ this is not an inert parser. Paths are escaped as literal tmux arguments.
 A failure can follow earlier effects, and successful client status does not
 promise completion of detached jobs started by the configuration.
 
+## Client switching
+
+`switch_client(client:, session:)` resolves an explicit current tmux client
+selector at command dispatch and switches it to an exact session reference
+from this server binding. The selector is a nonempty string of at most 1024
+bytes without NUL. Native matching checks attached clients by exact name,
+full TTY path or TTY path without `/dev/`, after trimming one trailing colon.
+If several clients match, tmux selects its first match. Missing selectors
+raise `CommandError`; the library never omits `-c` or chooses a latest client.
+
+This is a current-selector operation, not a retained client capability.
+A reconnect or replacement matching that selector is eligible at dispatch;
+client snapshots still cannot establish connection incarnation. The operation
+does not acquire ownership of the selected client or its terminal. It uses
+unshadowed builtin spelling and preserves the destination session environment
+with `-E`. Timeout defaults to five seconds across alias discovery and the
+command, with `cancel: nil`. The result is a `CommandResult`; cancellation
+after dispatch remains uncertain and does not undo a switch. Async inherits
+this command through its scheduler-owned runner.
+
 ## Terminal attachment
 
 `attach` requires an exact session reference, a caller-supplied open terminal
@@ -547,8 +567,12 @@ its raw message. Explicit exports retain caller data; inspection is redacted.
 remain inert except configuration reads; `plan --live` explicitly acquires a
 snapshot to add preconditions. Load borrows an explicit server endpoint;
 `--attach` opens the caller terminal for the explicit core attach operation.
-`--switch` refuses before mutation because an incarnation-safe existing-client
-target is not available. No latest-client fallback is selected.
+`load --switch CLIENT` switches that explicit current native selector only
+after apply succeeds. It preserves session environment and does not infer a
+client from the caller's pane or terminal. It is mutually exclusive with
+`--attach`; missing or invalid selector arguments fail before apply. A later
+switch failure returns status three with the creation ledger and keeps the
+created session. Library `Plan#apply` does not attach or switch clients.
 
 The CLI supports human or JSON output and returns exit status: zero for
 success, two for usage/configuration errors, three for partial/uncertain

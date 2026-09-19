@@ -70,10 +70,11 @@ Development uses the Ruby in [.tool-versions](.tool-versions). Focused tests
 currently establish a Linux development cell; Ruby 3.3/3.4/4.0, tmux
 3.2a through 3.7c and macOS remain candidate matrix targets. Owned daemon
 startup has Linux and Darwin event readiness implementations; passing matrix
-cells establish supported combinations. Workspace `--switch` refuses before
-mutation because an incarnation-safe interactive-client target is not
-available. The [public method inventory](docs/reference/api.md) links exported
-methods to source, declared returns and behavioral contracts. Installed
+cells establish supported combinations. Workspace `--switch CLIENT` accepts
+an explicit current native client selector after creation; it does not claim
+a historical client incarnation. The
+[public method inventory](docs/reference/api.md) links exported methods to
+source, declared returns and behavioral contracts. Installed
 signature consumers exercise selected real calls; full static typing, the
 complete matrix, benchmarks and release automation remain open.
 

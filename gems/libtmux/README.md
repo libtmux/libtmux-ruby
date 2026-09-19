@@ -67,8 +67,11 @@ against advertised command usage; unsupported requests raise explicitly.
 Copy-mode flags are checked against the connected daemon's advertised command
 usage. Client discovery returns observations. `Server#attach` uses an explicit
 caller-owned TTY and terminal type, waits for its owned client to exit, and
-restores the terminal mode. Exact borrowed-client targeting and switching
-remain open work.
+restores the terminal mode. `Server#switch_client(client:, session:)` switches
+an explicit current native client selector to an exact bound session, keeping
+the session environment. A missing selector fails without fallback. This
+operation does not turn a client observation into an incarnation-safe
+reference; a reconnect matching the selector is eligible at dispatch.
 
 Control connections expose bounded event subscriptions and raw guarded replies.
 `pause_output(pane_id:)` and `resume_output(pane_id:)` return `GuardedReply`;
