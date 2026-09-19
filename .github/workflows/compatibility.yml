@@ -80,6 +80,27 @@ jobs:
           make -j2
           make install
           test "$("$RUNNER_TEMP/tmux-install/bin/tmux" -V)" = "tmux $TMUX_VERSION"
+      - name: Trace native child retirement samples
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+        continue-on-error: true
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          mkdir -p build/native-process-trace
+          # Keep every sample and failure; these diagnostics are not a test retry gate.
+          for sample in 1 2 3 4 5 6; do
+            if CHILD_TRACE="build/native-process-trace/sample-$sample.json" \
+              bundle exec ruby -Igems/libtmux/lib -r./.github/scripts/trace-process.rb \
+              -Itest test/unit/process_test.rb \
+              --name '/test_cancellation_escalates_and_reaps_a_child_ignoring_term|test_repeated_thread_cancellation_does_not_replace_the_first_failure/' \
+              > "build/native-process-trace/sample-$sample.log" 2>&1; then
+              status=0
+            else
+              status=$?
+            fi
+            printf '{"sample":%d,"exit_status":%d}\n' "$sample" "$status" \
+              >> build/native-process-trace/samples.jsonl
+          done
       - name: Run the complete cell
         timeout-minutes: 5
         run: >-
@@ -95,6 +116,15 @@ jobs:
           name: matrix-${{ matrix.platform.system }}-${{ matrix.ruby }}-${{ matrix.tmux }}
           path: build/matrix/
           if-no-files-found: warn
+      - name: Retain every native child retirement sample
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-process-trace
+          path: build/native-process-trace/
+          retention-days: 7
+          if-no-files-found: error
       - name: Debug the selected macOS cell
         id: debug
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && matrix.platform.system == 'macos' && matrix.ruby == '4.0.7' && matrix.tmux == '3.7c' }}
