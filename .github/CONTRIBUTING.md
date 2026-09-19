@@ -12,6 +12,10 @@ for prose and commit conventions.
 [.tool-versions](../.tool-versions) pins the development interpreter. It does not
 establish a supported Ruby version range.
 
+Integration and installed-artifact tests require tmux and `/bin/zsh` 5.9.
+The authored-shell tests use zsh's ZLE, `zsh/net/socket` and `zsh/system`
+modules. The Linux CI job installs zsh; the macOS runner supplies it.
+
 Install the pinned tool with mise:
 
 ```console

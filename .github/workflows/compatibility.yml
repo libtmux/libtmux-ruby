@@ -10,6 +10,10 @@ on:
         type: boolean
         description: Open tmate on the macOS Ruby 4.0.7 / tmux 3.7c cell
         default: false
+      native_only:
+        type: boolean
+        description: Run only the macOS Ruby 4.0.7 / tmux 3.7c cell without tmate
+        default: false
 
 permissions:
   contents: read
@@ -26,9 +30,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.debug_enabled && '[{"system":"macos","runner":"macos-15"}]' || '[{"system":"linux","runner":"ubuntu-24.04"},{"system":"macos","runner":"macos-15"}]') }}
-        ruby: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.debug_enabled && '["4.0.7"]' || '["3.3.12","3.4.10","4.0.7"]') }}
-        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.debug_enabled && '["3.7c"]' || '["3.2a","3.3a","3.4","3.5a","3.6","3.7c"]') }}
+        platform: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '[{"system":"macos","runner":"macos-15"}]' || '[{"system":"linux","runner":"ubuntu-24.04"},{"system":"macos","runner":"macos-15"}]') }}
+        ruby: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["4.0.7"]' || '["3.3.12","3.4.10","4.0.7"]') }}
+        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["3.7c"]' || '["3.2a","3.3a","3.4","3.5a","3.6","3.7c"]') }}
     env:
       BUNDLE_FROZEN: 'true'
       TMUX_VERSION: ${{ matrix.tmux }}
@@ -47,7 +51,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config
+          sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config zsh
       - name: Install macOS build dependencies
         if: runner.os == 'macOS'
         run: brew install libevent ncurses bison pkg-config jemalloc
@@ -151,7 +155,7 @@ jobs:
 
   report:
     name: All 36 required cells
-    if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.debug_enabled) }}
+    if: ${{ always() && !(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only)) }}
     needs: cell
     runs-on: ubuntu-24.04
     timeout-minutes: 5
