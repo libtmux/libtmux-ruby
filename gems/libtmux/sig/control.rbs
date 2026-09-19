@@ -1,5 +1,6 @@
 module LibTmux
   class GuardedBlock
+    def initialize: (guard: Array[Integer], body: String, terminator: :end | :error, bytesize: Integer, opening: String, closing: String) -> void
     attr_reader guard: Array[Integer]
     attr_reader body: String
     attr_reader terminator: :end | :error
@@ -10,6 +11,7 @@ module LibTmux
   end
 
   class GuardedReply
+    def initialize: (request_id: Integer, blocks: Array[GuardedBlock], generation: String) -> void
     attr_reader request_id: Integer
     attr_reader blocks: Array[GuardedBlock]
     attr_reader generation: String
@@ -19,6 +21,7 @@ module LibTmux
   end
 
   class ControlEvent
+    def initialize: (kind: Symbol, raw: String, ?data: String?, ?pane_id: String?, ?sequence: Integer?, ?generation: String?, ?lost_sequences: Array[Integer]?, ?dropped_bytes: Integer?, ?reason: Symbol?, ?previous_generation: String?) -> void
     attr_reader kind: Symbol
     attr_reader raw: String
     attr_reader data: String?

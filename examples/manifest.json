@@ -52,6 +52,8 @@
     "docs/modes.md",
     "docs/ownership-errors.md",
     "docs/recipes.md",
+    "docs/reference/api.md",
+    "docs/reference/behavior.md",
     "docs/reference/fields.md",
     "gems/libtmux-async/README.md",
     "gems/libtmux-mcp/README.md",

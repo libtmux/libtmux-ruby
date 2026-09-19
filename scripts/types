@@ -1,0 +1,191 @@
+# frozen_string_literal: true
+
+require "json"
+require "pathname"
+require "rbs"
+require "libtmux/workspace/cli"
+require "libtmux/mcp/cli"
+
+class PublicAPI
+  Error = Class.new(StandardError)
+  PACKAGES = %w[libtmux libtmux-async libtmux-mcp libtmux-workspace].freeze
+  attr_reader :builder, :exports
+
+  def initialize
+    loader = RBS::EnvironmentLoader.new
+    @specs = PACKAGES.map { |name| Gem::Specification.find_by_name(name) }
+    @specs.each { |spec| loader.add(path: Pathname(File.join(spec.full_gem_path, "sig"))) }
+    @builder = RBS::DefinitionBuilder.new(env: RBS::Environment.from_loader(loader).resolve_type_names)
+    @exports = []
+    collect(LibTmux)
+  end
+
+  def definition(value, kind)
+    name = RBS::TypeName.parse(value.name).absolute!
+    kind == :instance ? builder.build_instance(name) : builder.build_singleton(name)
+  end
+
+  def records
+    @records ||= exports.flat_map do |value|
+      {instance: value.public_instance_methods, singleton: value.singleton_methods}.flat_map do |kind, names|
+        names << :new if kind == :singleton && value.is_a?(Class) && value.respond_to?(:new)
+        signatures = definition(value, kind)
+        names.uniq.filter_map do |name|
+          callable = kind == :instance ? value.instance_method(name) : value.method(name)
+          native_data = value.is_a?(Class) && value < Data &&
+            (kind == :instance ? callable.owner == value : callable.owner == value.singleton_class)
+          location = source(callable.source_location)
+          next unless location || callable.owner.name&.start_with?("LibTmux") || native_data || name == :new
+
+          owner = if name == :new
+            value.instance_method(:initialize).owner.name
+          elsif kind == :instance
+            callable.owner.name
+          else
+            exports.find { |candidate| candidate.singleton_class == callable.owner }&.name
+          end
+          owner = value.name if native_data || !owner&.start_with?("LibTmux")
+          if name == :new
+            location ||= source(value.instance_method(:initialize).source_location)
+          end
+          location ||= constant_source(value)
+          separator = kind == :instance ? "#" : "."
+          signature = signatures.methods[name]
+          {"id" => "#{value.name}#{separator}#{name}", "owner" => "#{owner}#{separator}#{name}",
+            "class" => value.name, "method" => name.to_s, "kind" => kind.to_s,
+            "source" => location, "returns" => signature&.method_types&.map { |type| type.type.return_type.to_s }&.uniq,
+            "visibility" => signature&.accessibility&.to_s,
+            "signatures" => signature&.method_types&.map(&:to_s)}
+        end
+      end
+    end.sort_by { |record| record.fetch("id") }
+  end
+
+  def audit!
+    errors = []
+    records.each do |record|
+      errors << "missing signature: #{record.fetch('id')}" unless record.fetch("signatures")
+      errors << "missing source: #{record.fetch('id')}" unless record.fetch("source")
+      errors << "public method declared private: #{record.fetch('id')}" unless record.fetch("visibility") == "public"
+    end
+    exports.grep(Class).each do |value|
+      singleton = definition(value, :singleton)
+      constructor = singleton.methods[:new]
+      if !value.respond_to?(:new) && constructor&.accessibility != :private
+        errors << "private constructor exposed by RBS: #{value.name}.new"
+      elsif value.respond_to?(:new)
+        initialize = value.instance_method(:initialize)
+        declared = definition(value, :instance).methods[:initialize]
+        if source(initialize.source_location) && declared&.implemented_in.to_s != "::#{initialize.owner.name}"
+          errors << "missing constructor signature: #{value.name}.new"
+        end
+        if value < Data && constructor&.method_types&.all? { |type| type.type.return_type.is_a?(RBS::Types::Bases::Bottom) }
+          errors << "generated Data constructor declared unreachable: #{value.name}.new"
+        end
+      end
+    end
+    raise Error, errors.join("\n") unless errors.empty?
+    records.length
+  end
+
+  def reference(root)
+    audit!
+    document = JSON.parse(File.read(File.join(root, "docs/reference/contracts.json")))
+    raise Error, "unsupported contract manifest" unless document.fetch("version") == 1
+    contracts = document.fetch("contracts")
+    groups = contracts.to_h { |entry| [entry.fetch("id"), entry] }
+    raise Error, "duplicate contract name" unless groups.length == contracts.length
+    mapping = {}
+    contracts.each do |contract|
+      contract.fetch("methods").each do |owner|
+        raise Error, "duplicate behavioral mapping: #{owner}" if mapping.key?(owner)
+        mapping[owner] = contract
+      end
+    end
+    owners = records.map { |record| record.fetch("owner") }.uniq
+    missing = owners - mapping.keys
+    stale = mapping.keys - owners
+    raise Error, "unmapped public methods: #{missing.join(', ')}" unless missing.empty?
+    raise Error, "stale behavioral mappings: #{stale.join(', ')}" unless stale.empty?
+    behavior = File.read(File.join(root, "docs/reference/behavior.md"))
+    contracts.each do |contract|
+      title = contract.fetch("title")
+      anchor = title.downcase.gsub(/[^\p{Alnum}_\- ]/, "").tr(" ", "-")
+      unless behavior.lines.any? { |line| line.strip == "## #{title}" } && anchor == contract.fetch("id")
+        raise Error, "missing behavioral contract heading: #{title}"
+      end
+    end
+
+    lines = ["# Public API", "", "Generated by `scripts/types`; edit the contract manifest and behavior reference.", "",
+      "Every row links an exported public method to its implementation, shipped",
+      "return declaration and [behavioral contract](behavior.md). Inherited project",
+      "methods and generated metadata readers are included. Ruby builtins, private",
+      "constants and internal helpers are excluded. Optional arguments and overloads",
+      "remain in the shipped RBS files; concrete defaults are described by the",
+      "contracts and linked implementation.", "",
+      "Methods inherited by `LibTmux::Async` classes also follow the",
+      "[Async scope](behavior.md#async-scope) scheduling and ownership contract.", "",
+      "This inventory checks declaration presence and visibility. The installed",
+      "signature consumers check exercised calls; neither is whole-program static",
+      "type checking. See [signature proof](behavior.md#signature-proof).", ""]
+    records.group_by { |record| record.fetch("class") }.each do |name, methods|
+      lines.concat(["## #{name}", "", "| Method | Declared return | Contract |", "| --- | --- | --- |"])
+      methods.each do |record|
+        contract = mapping.fetch(record.fetch("owner"))
+        label = (record.fetch("kind") == "singleton" ? "." : "#") + record.fetch("method")
+        returns = record.fetch("returns").map { |type| "`#{type.gsub('|', '\\|')}`" }.join(" / ")
+        lines << "| [#{label}](../../#{record.fetch('source')}) | #{returns} | [#{contract.fetch('title')}](behavior.md##{contract.fetch('id')}) |"
+      end
+      lines << ""
+    end
+    lines.join("\n")
+  end
+
+  private
+
+  def collect(owner)
+    owner.constants(false).sort.each do |name|
+      next if owner == LibTmux && name == :Internal
+      value = owner.const_get(name, false)
+      next unless value.is_a?(Module) && value.name&.start_with?("LibTmux")
+      exports << value
+      collect(value)
+    end
+  end
+
+  def source(location)
+    return unless location
+    path, line = location
+    spec = @specs.find { |candidate| path.start_with?(candidate.full_gem_path + "/") }
+    return unless spec
+    "gems/#{spec.name}/#{path.delete_prefix(spec.full_gem_path + '/')}#L#{line}"
+  end
+
+  def constant_source(value)
+    names = value.name.split("::")
+    parent = names.length == 1 ? Object : Object.const_get(names[0...-1].join("::"))
+    source(parent.const_source_location(names.last, false))
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  abort "usage: ruby scripts/types [--audit|--check|--write]" unless ARGV.empty? || [%w[--audit], %w[--check], %w[--write]].include?(ARGV)
+  begin
+    inventory = PublicAPI.new
+    if ARGV.empty? || ARGV == ["--audit"]
+      puts "Signatures: #{inventory.audit!} public methods inventoried"
+    else
+      root = File.expand_path("..", __dir__)
+      expected = inventory.reference(root)
+      path = File.join(root, "docs/reference/api.md")
+      if ARGV == ["--write"]
+        File.write(path, expected)
+      elsif !File.file?(path) || File.read(path) != expected
+        raise PublicAPI::Error, "public API reference is stale; run ruby scripts/types --write"
+      end
+      puts "Signatures: #{inventory.records.length} public methods; source links and behavioral mappings current"
+    end
+  rescue PublicAPI::Error => error
+    abort error.message
+  end
+end

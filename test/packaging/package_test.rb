@@ -80,6 +80,7 @@ class PackageTest < Minitest::Test
         assert status.success?, "#{name} import failed: #{output}"
         assert_empty output, "#{name} import wrote output"
         run_installed_examples(name, environment, directory)
+        run_installed_type_consumer(name, environment, directory)
       end
     end
   end

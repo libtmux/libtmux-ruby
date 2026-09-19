@@ -91,8 +91,10 @@ The current typed command slice covers hierarchy creation/listing,
 rename/split/resize/swap/join/break/respawn/layout operations, link operations,
 options/hooks/environment, capture/send/paste/pipe/buffers, copy commands,
 display/source-file/wait-for. It does not establish complete flag parity or
-the proposed tmux/Ruby/platform matrix. RBS validation checks declarations,
-not implementation typing. [Executable recipes](../../docs/recipes.md) run
+the proposed tmux/Ruby/platform matrix. RBS validation checks declarations;
+installed signature consumers check selected real arguments, blocks and
+return values. [Executable recipes](../../docs/recipes.md) run
 against installed artifacts; the documentation gate renders YARD and guides
-and checks local destinations and fragments. Complete behavioral reference
-coverage, the full compatibility matrix and release automation remain open.
+and checks local destinations and fragments. The [public method inventory](../../docs/reference/api.md)
+links exported methods to source and behavioral contracts. Whole-program
+static typing, the full compatibility matrix and release automation remain open.

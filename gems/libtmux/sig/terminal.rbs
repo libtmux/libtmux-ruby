@@ -1,5 +1,6 @@
 module LibTmux
   class TerminalResult
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader status: Process::Status
     attr_reader pid: Integer
     attr_reader elapsed_seconds: Float

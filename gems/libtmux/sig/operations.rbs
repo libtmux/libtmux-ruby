@@ -1,5 +1,6 @@
 module LibTmux
   class OptionValue
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader name: String
     attr_reader index: Integer?
     attr_reader raw: String
@@ -12,6 +13,7 @@ module LibTmux
   end
 
   class Options
+    private def self.new: (*untyped, **untyped) -> instance
     def list: (?name: String?, ?inherited: bool, ?timeout: Numeric, ?cancel: untyped) -> Array[OptionValue]
     def get: (String, ?index: Integer?, ?inherited: bool, ?timeout: Numeric, ?cancel: untyped) -> OptionValue
     def set: (String, String | Integer | bool, ?index: Integer?, ?append: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult

@@ -69,10 +69,13 @@ and [workspace](gems/libtmux-workspace/README.md).
 Development uses the Ruby in [.tool-versions](.tool-versions). Focused tests
 currently establish a Linux development cell; Ruby 3.3/3.4/4.0, tmux
 3.2a through 3.7c and macOS remain candidate matrix targets. Owned daemon
-startup currently requires Linux. Workspace `--switch` refuses before
+startup has Linux and Darwin event readiness implementations; passing matrix
+cells establish supported combinations. Workspace `--switch` refuses before
 mutation because an incarnation-safe interactive-client target is not
-available. A complete method-by-method behavioral API reference, the full
-matrix, benchmarks and release automation remain open.
+available. The [public method inventory](docs/reference/api.md) links exported
+methods to source, declared returns and behavioral contracts. Installed
+signature consumers exercise selected real calls; full static typing, the
+complete matrix, benchmarks and release automation remain open.
 
 See [Contributing](.github/CONTRIBUTING.md) for setup and checks. This project
 uses the [MIT license](LICENSE).

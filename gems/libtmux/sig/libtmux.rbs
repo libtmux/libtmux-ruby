@@ -73,6 +73,7 @@ module LibTmux
   end
 
   class EntityRef
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader binding_key: String
     attr_reader kind: :session | :window | :pane | :window_link
     attr_reader id: String
@@ -85,6 +86,7 @@ module LibTmux
   end
 
   class CreationReceipt
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader entity: Session | Window
     attr_reader window: Window
     attr_reader pane: Pane
@@ -93,6 +95,7 @@ module LibTmux
   end
 
   class Entity
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader server: Server
     attr_reader ref: EntityRef
     def id: () -> String
