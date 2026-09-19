@@ -42,7 +42,7 @@ class MCPCursorIdentityTest < Minitest::Test
     end
   end
 
-  def test_reaped_leader_with_draining_output_cannot_bind_injected_reused_pid_and_namespace_mismatch_refuses
+  def test_reaped_leader_with_draining_output_rejects_reused_pid_and_foreign_identity
     with_application do |app, scope, fixture|
       listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "leader"))
       program = 'require "socket"; socket=UNIXSocket.new(ARGV[0]); socket.puts("ready"); socket.gets; STDOUT.write("x" * 1048576); STDOUT.flush; exit! 0'
@@ -78,18 +78,59 @@ class MCPCursorIdentityTest < Minitest::Test
         sink.puts("drain") unless sink.closed?
       end
       namespace = klass.method(:procfs_namespace)
-      klass.define_singleton_method(:procfs_namespace) { File.open("/proc/self/ns/mnt") }
+      if RUBY_PLATFORM.include?("darwin")
+        klass.define_singleton_method(:acquire) do |*arguments, **keywords|
+          original.call(*arguments, **keywords.merge(server_pid: Process.pid))
+        end
+      else
+        klass.define_singleton_method(:procfs_namespace) { File.open("/proc/self/ns/mnt") }
+      end
       begin
         failure = capture(app, scope.server.list_panes.find { |item| item.id != pane.id }, track: true)
         assert_equal "unsupported", failure.dig("error", "code")
       ensure
         klass.define_singleton_method(:procfs_namespace, namespace)
+        klass.define_singleton_method(:acquire, original)
       end
     ensure
       connection&.close
       listener&.close
       sink&.close
       sink_listener&.close
+    end
+  end
+
+  def test_process_death_remains_readable_after_owned_child_is_reaped
+    with_application do |_app, scope, fixture|
+      listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "retained-exit"))
+      code = 'require "socket"; UNIXSocket.open(ARGV.fetch(0)) { |io| io.puts(Process.pid); io.read(1) }'
+      request = ::Async::Task.current.async do
+        scope.__send__(:execute, [Gem.ruby, "--disable=rubyopt,gems", "-e", code, listener.path])
+      end
+      connection = pid = nil
+      ::Async::Task.current.with_timeout(0.5) do
+        connection = listener.accept
+        pid = Integer(connection.gets, 10)
+      end
+      snapshot = scope.server.snapshot
+      identity = LibTmux::MCP.const_get(:ProcessIdentity).acquire(scope.server,
+        server_pid: snapshot.server_info.fetch(:pid), pane_pid: pid,
+        budget: scope.server.__send__(:operation_budget, 0.5, nil))
+      refute identity.exited?
+      connection.write("x")
+      assert request.wait.success?
+      assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
+      2.times { assert identity.exited?, "terminal process readiness was consumed" }
+    ensure
+      identity&.close
+      connection&.close
+      listener&.close
+      begin
+        request&.cancel unless request&.finished?
+        request&.wait
+      rescue LibTmux::Cancelled, ::Async::Cancel
+        nil
+      end
     end
   end
 
@@ -147,19 +188,32 @@ class MCPCursorIdentityTest < Minitest::Test
   def test_acquisition_cleanup_failure_is_sanitized_and_keeps_retry_ownership
     with_application do |app, scope, fixture|
       pane = scope.server.list_panes.first
-      constructor = Socket.method(:new)
       held = nil
       allow_close = false
-      Socket.define_singleton_method(:new) do |*arguments|
-        socket = constructor.call(*arguments)
-        held = socket
-        closer = socket.method(:close)
-        socket.define_singleton_method(:close) do
-          raise IOError, "PRIVATE SOCKET CLEANUP" unless allow_close
+      refuse_close = lambda do |io|
+        held = io
+        closer = io.method(:close)
+        io.define_singleton_method(:close) do
+          raise IOError, "PRIVATE OBSERVER CLEANUP" unless allow_close
 
           closer.call
         end
-        socket
+      end
+      restore = if RUBY_PLATFORM.include?("darwin")
+        identity = LibTmux::MCP.const_get(:ProcessIdentity)
+        validate = identity.instance_method(:ensure_live!)
+        identity.define_method(:ensure_live!) do
+          validate.bind_call(self)
+          refuse_close.call(io)
+          raise LibTmux::TransportError.new("identity acquisition interrupted", phase: :admission)
+        end
+        -> { identity.define_method(:ensure_live!, validate) }
+      else
+        constructor = Socket.method(:new)
+        Socket.define_singleton_method(:new) do |*arguments|
+          constructor.call(*arguments).tap { |socket| refuse_close.call(socket) }
+        end
+        -> { Socket.define_singleton_method(:new, constructor) }
       end
       begin
         result = capture(app, pane, track: true)
@@ -175,7 +229,7 @@ class MCPCursorIdentityTest < Minitest::Test
         assert_empty app.instance_variable_get(:@observers)
       ensure
         allow_close = true
-        Socket.define_singleton_method(:new, constructor)
+        restore.call
       end
     end
   end

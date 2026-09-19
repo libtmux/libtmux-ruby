@@ -60,8 +60,8 @@ module LibTmux
       attr_reader :io, :peer, :generation, :pid
 
       def self.native(name, arguments, result)
-        unless /\A(?:x86_64|aarch64)-linux/.match?(RUBY_PLATFORM) && Fiddle::SIZEOF_LONG == 8
-          raise UnsupportedFeatureError.new("process cursors require Linux x86_64 or aarch64", phase: :admission)
+        unless /\A(?:(?:x86_64|aarch64)-linux|(?:x86_64|arm64)-darwin)/.match?(RUBY_PLATFORM) && Fiddle::SIZEOF_LONG == 8
+          raise UnsupportedFeatureError.new("process cursors require 64-bit Linux or Darwin", phase: :admission)
         end
         Fiddle::Function.new(Fiddle::Handle::DEFAULT[name], arguments, result)
       rescue Fiddle::DLError
@@ -95,45 +95,11 @@ module LibTmux
         resources = Resources.new
         failure = identity = nil
         begin
-          own_namespace = resources.add(procfs_namespace)
-          route = server.__send__(:with_bound_endpoint) { |_endpoint, pin| pin.command_prefix.last }
-          socket = resources.add(Socket.new(Socket::AF_UNIX, Socket::SOCK_STREAM, 0))
-          address = Socket.sockaddr_un(route)
-          loop do
-            remaining = budget.options.fetch(:timeout)
-            connected = socket.connect_nonblock(address, exception: false)
-            break unless connected == :wait_writable
-
-            Fiber.scheduler.io_wait(socket, IO::WRITABLE, remaining)
-          rescue Errno::EISCONN
-            break
+          pane, peer = if RUBY_PLATFORM.include?("darwin")
+            acquire_darwin(server, server_pid, pane_pid, budget, resources)
+          else
+            acquire_linux(server, server_pid, pane_pid, budget, resources)
           end
-          # SO_PEERPIDFD avoids reacquiring a potentially reused SO_PEERCRED PID.
-          peer = resources.add(IO.for_fd(socket.getsockopt(Socket::SOL_SOCKET, PEER_PIDFD).int))
-          peer.close_on_exec = true
-          peer_pid = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED).data.unpack1("i")
-          unless peer_pid == server_pid && !readable?(peer)
-            raise UnsupportedFeatureError.new("socket peer identity does not establish the tmux process", phase: :admission)
-          end
-          other_namespace = resources.add(File.open("/proc/#{peer_pid}/ns/pid"))
-          same_namespace = [own_namespace.stat.dev, own_namespace.stat.ino] == [other_namespace.stat.dev, other_namespace.stat.ino]
-          unless same_namespace && !readable?(peer)
-            raise UnsupportedFeatureError.new("tmux and observer PID namespaces differ", phase: :admission)
-          end
-          opener = native("pidfd_open", [Fiddle::TYPE_INT, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
-          descriptor = opener.call(pane_pid, 0)
-          if descriptor.negative?
-            error = Fiddle.last_error
-            if [Errno::EMFILE::Errno, Errno::ENFILE::Errno].include?(error)
-              raise CapacityError.new("process descriptor capacity exhausted", phase: :admission)
-            elsif error == Errno::ESRCH::Errno
-              raise TargetNotFoundError.new("pane process is unavailable", phase: :admission)
-            end
-            raise UnsupportedFeatureError.new("pane process identity is unavailable", phase: :admission)
-          end
-
-          pane = resources.add(IO.for_fd(descriptor))
-          pane.close_on_exec = true
           identity = new(pane, peer, pane_pid)
           resources.release(pane, peer)
           identity.ensure_live!
@@ -162,6 +128,94 @@ module LibTmux
 
         identity
       end
+
+      def self.acquire_linux(server, server_pid, pane_pid, budget, resources)
+        own_namespace = resources.add(procfs_namespace)
+        route = server.__send__(:with_bound_endpoint) { |_endpoint, pin| pin.command_prefix.last }
+        socket = resources.add(Socket.new(Socket::AF_UNIX, Socket::SOCK_STREAM, 0))
+        address = Socket.sockaddr_un(route)
+        loop do
+          remaining = budget.options.fetch(:timeout)
+          connected = socket.connect_nonblock(address, exception: false)
+          break unless connected == :wait_writable
+
+          Fiber.scheduler.io_wait(socket, IO::WRITABLE, remaining)
+        rescue Errno::EISCONN
+          break
+        end
+        # SO_PEERPIDFD avoids reacquiring a potentially reused SO_PEERCRED PID.
+        peer = resources.add(IO.for_fd(socket.getsockopt(Socket::SOL_SOCKET, PEER_PIDFD).int))
+        peer.close_on_exec = true
+        peer_pid = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED).data.unpack1("i")
+        unless peer_pid == server_pid && !readable?(peer)
+          raise UnsupportedFeatureError.new("socket peer identity does not establish the tmux process", phase: :admission)
+        end
+        other_namespace = resources.add(File.open("/proc/#{peer_pid}/ns/pid"))
+        same_namespace = [own_namespace.stat.dev, own_namespace.stat.ino] == [other_namespace.stat.dev, other_namespace.stat.ino]
+        unless same_namespace && !readable?(peer)
+          raise UnsupportedFeatureError.new("tmux and observer PID namespaces differ", phase: :admission)
+        end
+        opener = native("pidfd_open", [Fiddle::TYPE_INT, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
+        descriptor = opener.call(pane_pid, 0)
+        if descriptor.negative?
+          error = Fiddle.last_error
+          if [Errno::EMFILE::Errno, Errno::ENFILE::Errno].include?(error)
+            raise CapacityError.new("process descriptor capacity exhausted", phase: :admission)
+          elsif error == Errno::ESRCH::Errno
+            raise TargetNotFoundError.new("pane process is unavailable", phase: :admission)
+          end
+          raise UnsupportedFeatureError.new("pane process identity is unavailable", phase: :admission)
+        end
+
+        pane = resources.add(IO.for_fd(descriptor))
+        pane.close_on_exec = true
+        [pane, peer]
+      end
+
+      def self.acquire_darwin(server, server_pid, pane_pid, budget, resources)
+        budget.options
+        peer = process_events(server_pid, resources)
+        if readable?(peer)
+          raise TargetNotFoundError.new("tmux process is unavailable", phase: :admission)
+        end
+        # Registration may find a recycled PID. A fresh pinned-route reply must
+        # name that same daemon while its retained process observer stays live.
+        name = server.__send__(:builtin_spellings, "display-message", budget: budget).fetch("display-message")
+        result = server.__send__(:execute_typed, [name, "-p", '#{pid}'], **budget.options)
+        unless result.stdout == "#{server_pid}\n".b && !readable?(peer)
+          raise UnsupportedFeatureError.new("bound response does not establish the tmux process", phase: :admission)
+        end
+        budget.options
+        pane = process_events(pane_pid, resources)
+        budget.options
+        [pane, peer]
+      end
+
+      def self.process_events(pid, resources)
+        create = native("kqueue", [], Fiddle::TYPE_INT)
+        register = native("kevent", [Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT,
+          Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP], Fiddle::TYPE_INT)
+        descriptor = create.call
+        if descriptor.negative?
+          if [Errno::EMFILE::Errno, Errno::ENFILE::Errno, Errno::ENOMEM::Errno].include?(Fiddle.last_error)
+            raise CapacityError.new("process observer capacity exhausted", phase: :admission)
+          end
+          raise UnsupportedFeatureError.new("process observation is unavailable", phase: :admission)
+        end
+        events = resources.add(IO.for_fd(descriptor))
+        events.close_on_exec = true
+        # NOTE_REAP also covers traced exits whose NOTE_EXIT was suppressed.
+        # Keep the terminal event queued: readiness is the retained death latch.
+        change = [pid, -5, 1, 0x90000000, 0, 0].pack("QsS I qQ")
+        if register.call(events.fileno, change, 1, nil, 0, nil).negative?
+          if Fiddle.last_error == Errno::ESRCH::Errno
+            raise TargetNotFoundError.new("process is unavailable", phase: :admission)
+          end
+          raise UnsupportedFeatureError.new("process observation is unavailable", phase: :admission)
+        end
+        events
+      end
+      private_class_method :acquire_linux, :acquire_darwin, :process_events
 
       def initialize(io, peer, pid)
         @io, @peer, @pid = io, peer, pid
