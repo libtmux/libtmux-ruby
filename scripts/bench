@@ -1,0 +1,990 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "bundler/setup"
+require "libtmux/async"
+require "json"
+require "optparse"
+require "digest"
+require "fileutils"
+require "tmpdir"
+require "rbconfig"
+require "securerandom"
+require "etc"
+
+# This development harness intentionally uses the catalog decoder to give every
+# transport the same acquisition work, then measures graph/query work separately.
+module TmuxBenchmark
+  LANES = %w[process_serial async_bounded control_serial control_pipelined group].freeze
+  DEADLINE = 0.5
+  CONCURRENCY = 4
+  MAX_RUN_SECONDS = 540
+  ROOT = File.expand_path("..", __dir__)
+  CATALOG = LibTmux.const_get(:Internal)::Catalog
+  METADATA = LibTmux.const_get(:Internal)::Metadata
+  TOKEN = LibTmux.const_get(:Internal)::Cancellation
+
+  def self.clock
+    Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  end
+
+  def self.check(condition, message)
+    raise "benchmark correctness failure: #{message}" unless condition
+  end
+
+  def self.command_line(argv)
+    argv.map { |argument| "'#{argument.gsub("'") { "'\\''" }}'" }.join(" ")
+  end
+
+  def self.payload(index, bytes, sequence)
+    line = "pane=#{index} sequence=#{sequence} " + ("x" * 40) + "\r\n"
+    line * ((bytes + line.bytesize - 1) / line.bytesize) + "END:#{index}:#{sequence}\r\n"
+  end
+
+  def self.source_fingerprint
+    paths = Dir[File.join(ROOT, "gems", "{libtmux,libtmux-async}", "lib", "**", "*")]
+      .select { |path| File.file?(path) }.sort
+    paths << File.join(ROOT, "scripts", "bench")
+    sources = paths.map { |path| [path.delete_prefix(ROOT + "/"), Digest::SHA256.file(path).hexdigest] }
+    {sha256: Digest::SHA256.hexdigest(JSON.generate(sources)), files: sources.to_h}
+  end
+
+  WRITER = <<~'RUBY'.freeze
+    require "io/console"
+    STDIN.raw!
+    STDOUT.sync = true
+    index, bytes = ARGV.take(2).map { |value| Integer(value) }
+    executable, ready = ARGV.drop(2)
+    socket = ENV.fetch("TMUX").split(",").first
+    abort "readiness failed" unless system(executable, "-S", socket, "wait-for", "-S", ready,
+      out: File::NULL, err: File::NULL)
+    while (request = STDIN.gets)
+      request = request.strip
+      break if request == "quit"
+      sequence = Integer(request)
+      line = "pane=#{index} sequence=#{sequence} " + ("x" * 40) + "\r\n"
+      STDOUT.write(line * ((bytes + line.bytesize - 1) / line.bytesize) + "END:#{index}:#{sequence}\r\n")
+    end
+  RUBY
+
+  # Observers run at protected state transitions, without callbacks or I/O.
+  # Byte counters cover logical retained data; RSS covers process memory.
+  class LogicalPeaks
+    class Meter
+      attr_reader :object, :kind
+
+      def initialize(object, kind, id, mutex = nil)
+        @object, @kind, @id, @mutex = object, kind, id, mutex
+        @tracked = {}
+        reset
+      end
+
+      def reset
+        @peaks, @calls, @seconds = {}, 0, 0.0
+        sample
+      end
+
+      def sample
+        started = TmuxBenchmark.clock
+        values = case kind
+        when :control
+          requests = object.instance_variable_get(:@requests)
+          pipes = object.instance_variable_get(:@request_pipes)
+          requests.each { |id, request| @tracked[id] = request }
+          @tracked.delete_if { |id, _request| !pipes.key?(id) }
+          {unretired_requests: pipes.length, waiting_commands: object.instance_variable_get(:@queue).length,
+           outstanding_replies: object.instance_variable_get(:@replies).length,
+           written_unretired_requests: @tracked.count { |_id, request| request.offset.positive? },
+           queued_wire_bytes: object.instance_variable_get(:@queued_bytes),
+           retained_reply_bytes: @tracked.values.sum { |request| request.bytes }}
+        when :async
+          {admitted_requests: object.instance_variable_get(:@requests).length,
+           waiting_requests: object.instance_variable_get(:@waiting).length,
+           running_clients: object.instance_variable_get(:@active),
+           queued_input_bytes: object.instance_variable_get(:@queued_bytes),
+           retained_output_bytes: object.instance_variable_get(:@output_bytes)}
+        when :subscription
+          {events: object.instance_variable_get(:@queue).length,
+           retained_event_bytes: object.instance_variable_get(:@bytes)}
+        end
+        values.each { |key, value| @peaks[key] = [@peaks.fetch(key, 0), value].max }
+        @calls += 1
+        @seconds += TmuxBenchmark.clock - started
+      end
+
+      def begin_phase
+        @mutex ? @mutex.synchronize { reset } : reset
+      end
+
+      def snapshot
+        read = -> { {kind: kind, id: @id, peaks: @peaks.dup, probe_calls: @calls, probe_seconds: @seconds} }
+        @mutex ? @mutex.synchronize(&read) : read.call
+      end
+    end
+
+    def initialize
+      @meters = []
+      @next_id = 0
+    end
+
+    def locked(object, kind)
+      mutex = object.instance_variable_get(:@mutex)
+      mutex.synchronize do
+        meter = Meter.new(object, kind, (@next_id += 1), mutex)
+        @meters << meter
+        mutex.define_singleton_method(:synchronize) do |&operation|
+          super() do
+            begin
+              operation.call
+            ensure
+              meter.sample
+            end
+          end
+        end
+        meter
+      end
+    end
+
+    def control(connection)
+      locked(connection, :control)
+      connection.instance_variable_get(:@subscriptions).each do |subscription|
+        locked(subscription, :subscription) unless subscription.instance_variable_get(:@closed)
+      end
+      meters = self
+      connection.singleton_class.prepend(Module.new do
+        define_method(:build_subscription) do |**options|
+          super(**options).tap { |subscription| meters.locked(subscription, :subscription) }
+        end
+        private :build_subscription
+      end)
+    end
+
+    def async(scope)
+      meter = Meter.new(scope, :async, (@next_id += 1))
+      @meters << meter
+      scope.singleton_class.prepend(Module.new do
+        [:acquire, :notify, :release].each do |name|
+          define_method(name) do |*arguments|
+            meter.sample
+            super(*arguments)
+          end
+          private name
+        end
+        define_method(:retain_output) do |*arguments|
+          super(*arguments).tap { meter.sample }
+        end
+        private :retain_output
+      end)
+    end
+
+    def begin_phase
+      @meters.reject! do |meter|
+        (meter.kind == :subscription && meter.object.instance_variable_get(:@closed)) ||
+          (meter.kind == :control && meter.object.instance_variable_get(:@finished))
+      end
+      @meters.each(&:begin_phase)
+    end
+
+    def snapshot
+      @meters.map(&:snapshot)
+    end
+  end
+
+  class Metrics
+    def initialize(server_pid)
+      @server_pid = server_pid
+    end
+
+    def begin_phase
+      @hwm_reset = {ruby: Process.pid, tmux: @server_pid}.transform_values do |pid|
+        begin
+          File.write("/proc/#{pid}/clear_refs", "5\n")
+          {status: "reset", scope: "kernel-reported phase high water, including probe overhead"}
+        rescue SystemCallError => error
+          {status: "unavailable", reason: error.class.name}
+        end
+      end
+    end
+
+    def read
+      times = Process.times
+      gc = GC.stat
+      {
+        self_user: times.utime, self_system: times.stime,
+        reaped_child_user: times.cutime, reaped_child_system: times.cstime,
+        allocated_objects: gc.fetch(:total_allocated_objects), gc_count: gc.fetch(:count),
+        gc_time_ms: gc[:time], heap_live_slots: gc.fetch(:heap_live_slots),
+        ruby_memory: memory(Process.pid), tmux_memory: memory(@server_pid),
+        tmux_cpu_ticks: cpu(@server_pid)
+      }
+    end
+
+    def difference(before, after)
+      counters = %i[self_user self_system reaped_child_user reaped_child_system allocated_objects gc_count gc_time_ms tmux_cpu_ticks]
+      counters.to_h do |key|
+        [key, before[key] && after[key] ? after.fetch(key) - before.fetch(key) : nil]
+      end.merge(
+        ruby_memory_before: before[:ruby_memory], ruby_memory_after: after[:ruby_memory],
+        tmux_memory_before: before[:tmux_memory], tmux_memory_after: after[:tmux_memory],
+        memory_hwm_reset: @hwm_reset,
+        heap_live_slots_before: before[:heap_live_slots], heap_live_slots_after: after[:heap_live_slots])
+    end
+
+    private
+
+    def memory(pid)
+      values = File.read("/proc/#{pid}/status").scan(/^(VmRSS|VmHWM):\s+(\d+) kB$/).to_h
+      {rss_kib: values["VmRSS"]&.to_i, high_water_rss_kib: values["VmHWM"]&.to_i}
+    rescue Errno::ENOENT, Errno::EACCES
+      nil
+    end
+
+    def cpu(pid)
+      fields = File.read("/proc/#{pid}/stat").split(") ", 2).fetch(1).split
+      Integer(fields.fetch(11)) + Integer(fields.fetch(12))
+    rescue Errno::ENOENT, Errno::EACCES
+      nil
+    end
+  end
+
+  class Evidence
+    attr_reader :rows
+
+    def initialize(directory, config)
+      raise ArgumentError, "output directory must not already exist" if File.exist?(directory)
+
+      FileUtils.mkdir_p(directory)
+      @directory, @rows = directory, []
+      @samples = File.open(File.join(directory, "samples.jsonl"), "wx")
+      @diagnostics = File.open(File.join(directory, "diagnostics.jsonl"), "wx")
+      [@samples, @diagnostics].each { |file| file.sync = true }
+      write("run.json", config)
+    end
+
+    def sample(row)
+      @rows << row
+      @samples.puts(JSON.generate(row))
+    end
+
+    def diagnostic(row)
+      @diagnostics.puts(JSON.generate(row))
+    end
+
+    def finish(status, seconds)
+      groups = @rows.group_by { |row| row.values_at(:panes, :lane, :phase) }
+      summary = groups.map do |key, rows|
+        values = rows.map { |row| row.fetch(:wall_seconds) }.sort
+        median = values.length.odd? ? values[values.length / 2] : values[(values.length / 2) - 1, 2].sum / 2.0
+        {panes: key[0], lane: key[1], phase: key[2], samples: values.length,
+         median_seconds: median, min_seconds: values.first, max_seconds: values.last,
+         interpretation: values.length < 6 ? "inconclusive smoke samples" : "descriptive samples; no capacity or tail claim"}
+      end
+      write("summary.json", {status: status, whole_run_seconds: seconds, comparisons: summary,
+        open_gates: ["host/platform/version matrix and pressure sweep are separate runs",
+          "memory is kernel-reported per process; complete process-tree memory is not measured"]})
+    ensure
+      @samples&.close
+      @diagnostics&.close
+    end
+
+    private
+
+    def write(name, value)
+      File.write(File.join(@directory, name), JSON.pretty_generate(value) + "\n")
+    end
+  end
+
+  class Run
+    def initialize(config, evidence)
+      @config, @evidence = config, evidence
+      @deadline = TmuxBenchmark.clock + MAX_RUN_SECONDS
+      @pids = []
+    end
+
+    def call
+      @config.fetch(:panes).each { |count| topology(count) }
+    end
+
+    private
+
+    def budget
+      remaining = @deadline - TmuxBenchmark.clock
+      raise "benchmark run budget exhausted" unless remaining.positive?
+
+      [remaining, DEADLINE].min
+    end
+
+    def topology(count)
+      @count, @panes, @pids, @initialized = count, [], [], false
+      @expected_lengths = {}
+      @control = nil
+      @peaks = LogicalPeaks.new
+      @server = LibTmux::Server.start(executable: @config.fetch(:tmux), timeout: budget)
+      @directory = File.dirname(@server.endpoint.socket_path)
+      @daemon = @server.instance_variable_get(:@daemon).instance_variable_get(:@child)
+      @metrics = Metrics.new(@daemon.pid)
+      error = nil
+      begin
+        prepare
+        prove_pipeline
+        Async do |parent|
+          LibTmux::Async.open(server: @server, parent: parent, concurrency: CONCURRENCY,
+            max_requests: 32, max_queue_bytes: 1 << 22, max_output_bytes: 1 << 23) do |scope|
+            @scope, @parent = scope, parent
+            @peaks.async(scope)
+            cold_samples
+            baseline = acquire("process_serial", @commands).fetch(:bodies)
+            graph = decode(baseline.take(3))
+            verify_graph(graph)
+            LANES.each do |lane|
+              observed = acquire(lane, @commands).fetch(:bodies)
+              TmuxBenchmark.check(observed == baseline, "#{lane} failed untimed acquisition equivalence")
+              verify_graph(decode(observed.take(3)))
+            end
+            @config.fetch(:samples).times do |round|
+              LANES.rotate(round % LANES.length).each do |lane|
+                acquisition = measure(lane, "warm_acquire", round) { acquire(lane, @commands) }
+                TmuxBenchmark.check(acquisition.fetch(:bodies) == baseline, "#{lane} changed ordered acquisition bytes")
+                snapshot = measure(lane, "decode_graph", round) { {value: decode(acquisition.fetch(:bodies).take(3))} }.fetch(:value)
+                verify_graph(snapshot)
+                measure(lane, "local_query", round) do
+                  selected = snapshot.panes.where(dead: false).map(&:id)
+                  links = snapshot.window_links.map { |link| [link.session_id, link.index, link.window_id] }
+                  TmuxBenchmark.check(selected == @panes.map(&:id), "ordered query result changed")
+                  TmuxBenchmark.check(links.length == 2, "link multiplicity collapsed")
+                  {logical_results: selected.length + links.length}
+                end
+              end
+            end
+            mutation_samples
+            diagnostics
+            streaming
+          ensure
+            @scope = nil
+          end
+        end.wait
+      rescue Exception => failure
+        location = failure.backtrace&.find { |line| line.start_with?(__FILE__ + ":") }
+        @evidence.diagnostic(type: "topology_failure", panes: count, stage: @stage, exception: failure.class.name,
+          source: location, phase: failure.respond_to?(:phase) ? failure.phase : nil,
+          delivery: failure.respond_to?(:delivery) ? failure.delivery : nil)
+        error = failure
+      ensure
+        begin
+          cleanup
+        rescue Exception => failure
+          @evidence.diagnostic(type: "cleanup_failure", panes: count, exception: failure.class.name)
+          error ||= failure
+        end
+      end
+      raise error if error
+    end
+
+    def prepare
+      @stage = "configure_owned_server"
+      @ready = "bench-ready-#{SecureRandom.hex(6)}"
+      @died = "bench-died-#{SecureRandom.hex(6)}"
+      @server.run(["set-option", "-g", "remain-on-exit", "on"], timeout: budget)
+      @server.run(["set-option", "-g", "history-limit", "10000"], timeout: budget)
+      @server.run(["set-hook", "-g", "pane-died", "wait-for -S #{@died}"], timeout: budget)
+      receipt = @server.new_session(name: "benchmark", window_name: "main", width: 320, height: 128,
+        command: writer(0), receipt: true, timeout: budget)
+      @session, @window = receipt.entity, receipt.window
+      @server.run(["set-option", "-w", "-t", @window.id, "window-size", "manual"], timeout: budget)
+      @panes << receipt.pane
+      (1...@count).each do |index|
+        @panes << @panes.first.split(direction: :horizontal, command: writer(index), timeout: budget)
+        @window.select_layout(:tiled, timeout: budget)
+      end
+      @stage = "main_writer_readiness"
+      @panes.each_index { |index| @server.wait_for("#{@ready}-#{index}", timeout: budget) }
+      @stage = "mirror_creation"
+      mirror = @server.new_session(name: "mirror", command: writer(@count), receipt: true, timeout: budget)
+      @stage = "mirror_writer_readiness"
+      @server.wait_for("#{@ready}-#{@count}", timeout: budget)
+      mirror.entity.link_window(@window.ref, index: 1, timeout: budget)
+      @stage = "mirror_writer_retirement"
+      mirror.pane.send_text("quit\n", timeout: budget)
+      @server.wait_for(@died, timeout: budget)
+      mirror.window.kill(timeout: budget)
+      @stage = "control_readiness"
+      @control = @server.open_control(session: @session.ref)
+      @control.events.close
+      @peaks.control(@control)
+      reply = @control.exchange("display-message -p ready", timeout: budget)
+      TmuxBenchmark.check(reply.blocks.last.body == "ready\n", "control readiness")
+      witness = @control.subscribe(max_bytes: 1 << 22, max_events: 4096)
+      @stage = "writer_payload_ground_truth"
+      @panes.each { |pane| pane.send_text("0\n", timeout: budget) }
+      expected = @panes.each_with_index.to_h { |pane, index| [pane.id, TmuxBenchmark.payload(index, @config.fetch(:payload_bytes), 0)] }
+      consume(witness, expected)
+      witness.close
+      @initialized = true
+      @stage = "baseline_snapshot"
+      @baseline = @server.snapshot(timeout: budget)
+      @writer_indices = @panes.each_with_index.to_h { |pane, index| [pane.id, index] }
+      by_id = @panes.to_h { |pane| [pane.id, pane] }
+      @panes = @baseline.panes.map { |pane| by_id.fetch(pane.id) }
+      @commands = metadata_commands + @panes.map { |pane| ["capture-pane", "-p", "-S", "-", "-t", pane.id] }
+      @evidence.diagnostic(type: "topology", panes: @count, sessions: 2, windows: 1, window_links: 2,
+        attached_control_clients: @server.list_clients(timeout: budget).count { |client| client.fetch(:control) },
+        pane_payload_bytes: expected.values.map(&:bytesize), writer_programs: @count)
+      @stage = "measurement"
+    end
+
+    def writer(index)
+      [RbConfig.ruby, "--disable=rubyopt,gems", "-e", WRITER, index.to_s, @config.fetch(:payload_bytes).to_s,
+       @config.fetch(:tmux), "#{@ready}-#{index}"]
+    end
+
+    def metadata_commands
+      @fields = %i[session window window_link pane].to_h { |kind| [kind, CATALOG.entity(kind).fields.values] }
+      combined = @fields.fetch(:window) + @fields.fetch(:window_link)
+      [["list-sessions", "-F", METADATA.format(@fields.fetch(:session).map(&:format))],
+       ["list-windows", "-a", "-F", METADATA.format(combined.map(&:format))],
+       ["list-panes", "-a", "-F", METADATA.format(@fields.fetch(:pane).map(&:format))]]
+    end
+
+    def decode(bodies)
+      rows = {}
+      [:session, :pane].zip([bodies.fetch(0), bodies.fetch(2)]).each do |kind, bytes|
+        fields = @fields.fetch(kind)
+        rows[kind] = METADATA.decode(bytes, fields: fields.length, quoted: true).map { |values| fields.map(&:name).zip(values).to_h }
+      end
+      windows, links = @fields.fetch(:window), @fields.fetch(:window_link)
+      rows[:window], rows[:window_link] = [], []
+      METADATA.decode(bodies.fetch(1), fields: windows.length + links.length, quoted: true).each do |values|
+        rows[:window] << windows.map(&:name).zip(values.take(windows.length)).to_h
+        rows[:window_link] << links.map(&:name).zip(values.drop(windows.length)).to_h
+      end
+      now = TmuxBenchmark.clock
+      LibTmux::Snapshot.__send__(:new, rows: rows, binding_key: @baseline.binding_key,
+        started_at: now, finished_at: now, reads: [], server_info: @baseline.server_info)
+    end
+
+    def verify_graph(snapshot)
+      TmuxBenchmark.check(snapshot.panes.map(&:id) == @panes.map(&:id), "physical panes or order differ")
+      TmuxBenchmark.check(snapshot.windows.size == 1 && snapshot.window_links.size == 2, "physical window/link multiplicity differs")
+    end
+
+    def measure(lane, phase, round)
+      budget
+      @peaks.begin_phase
+      @metrics.begin_phase
+      before = @metrics.read
+      started = TmuxBenchmark.clock
+      value = yield
+      elapsed = TmuxBenchmark.clock - started
+      after = @metrics.read
+      metric = @metrics.difference(before, after).merge(wall_seconds: elapsed)
+      metric[:logical_resource_peaks] = @peaks.snapshot
+      metric[:probe_cost_policy] = "included, not subtracted; resource probes execute under existing state ownership"
+      serializable = value.reject { |key, _| [:value, :bodies].include?(key) }
+      if value[:bodies]
+        serializable[:output_bytes] = value.fetch(:bodies).sum(&:bytesize)
+        serializable[:output_sha256] = Digest::SHA256.hexdigest(value.fetch(:bodies).join)
+        serializable[:logical_results] = value.fetch(:bodies).length
+        serializable[:results_per_second] = value.fetch(:bodies).length / metric.fetch(:wall_seconds)
+      end
+      @evidence.sample(metric.merge(serializable).merge(panes: @count, lane: lane, phase: phase, round: round,
+        persistent_clients: @control ? 1 : 0))
+      value
+    end
+
+    def acquire(lane, commands, server: @server, control: @control)
+      started, first, inflight, peak, pids = TmuxBenchmark.clock, nil, 0, 0, []
+      mutex = Mutex.new
+      request = lambda do |command|
+        mutex.synchronize { inflight += 1; peak = [peak, inflight].max }
+        begin
+          if lane.start_with?("control")
+            reply = control.exchange(TmuxBenchmark.command_line(command), timeout: budget)
+            TmuxBenchmark.check(reply.attribution == :boundary_window && reply.blocks.length == 1,
+              "isolated control workload gained ambiguous blocks")
+            block = reply.blocks.first
+            TmuxBenchmark.check(block.guard_success?, "control command guard failed")
+            bytes = block.body
+          else
+            result = (lane == "async_bounded" ? @scope.server : server).run(command, timeout: budget)
+            mutex.synchronize { pids << result.pid }
+            TmuxBenchmark.check(result.success?, "process command failed")
+            TmuxBenchmark.check(result.stderr.empty?, "unexpected process diagnostic")
+            bytes = result.stdout
+          end
+          mutex.synchronize { first ||= TmuxBenchmark.clock - started }
+          bytes
+        ensure
+          mutex.synchronize { inflight -= 1 }
+        end
+      end
+      bodies = case lane
+      when "process_serial", "control_serial"
+        commands.map(&request)
+      when "async_bounded"
+        @scope.map(commands, concurrency: CONCURRENCY, max_items: 128, result_bytes: :bytesize.to_proc, &request)
+      when "control_pipelined"
+        results = Array.new(commands.length)
+        queue = Queue.new
+        commands.each_with_index { |command, index| queue << [command, index] }
+        workers = [CONCURRENCY, commands.length].min.times.map do
+          Thread.new do
+            while (entry = queue.pop(true) rescue nil)
+              results[entry.last] = request.call(entry.first)
+            end
+          end
+        end
+        errors = []
+        workers.each { |worker| worker.value rescue errors << $! }
+        raise errors.first unless errors.empty?
+        results
+      when "group"
+        lengths = commands.map { |command| @expected_lengths&.fetch(command, nil) }
+        result = server.run_group(commands, timeout: budget)
+        pids << result.result.pid
+        TmuxBenchmark.check(result.success?, "group client failed")
+        TmuxBenchmark.check(result.steps.all? { |step| step.fetch(:outcome) == :unknown }, "group invented member status")
+        first = TmuxBenchmark.clock - started
+        peak = 1
+        if lengths.all?
+          offset = 0
+          values = lengths.map { |length| part = result.result.stdout.byteslice(offset, length); offset += length; part }
+          TmuxBenchmark.check(offset == result.result.stdout.bytesize, "merged group byte count changed")
+          values
+        else
+          TmuxBenchmark.check(result.result.stdout.empty?, "group without known boundaries produced output")
+          Array.new(commands.length) { "".b }
+        end
+      end
+      @pids.concat(pids)
+      @expected_lengths ||= {}
+      commands.zip(bodies).each { |command, bytes| @expected_lengths[command] ||= bytes.bytesize } if lane == "process_serial"
+      retired = queue_observation
+      TmuxBenchmark.check(retired.values.compact.all?(&:zero?), "request queues did not retire")
+      {bodies: bodies, first_result_seconds: first, command_client_launches: pids.length,
+       unique_command_client_pids: pids.uniq.length,
+       max_wrapper_inflight: peak, control_max_admitted_requests: lane.start_with?("control") ? 32 : nil,
+       admitted_input_bytes: commands.sum { |command| command.sum(&:bytesize) },
+       queue_after_retirement: retired}
+    end
+
+    def queue_observation
+      # Only used after all workload callers have returned.
+      {async_requests: @scope&.instance_variable_get(:@requests)&.length,
+       async_retained_bytes: @scope&.instance_variable_get(:@output_bytes),
+       control_requests: @control&.instance_variable_get(:@request_pipes)&.length,
+       control_queued_bytes: @control&.instance_variable_get(:@queued_bytes)}
+    end
+
+    def prove_pipeline
+      @stage = "pipeline_wire_proof"
+      ready, held = "bench-pipeline-ready-#{SecureRandom.hex(4)}", "bench-pipeline-held-#{SecureRandom.hex(4)}"
+      reader, writer = IO.pipe
+      input = @control.instance_variable_get(:@input)
+      sent = +"".b
+      input.define_singleton_method(:write_nonblock) do |bytes, **options|
+        result = super(bytes.byteslice(0, 7), **options)
+        if result.is_a?(Integer)
+          sent << bytes.byteslice(0, result)
+          writer.write_nonblock("x") if /pipeline-second\nlibtmux_boundary_[0-9a-f]+\n\z/.match?(sent)
+        end
+        result
+      end
+      failure = nil
+      begin
+        first = Thread.new do
+          @control.exchange("wait-for -S #{ready} ; wait-for #{held} ; display-message -p pipeline-first", timeout: budget)
+        end
+        @server.wait_for(ready, timeout: budget)
+        second = Thread.new { @control.exchange("display-message -p pipeline-second", timeout: budget) }
+        TmuxBenchmark.check(IO.select([reader], nil, nil, 0.2), "second control request waited for the first reply")
+        TmuxBenchmark.check(first.alive? && second.alive?, "pipeline witness did not retain the first WAIT")
+        peaks = @peaks.snapshot.find { |meter| meter.fetch(:kind) == :control }.fetch(:peaks)
+        TmuxBenchmark.check(peaks.fetch(:unretired_requests) >= 2 && peaks.fetch(:written_unretired_requests) >= 2,
+          "control peak observer missed outstanding written requests")
+        @server.wait_for(held, action: :signal, timeout: budget)
+        first_reply, second_reply = first.value, second.value
+        TmuxBenchmark.check(first_reply.blocks.map(&:body).join == "pipeline-first\n", "first pipeline reply changed")
+        TmuxBenchmark.check(second_reply.blocks.map(&:body).join == "pipeline-second\n", "second pipeline reply changed")
+        TmuxBenchmark.check(first_reply.attribution == :boundary_window && second_reply.attribution == :boundary_window,
+          "pipeline overclaimed attribution")
+        @evidence.diagnostic(type: "pipeline_wire_proof", panes: @count, forced_write_chunk_bytes: 7,
+          complete_second_wire_before_first_reply: true, replies_ordered: true, attribution: "boundary_window",
+          logical_resource_peaks: peaks)
+      rescue Exception => error
+        failure = error
+      ensure
+        actions = [-> { @server.wait_for(held, action: :signal, timeout: DEADLINE) if first&.alive? },
+          *[first, second].compact.map { |thread| -> { TmuxBenchmark.check(thread.join(DEADLINE), "pipeline caller remains") } },
+          -> { input.singleton_class.remove_method(:write_nonblock) }, -> { reader.close }, -> { writer.close }]
+        actions.each do |action|
+          action.call
+        rescue Exception => error
+          failure ||= error
+        end
+      end
+      raise failure if failure
+
+      @stage = "measurement"
+    end
+
+    def cold_samples
+      @config.fetch(:samples).times do |round|
+        %w[process_binding control_connection].rotate(round % 2).each do |lane|
+          measure(lane, "cold_bind_first_reply_and_retire", round) do
+            started = TmuxBenchmark.clock
+            bound = LibTmux::Server.new(endpoint: @server.endpoint)
+            begin
+              if lane == "control_connection"
+                temporary = bound.open_control(session: bound.list_sessions(timeout: budget).find { |item| item.id == @session.id }.ref)
+                @peaks.control(temporary)
+                reply = temporary.exchange("display-message -p cold", timeout: budget)
+                TmuxBenchmark.check(reply.blocks.last.body == "cold\n", "cold control reply")
+                @pids << temporary.pid
+              else
+                result = bound.run(["display-message", "-p", "cold"], timeout: budget)
+                TmuxBenchmark.check(result.success? && result.stdout == "cold\n", "cold process reply")
+                @pids << result.pid
+              end
+              {logical_results: 1, first_result_seconds: TmuxBenchmark.clock - started,
+               includes_interpreter_startup: false, includes_retirement: true}
+            ensure
+              bound.close
+            end
+          end
+        end
+      end
+    end
+
+    def mutation_samples
+      commands = [["select-layout", "-t", @window.id, "even-horizontal"]] +
+        @panes.map { |pane| ["set-option", "-p", "-t", pane.id, "@benchmark", "applied"] }
+      [-1, *(0...@config.fetch(:samples))].each do |round|
+        LANES.rotate(round % LANES.length).each do |lane|
+          # select-layout has a stdout message; establish exact output boundaries
+          # outside the timed phase and restore the starting layout afterwards.
+          expected = acquire("process_serial", commands).fetch(:bodies)
+          @window.select_layout(:tiled, timeout: budget)
+          @panes.each { |pane| @server.run(["set-option", "-p", "-u", "-t", pane.id, "@benchmark"], timeout: budget) }
+          result = if round.negative?
+            acquire(lane, commands)
+          else
+            measure(lane, "warm_mutation", round) { acquire(lane, commands) }
+          end
+          TmuxBenchmark.check(result.fetch(:bodies) == expected, "mutation reply bytes differ")
+          @panes.each do |pane|
+            observed = @server.run(["show-options", "-p", "-v", "-t", pane.id, "@benchmark"], timeout: budget)
+            TmuxBenchmark.check(observed.stdout == "applied\n", "mutation final option differs")
+          end
+          widths = @server.run(["list-panes", "-t", @window.id, "-F", "#{'#{pane_height}'}"], timeout: budget).stdout.lines.map(&:to_i)
+          TmuxBenchmark.check(widths.uniq.length == 1, "layout final heights differ")
+          verify_graph(@server.snapshot(timeout: budget))
+          @window.select_layout(:tiled, timeout: budget)
+        end
+      end
+    end
+
+    def diagnostics
+      [0, 1, 2].each do |position|
+        @server.run(["set-option", "-g", "-u", "@before"], timeout: budget)
+        @server.run(["set-option", "-g", "-u", "@after"], timeout: budget)
+        commands = [["set-option", "-g", "@before", "retained"], ["set-option", "-g", "@after", "retained"]]
+        commands.insert(position, ["select-pane", "-t", "%4294967294"])
+        group = @server.run_group(commands, timeout: budget)
+        TmuxBenchmark.check(!group.success? && group.steps.all? { |step| step.fetch(:outcome) == :unknown }, "group error attribution")
+        actual = %w[@before @after].map { |name| @server.run(["show-options", "-g", "-v", name], timeout: budget).success? }
+        TmuxBenchmark.check(actual == [position > 0, position > 1], "group partial effects differ")
+        @evidence.diagnostic(type: "group_error", panes: @count, error_index: position, observed_effects: actual,
+          client_success: group.success?, member_attribution: "unknown", stderr_bytes: group.result.stderr.bytesize)
+      end
+      cancellation
+      async_cancellation
+      control_cancellation
+      slow_consumer
+    end
+
+    def async_cancellation
+      ready, held = "bench-async-ready-#{SecureRandom.hex(4)}", "bench-async-held-#{SecureRandom.hex(4)}"
+      waiting = @parent.async do
+        @scope.server.run(["wait-for", "-S", ready, ";", "wait-for", held], timeout: budget)
+      rescue LibTmux::Cancelled => failure
+        failure
+      end
+      @scope.server.wait_for(ready, timeout: budget)
+      started = TmuxBenchmark.clock
+      waiting.cancel
+      error = waiting.wait(timeout: budget)
+      TmuxBenchmark.check(error.is_a?(LibTmux::Cancelled) && error.delivery == :possibly_sent, "Async cancellation delivery")
+      reaped(error.pid)
+      TmuxBenchmark.check(@scope.instance_variable_get(:@requests).empty?, "Async cancelled request retained")
+      @evidence.diagnostic(type: "async_cancel", panes: @count, retirement_seconds: TmuxBenchmark.clock - started,
+        delivery: error.delivery, cleanup_errors: error.cleanup_errors, client_reaped: true)
+    ensure
+      waiting&.cancel unless waiting&.finished?
+      waiting&.wait(timeout: DEADLINE)
+      @server.wait_for(held, action: :signal, timeout: DEADLINE) if held
+    end
+
+    def control_cancellation
+      token = TOKEN.new
+      temporary = @server.open_control(session: @session.ref, max_requests: 1)
+      temporary.events.close
+      token.cancel
+      before_admission = begin
+        temporary.exchange("display-message -p never", timeout: budget, cancel: token)
+      rescue LibTmux::Cancelled => failure
+        failure
+      end
+      TmuxBenchmark.check(before_admission.is_a?(LibTmux::Cancelled) && before_admission.delivery == :not_sent,
+        "pre-admission control cancellation")
+      token.close
+      token = TOKEN.new
+      ready, held = "bench-control-ready-#{SecureRandom.hex(4)}", "bench-control-held-#{SecureRandom.hex(4)}"
+      worker = Thread.new do
+        temporary.exchange("wait-for -S #{ready} ; wait-for #{held}", timeout: budget, cancel: token)
+      rescue LibTmux::Cancelled => failure
+        failure
+      end
+      @server.wait_for(ready, timeout: budget)
+      capacity = begin
+        temporary.exchange("display-message -p beyond-capacity", timeout: budget)
+      rescue LibTmux::CapacityError => failure
+        failure
+      end
+      TmuxBenchmark.check(capacity.is_a?(LibTmux::CapacityError) && capacity.delivery == :not_sent, "control admission capacity")
+      started = TmuxBenchmark.clock
+      token.cancel
+      TmuxBenchmark.check(worker.join(budget), "cancelled control caller did not retire")
+      error = worker.value
+      TmuxBenchmark.check(error.is_a?(LibTmux::Cancelled) && error.delivery == :possibly_sent, "control cancellation delivery")
+      temporary.close
+      reaped(temporary.pid)
+      @evidence.diagnostic(type: "control_cancel_and_admission", panes: @count,
+        before_admission_delivery: before_admission.delivery, capacity_delivery: capacity.delivery,
+        dispatched_delivery: error.delivery, retirement_seconds: TmuxBenchmark.clock - started,
+        client_reaped: true, connection_closed: temporary.closed?, replayed: false)
+    ensure
+      token&.cancel
+      @server.wait_for(held, action: :signal, timeout: DEADLINE) if held
+      worker&.join(DEADLINE)
+      temporary&.close
+      token&.close
+    end
+
+    def cancellation
+      token = TOKEN.new
+      ready, held = "bench-cancel-#{SecureRandom.hex(4)}", "bench-held-#{SecureRandom.hex(4)}"
+      worker = Thread.new do
+        @server.run(["wait-for", "-S", ready, ";", "wait-for", held], timeout: budget, cancel: token)
+      rescue LibTmux::Cancelled => error
+        error
+      end
+      @server.wait_for(ready, timeout: budget)
+      started = TmuxBenchmark.clock
+      token.cancel
+      TmuxBenchmark.check(worker.join(budget), "cancelled client did not retire")
+      error = worker.value
+      TmuxBenchmark.check(error.is_a?(LibTmux::Cancelled) && error.delivery == :possibly_sent, "cancellation delivery")
+      reaped(error.pid)
+      @evidence.diagnostic(type: "process_cancel", panes: @count, retirement_seconds: TmuxBenchmark.clock - started,
+        delivery: error.delivery, cleanup_errors: error.cleanup_errors, client_reaped: true,
+        remote_queued_effects: "not rolled back")
+    ensure
+      token&.cancel
+      @server.wait_for(held, action: :signal, timeout: budget) if held
+      worker&.join(DEADLINE)
+      token&.close
+    end
+
+    def slow_consumer
+      reliable = @control.subscribe(max_events: 1, max_bytes: 1024)
+      tail = @control.subscribe(mode: :tail, max_events: 1, max_bytes: 1024)
+      3.times { |index| @window.rename("slow-#{index}", timeout: budget) }
+      reply = @control.exchange("display-message -p responsive", timeout: budget)
+      TmuxBenchmark.check(reply.blocks.last.body == "responsive\n", "slow subscriber blocked commands")
+      reliable.next(timeout: budget)
+      overflow = begin
+        reliable.next(timeout: budget)
+        false
+      rescue LibTmux::SubscriptionOverflow
+        true
+      end
+      gap = tail.next(timeout: budget)
+      TmuxBenchmark.check(overflow && gap.kind == :gap && gap.dropped_bytes.positive?, "slow consumer loss was silent")
+      @evidence.diagnostic(type: "slow_consumer", panes: @count, reliable_overflow: overflow,
+        tail_lost_sequences: gap.lost_sequences, tail_dropped_bytes: gap.dropped_bytes,
+        retained_byte_bound: 1024, retained_event_bound: 1, commands_responsive: true)
+    ensure
+      reliable&.close
+      tail&.close
+    end
+
+    def streaming
+      @config.fetch(:samples).times do |round|
+        subscription = @control.subscribe(max_bytes: 1 << 22, max_events: 4096)
+        sequence = round + 1
+        expected = @panes.to_h { |pane| [pane.id, TmuxBenchmark.payload(@writer_indices.fetch(pane.id), @config.fetch(:payload_bytes), sequence)] }
+        measure("stream", "raw_output_non_equivalent", round) do
+          started = TmuxBenchmark.clock
+          @panes.each { |pane| pane.send_text("#{sequence}\n", timeout: budget) }
+          stats = consume(subscription, expected, started: started)
+          stats.merge(output_bytes: expected.values.sum(&:bytesize), logical_results: @count,
+            writer_to_consumer_seconds: TmuxBenchmark.clock - started,
+            product: "raw PTY output; not a screen snapshot", lost_bytes: 0)
+        end
+      ensure
+        subscription&.close
+      end
+    end
+
+    def consume(subscription, expected, started: TmuxBenchmark.clock)
+      received = expected.to_h { |id, _| [id, "".b] }
+      first, events = nil, 0
+      until received.all? { |id, bytes| bytes.bytesize == expected.fetch(id).bytesize }
+        event = subscription.next(timeout: budget)
+        TmuxBenchmark.check(event.kind != :gap, "stream lost data")
+        next unless event.kind == :output && received.key?(event.pane_id)
+
+        first ||= TmuxBenchmark.clock - started
+        events += 1
+        received.fetch(event.pane_id) << event.data
+        TmuxBenchmark.check(expected.fetch(event.pane_id).start_with?(received.fetch(event.pane_id)), "stream byte mismatch")
+      end
+      {first_result_seconds: first, events: events, output_sha256: Digest::SHA256.hexdigest(received.values.join),
+       exact_byte_match: true, retained_byte_limit: 1 << 22, retained_event_limit: 4096}
+    end
+
+    def cleanup
+      errors = []
+      @panes.each do |pane|
+        begin
+          pane.send_text("quit\n", timeout: DEADLINE)
+          @server.wait_for(@died, timeout: DEADLINE)
+          state = @server.run(["display-message", "-p", "-t", pane.id, "#{'#{pane_dead}:#{pane_dead_status}'}"], timeout: DEADLINE)
+          TmuxBenchmark.check(state.stdout == "1:0\n", "writer did not exit successfully")
+        rescue Exception => error
+          errors << "writer retirement: #{error.class}"
+        end
+      end
+      begin
+        @pids << @control.pid if @control
+        @control&.close
+        clients = @server.list_clients(timeout: DEADLINE)
+        TmuxBenchmark.check(clients.empty?, "owned tmux client remains")
+        @pids.uniq.each { |pid| reaped(pid) }
+      rescue Exception => error
+        errors << "client retirement: #{error.class}"
+      ensure
+        begin
+          @server.close
+          TmuxBenchmark.check(!File.exist?(@directory), "owned temp directory remains")
+          TmuxBenchmark.check(@daemon.complete?, "owned daemon remains")
+          reaped(@daemon.pid)
+        rescue Exception => error
+          errors << "daemon retirement: #{error.class}"
+        end
+      end
+      @evidence.diagnostic(type: "cleanup", panes: @count, errors: errors,
+        writer_exit_checks: @panes.length, tracked_command_clients: @pids.uniq.length,
+        daemon_reaped: @daemon.complete?, temporary_directory_removed: !File.exist?(@directory))
+      raise "benchmark cleanup failed: #{errors.join(', ')}" unless errors.empty?
+    end
+
+    def reaped(pid)
+      Process.waitpid(pid, Process::WNOHANG)
+      raise "owned child was not already reaped"
+    rescue Errno::ECHILD
+      true
+    end
+  end
+
+  def self.main(argv)
+    command = argv.shift
+    config = {samples: 6, panes: [1, 8, 32], payload_bytes: 8192,
+              tmux: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")}
+    output = nil
+    parser = OptionParser.new do |options|
+      options.banner = "Usage: scripts/bench plan|run [options]"
+      options.on("--output DIR", "New durable evidence directory (required for run)") { |value| output = value }
+      options.on("--samples N", Integer) { |value| config[:samples] = value }
+      options.on("--panes LIST", "Subset of 1,8,32") { |value| config[:panes] = value.split(",").map { |item| Integer(item, 10) } }
+      options.on("--payload-bytes N", Integer) { |value| config[:payload_bytes] = value }
+      options.on("--tmux PATH", "Exact tmux executable") { |value| config[:tmux] = value }
+      options.on("--help") { puts options; return 0 }
+    end
+    parser.parse!(argv)
+    raise ArgumentError, parser.to_s unless %w[plan run].include?(command) && argv.empty?
+    raise ArgumentError, "samples must be 2..20" unless config.fetch(:samples).between?(2, 20)
+    raise ArgumentError, "panes must be a nonempty unique subset of 1,8,32" if config.fetch(:panes).empty? ||
+      config.fetch(:panes).uniq != config.fetch(:panes) || (config.fetch(:panes) - [1, 8, 32]).any?
+    raise ArgumentError, "payload bytes must be 1024..16384" unless config.fetch(:payload_bytes).between?(1024, 16384)
+    config[:lanes] = LANES
+    config[:concurrency] = CONCURRENCY
+    config[:sample_interpretation] = config.fetch(:samples) < 6 ? "inconclusive smoke" : "descriptive raw samples"
+    config[:open_gates] = ["no automatic pressure or capacity inference",
+      "stream is non-equivalent to screen capture", "full process-tree memory and version matrix are separate"]
+    config[:maximum_run_seconds] = MAX_RUN_SECONDS
+    if command == "plan"
+      puts JSON.pretty_generate(config)
+      return 0
+    end
+    raise ArgumentError, "run requires --output" unless output
+    started = clock
+    # One fixed lock covers every evidence directory and tmux selector.
+    File.open(File.join(Dir.tmpdir, "libtmux-ruby-benchmark.lock"), File::RDWR | File::CREAT, 0o600) do |lock|
+      raise "another benchmark run owns the measurement lock" unless lock.flock(File::LOCK_EX | File::LOCK_NB)
+
+      executable = config.fetch(:tmux)
+      unless executable.include?(File::SEPARATOR)
+        executable = ENV.fetch("PATH").split(File::PATH_SEPARATOR).map { |path| File.join(path, executable) }.find { |path| File.executable?(path) }
+      end
+      raise ArgumentError, "tmux executable is unavailable" unless executable && File.executable?(executable)
+
+      config[:tmux] = File.realpath(executable)
+      version = IO.popen([config.fetch(:tmux), "-V"], &:read).strip
+      config[:runtime] = {ruby: RUBY_DESCRIPTION, platform: RUBY_PLATFORM, tmux: version,
+        tmux_sha256: Digest::SHA256.file(config.fetch(:tmux)).hexdigest,
+        monotonic_clock_resolution: Process.clock_getres(Process::CLOCK_MONOTONIC),
+        memory: File.directory?("/proc/self") ? "Linux endpoint RSS and phase HWM reset through clear_refs=5" : "unavailable",
+        cpu: "Ruby self and reaped children CPU; Linux daemon ticks where available",
+        daemon_ticks_per_second: Etc.sysconf(Etc::SC_CLK_TCK),
+        gems: Gem.loaded_specs.transform_values(&:version).transform_values(&:to_s),
+        writer_ruby_options: "--disable=rubyopt,gems",
+        metric_scope: "CPU/GC/RSS observations include their measurement probes; phase wall times exclude metric reads",
+        whole_run_clock_scope: "after Ruby/Bundler/library startup; use an external monotonic wrapper for command startup"}
+      config[:source_start] = source_fingerprint
+      # Avoid machine-specific paths in shareable metadata.
+      recorded = config.merge(tmux: File.basename(config.fetch(:tmux)))
+      evidence = Evidence.new(output, recorded)
+      status = "FAIL"
+      failure = nil
+      begin
+        Run.new(config, evidence).call
+      rescue Exception => error
+        failure = error
+        detail = error.message if error.message.start_with?("benchmark correctness failure:", "benchmark cleanup failed:")
+        evidence.diagnostic(type: "failure", exception: error.class.name, detail: detail)
+      ensure
+        begin
+          source_end = source_fingerprint
+          stable = source_end == config.fetch(:source_start)
+          evidence.diagnostic(type: "source_stability", stable: stable, end: source_end,
+            scope: "core and Async lib trees plus scripts/bench; unrelated MCP/workspace edits excluded")
+          check(stable, "benchmark source changed during the run")
+        rescue Exception => error
+          failure ||= error
+          evidence.diagnostic(type: "source_stability_failure", exception: error.class.name)
+        end
+        status = "PASS_WITH_OPEN_GATES" unless failure
+        evidence.finish(status, clock - started)
+      end
+      raise failure if failure
+    end
+    puts "Benchmark evidence recorded; pressure, process-tree memory and matrix gates remain open."
+    0
+  rescue StandardError => error
+    warn "Benchmark failed (#{error.class}): #{error.message}"
+    1
+  end
+end
+
+exit TmuxBenchmark.main(ARGV) if $PROGRAM_NAME == __FILE__

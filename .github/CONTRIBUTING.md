@@ -57,13 +57,15 @@ $ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check outer
 ```
 
 The same runner accepts `integration`, `packaging` and `types` separately.
-It fails when a requested suite has no tests. RBS validation checks the shipped declarations. `scripts/types --check`
-checks public declaration coverage, source links and behavioral mappings.
+It fails when a requested suite has no tests. RBS validation checks the
+shipped declarations. `scripts/types --check` checks public declaration
+coverage, source links and behavioral mappings.
 Installed consumers check the argument and return types of exercised calls;
-these checks do not establish whole-program static typing. The outer packaging test builds artifacts, copies only
-their declared dependency closure from the installed bundle, then installs
-the project gems into temporary gem homes and imports them outside the
-checkout. It uses no network and preserves the host gem installation.
+these checks do not establish whole-program static typing. The outer
+packaging test builds artifacts, copies only their declared dependency
+closure from the installed bundle, then installs the project gems into
+temporary gem homes and imports them outside the checkout. It uses no
+network and preserves the host gem installation.
 
 Build distributable artifacts locally:
 
@@ -73,9 +75,10 @@ $ mise exec -- bundle exec rake build
 
 Artifacts appear in ignored `pkg/`. No publication happens during the build.
 The mid loop checks generated fields/schema/signatures, the public API
-reference and the executable example manifest. The outer loop installs each declared dependency closure,
-runs the copied recipes outside the checkout, renders YARD and Markdown, and
-checks local links and fragments. External URL availability is separate.
+reference and the executable example manifest. The outer loop installs each
+declared dependency closure, runs the copied recipes outside the checkout,
+renders YARD and Markdown, and checks local links and fragments. External URL
+availability is separate.
 The full support matrix, benchmarks and implementation type coverage remain
 separate required gates; one local outer pass does not establish them.
 
@@ -113,6 +116,14 @@ not raise its budget.
 
 Benchmarks are separate from these loops. Keep a run below ten minutes and a
 full sweep below one hour; reduce the workload if needed.
+Inspect the comparison configuration without starting tmux:
+
+```console
+$ mise exec -- bundle exec ruby scripts/bench plan
+```
+
+The [benchmark guide](../docs/benchmark.md) defines equivalent workloads,
+measurement limits, durable evidence and cleanup checks.
 
 ## Testing tmux behavior
 

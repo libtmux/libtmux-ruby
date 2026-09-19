@@ -48,6 +48,7 @@
   ],
   "documents": [
     "README.md",
+    "docs/benchmark.md",
     "docs/index.md",
     "docs/modes.md",
     "docs/ownership-errors.md",

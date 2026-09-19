@@ -10,6 +10,7 @@ through a protocol or configuration document.
 - [Field catalog](reference/fields.md) lists generated metadata and wire names.
 - [Public methods](reference/api.md) maps exported methods to source, returns and contracts.
 - [Public behavior](reference/behavior.md) specifies I/O, ownership, defaults and failure evidence.
+- [Benchmarks](benchmark.md) describes equal workloads, raw evidence and open comparison gates.
 - [Project entry point](../README.md) covers local installation and current gaps.
 
 The rendered site also includes a YARD declaration tree. The public-method
