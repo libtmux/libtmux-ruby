@@ -26,11 +26,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - {system: linux, runner: ubuntu-24.04}
-          - {system: macos, runner: macos-15}
-        ruby: ['3.3.12', '3.4.10', '4.0.7']
-        tmux: ['3.2a', '3.3a', '3.4', '3.5a', '3.6', '3.7c']
+        platform: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.debug_enabled && '[{"system":"macos","runner":"macos-15"}]' || '[{"system":"linux","runner":"ubuntu-24.04"},{"system":"macos","runner":"macos-15"}]') }}
+        ruby: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.debug_enabled && '["4.0.7"]' || '["3.3.12","3.4.10","4.0.7"]') }}
+        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.debug_enabled && '["3.7c"]' || '["3.2a","3.3a","3.4","3.5a","3.6","3.7c"]') }}
     env:
       BUNDLE_FROZEN: 'true'
       TMUX_VERSION: ${{ matrix.tmux }}
@@ -106,7 +104,7 @@ jobs:
 
   report:
     name: All 36 required cells
-    if: always()
+    if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.debug_enabled) }}
     needs: cell
     runs-on: ubuntu-24.04
     timeout-minutes: 5
