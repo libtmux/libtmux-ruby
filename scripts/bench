@@ -17,7 +17,6 @@ require "etc"
 module TmuxBenchmark
   LANES = %w[process_serial async_bounded control_serial control_pipelined group].freeze
   DEADLINE = 0.5
-  CONCURRENCY = 4
   MAX_RUN_SECONDS = 540
   ROOT = File.expand_path("..", __dir__)
   CATALOG = LibTmux.const_get(:Internal)::Catalog
@@ -328,7 +327,7 @@ module TmuxBenchmark
         prepare
         prove_pipeline
         Async do |parent|
-          LibTmux::Async.open(server: @server, parent: parent, concurrency: CONCURRENCY,
+          LibTmux::Async.open(server: @server, parent: parent, concurrency: @config.fetch(:concurrency),
             max_requests: 32, max_queue_bytes: 1 << 22, max_output_bytes: 1 << 23) do |scope|
             @scope, @parent = scope, parent
             @peaks.async(scope)
@@ -487,6 +486,7 @@ module TmuxBenchmark
         serializable[:results_per_second] = value.fetch(:bodies).length / metric.fetch(:wall_seconds)
       end
       @evidence.sample(metric.merge(serializable).merge(panes: @count, lane: lane, phase: phase, round: round,
+        concurrency: @config.fetch(:concurrency), subscribers: @config.fetch(:subscribers),
         persistent_clients: @control ? 1 : 0))
       value
     end
@@ -521,12 +521,12 @@ module TmuxBenchmark
       when "process_serial", "control_serial"
         commands.map(&request)
       when "async_bounded"
-        @scope.map(commands, concurrency: CONCURRENCY, max_items: 128, result_bytes: :bytesize.to_proc, &request)
+        @scope.map(commands, concurrency: @config.fetch(:concurrency), max_items: 128, result_bytes: :bytesize.to_proc, &request)
       when "control_pipelined"
         results = Array.new(commands.length)
         queue = Queue.new
         commands.each_with_index { |command, index| queue << [command, index] }
-        workers = [CONCURRENCY, commands.length].min.times.map do
+        workers = [@config.fetch(:concurrency), commands.length].min.times.map do
           Thread.new do
             while (entry = queue.pop(true) rescue nil)
               results[entry.last] = request.call(entry.first)
@@ -699,7 +699,7 @@ module TmuxBenchmark
       cancellation
       async_cancellation
       control_cancellation
-      slow_consumer
+      measure("subscribers", "slow_consumer", 0) { slow_consumer }
     end
 
     def async_cancellation
@@ -709,7 +709,8 @@ module TmuxBenchmark
       rescue LibTmux::Cancelled => failure
         failure
       end
-      @scope.server.wait_for(ready, timeout: budget)
+      # Readiness must not compete for the only process slot at concurrency one.
+      @server.wait_for(ready, timeout: budget)
       started = TmuxBenchmark.clock
       waiting.cancel
       error = waiting.wait(timeout: budget)
@@ -796,43 +797,97 @@ module TmuxBenchmark
     end
 
     def slow_consumer
-      reliable = @control.subscribe(max_events: 1, max_bytes: 1024)
-      tail = @control.subscribe(mode: :tail, max_events: 1, max_bytes: 1024)
+      reliable, tails = [], []
+      failure = nil
+      @config.fetch(:subscribers).times do
+        reliable << @control.subscribe(max_events: 1, max_bytes: 1024)
+        tails << @control.subscribe(mode: :tail, max_events: 1, max_bytes: 1024)
+      end
       3.times { |index| @window.rename("slow-#{index}", timeout: budget) }
       reply = @control.exchange("display-message -p responsive", timeout: budget)
       TmuxBenchmark.check(reply.blocks.last.body == "responsive\n", "slow subscriber blocked commands")
-      reliable.next(timeout: budget)
-      overflow = begin
-        reliable.next(timeout: budget)
-        false
-      rescue LibTmux::SubscriptionOverflow
-        true
+      overflows = reliable.map do |subscription|
+        subscription.next(timeout: budget)
+        begin
+          subscription.next(timeout: budget)
+          false
+        rescue LibTmux::SubscriptionOverflow
+          true
+        end
       end
-      gap = tail.next(timeout: budget)
-      TmuxBenchmark.check(overflow && gap.kind == :gap && gap.dropped_bytes.positive?, "slow consumer loss was silent")
-      @evidence.diagnostic(type: "slow_consumer", panes: @count, reliable_overflow: overflow,
-        tail_lost_sequences: gap.lost_sequences, tail_dropped_bytes: gap.dropped_bytes,
-        retained_byte_bound: 1024, retained_event_bound: 1, commands_responsive: true)
+      gaps = tails.map { |subscription| subscription.next(timeout: budget) }
+      TmuxBenchmark.check(overflows.all? && gaps.all? { |gap| gap.kind == :gap && gap.dropped_bytes.positive? }, "slow consumer loss was silent")
+      result = {type: "slow_consumer", panes: @count, reliable_subscribers: reliable.length,
+        tail_subscribers: tails.length, reliable_overflows: overflows.count(true),
+        tail_lost_sequences: gaps.map(&:lost_sequences), tail_dropped_bytes: gaps.map(&:dropped_bytes),
+        per_subscriber_retained_byte_bound: 1024, per_subscriber_retained_event_bound: 1,
+        total_configured_retained_byte_bound: (reliable.length + tails.length) * 1024, commands_responsive: true}
+      @evidence.diagnostic(result)
+      result
+    rescue Exception => error
+      failure = error
     ensure
-      reliable&.close
-      tail&.close
+      [*reliable, *tails].each do |subscription|
+        subscription.close
+      rescue Exception => error
+        failure ||= error
+      end
+      raise failure if failure
     end
 
     def streaming
       @config.fetch(:samples).times do |round|
-        subscription = @control.subscribe(max_bytes: 1 << 22, max_events: 4096)
-        sequence = round + 1
-        expected = @panes.to_h { |pane| [pane.id, TmuxBenchmark.payload(@writer_indices.fetch(pane.id), @config.fetch(:payload_bytes), sequence)] }
-        measure("stream", "raw_output_non_equivalent", round) do
-          started = TmuxBenchmark.clock
-          @panes.each { |pane| pane.send_text("#{sequence}\n", timeout: budget) }
-          stats = consume(subscription, expected, started: started)
-          stats.merge(output_bytes: expected.values.sum(&:bytesize), logical_results: @count,
-            writer_to_consumer_seconds: TmuxBenchmark.clock - started,
-            product: "raw PTY output; not a screen snapshot", lost_bytes: 0)
+        subscriptions, readers = [], []
+        failure = nil
+        begin
+          @config.fetch(:subscribers).times do
+            subscriptions << @control.subscribe(max_bytes: 1 << 22, max_events: 4096)
+          end
+          sequence = round + 1
+          expected = @panes.to_h { |pane| [pane.id, TmuxBenchmark.payload(@writer_indices.fetch(pane.id), @config.fetch(:payload_bytes), sequence)] }
+          measure("stream", "raw_output_non_equivalent", round) do
+            started = TmuxBenchmark.clock
+            subscriptions.each do |subscription|
+              readers << Thread.new { consume(subscription, expected, started: started) }
+            end
+            @panes.each { |pane| pane.send_text("#{sequence}\n", timeout: budget) }
+            received = readers.map(&:value)
+            TmuxBenchmark.check(received.map { |stats| stats.fetch(:output_sha256) }.uniq.length == 1, "subscribers received different bytes")
+            received.first.merge(output_bytes: expected.values.sum(&:bytesize), logical_results: @count,
+              subscriber_count: subscriptions.length, delivered_copy_bytes: expected.values.sum(&:bytesize) * subscriptions.length,
+              subscriber_first_result_seconds: received.map { |stats| stats.fetch(:first_result_seconds) },
+              subscriber_events: received.map { |stats| stats.fetch(:events) },
+              writer_to_consumer_seconds: TmuxBenchmark.clock - started,
+              product: "raw PTY output; not a screen snapshot", lost_bytes: 0)
+          end
+        rescue Exception => error
+          failure = error
+        ensure
+          cleanup_errors = []
+          retire_deadline = TmuxBenchmark.clock + DEADLINE
+          actions = subscriptions.map { |subscription| -> { subscription.close } } +
+            readers.map do |reader|
+              -> { TmuxBenchmark.check(reader.join([retire_deadline - TmuxBenchmark.clock, 0].max), "stream reader remains active") }
+            end
+          actions.each do |action|
+            begin
+              action.call
+            rescue Exception => error
+              cleanup_errors << error.class.name
+              failure ||= error
+            end
+          end
+          unless cleanup_errors.empty?
+            begin
+              @evidence.diagnostic(type: "stream_retirement_failure", panes: @count,
+                primary: failure.class.name, cleanup_errors: cleanup_errors,
+                readers_alive: readers.count(&:alive?))
+            rescue Exception => diagnostic_error
+              failure ||= diagnostic_error
+            end
+          end
         end
-      ensure
-        subscription&.close
+        raise failure if failure
       end
     end
 
@@ -899,7 +954,7 @@ module TmuxBenchmark
 
   def self.main(argv)
     command = argv.shift
-    config = {samples: 6, panes: [1, 8, 32], payload_bytes: 8192,
+    config = {samples: 6, panes: [1, 8, 32], payload_bytes: 8192, concurrency: 4, subscribers: 1,
               tmux: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")}
     output = nil
     parser = OptionParser.new do |options|
@@ -908,6 +963,8 @@ module TmuxBenchmark
       options.on("--samples N", Integer) { |value| config[:samples] = value }
       options.on("--panes LIST", "Subset of 1,8,32") { |value| config[:panes] = value.split(",").map { |item| Integer(item, 10) } }
       options.on("--payload-bytes N", Integer) { |value| config[:payload_bytes] = value }
+      options.on("--concurrency N", Integer, "Concurrent callers in Async and pipelined control (1..16)") { |value| config[:concurrency] = value }
+      options.on("--subscribers N", Integer, "Output readers and slow subscribers per policy (1..16)") { |value| config[:subscribers] = value }
       options.on("--tmux PATH", "Exact tmux executable") { |value| config[:tmux] = value }
       options.on("--help") { puts options; return 0 }
     end
@@ -917,8 +974,9 @@ module TmuxBenchmark
     raise ArgumentError, "panes must be a nonempty unique subset of 1,8,32" if config.fetch(:panes).empty? ||
       config.fetch(:panes).uniq != config.fetch(:panes) || (config.fetch(:panes) - [1, 8, 32]).any?
     raise ArgumentError, "payload bytes must be 1024..16384" unless config.fetch(:payload_bytes).between?(1024, 16384)
+    raise ArgumentError, "concurrency must be 1..16" unless config.fetch(:concurrency).between?(1, 16)
+    raise ArgumentError, "subscribers must be 1..16" unless config.fetch(:subscribers).between?(1, 16)
     config[:lanes] = LANES
-    config[:concurrency] = CONCURRENCY
     config[:sample_interpretation] = config.fetch(:samples) < 6 ? "inconclusive smoke" : "descriptive raw samples"
     config[:open_gates] = ["no automatic pressure or capacity inference",
       "stream is non-equivalent to screen capture", "full process-tree memory and version matrix are separate"]

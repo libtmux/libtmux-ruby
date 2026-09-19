@@ -28,7 +28,8 @@ $ mise exec -- bundle exec ruby scripts/bench run \
 
 Defaults are six samples per phase, 1/8/32 physical panes, two session links
 to one physical window, four concurrent callers, and at least 8 KiB of
-deterministic output per pane. Each writer runs Ruby directly with inherited
+deterministic output per pane. One subscriber reads each output sample.
+Each writer runs Ruby directly with inherited
 Ruby options and RubyGems disabled, waits for an explicit input message, and
 emits known bytes. Pane setup, writer readiness, untimed correctness checks
 and teardown are outside warm phase timings.
@@ -58,6 +59,44 @@ under the ten-minute limit. Every request and event wait is bounded to
 0.5 seconds. A sweep must remain below one hour. Reduce its topology or
 sample count when necessary; do not extend failed request deadlines.
 
+## Vary callers and subscribers
+
+`--concurrency` selects 1–16 callers for Async and pipelined control. The serial
+and group lanes keep their existing execution shape. `--subscribers` selects
+1–16 independent output readers and the same number of unread subscriptions
+for each slow-consumer policy. Keep every other input fixed when comparing a
+dimension; run each configuration into a distinct directory.
+
+Increase callers while keeping one output reader:
+
+```console
+$ mise exec -- bundle exec ruby scripts/bench run \
+    --panes 8 \
+    --concurrency 8 \
+    --subscribers 1 \
+    --output build/benchmarks/callers-8
+```
+
+Increase subscribers while retaining four callers:
+
+```console
+$ mise exec -- bundle exec ruby scripts/bench run \
+    --panes 8 \
+    --concurrency 4 \
+    --subscribers 16 \
+    --output build/benchmarks/subscribers-16
+```
+
+Each stream reader must receive the same complete bytes. Reader threads start
+inside the measured phase, so their startup and retirement affect its timing.
+Records distinguish source bytes from delivered copies and retain each
+subscriber's event count and first-result latency. Slow-consumer records
+require overflow for every reliable subscriber, an explicit gap for every
+tail subscriber, and a completing command while those readers remain idle.
+They report per-subscriber and total configured retained-byte bounds. These
+bounded loads establish observations at the selected settings, not a maximum
+capacity or a tail-latency percentile.
+
 ## Equivalent lanes
 
 Each lane acquires the same three framed catalog responses and one complete
@@ -68,9 +107,9 @@ decoding, graph validation and local query timing are separate phases.
 | Lane | Actual work | Result and attribution |
 | --- | --- | --- |
 | `process_serial` | One subprocess per command, serially | Individual stdout, stderr and client status |
-| `async_bounded` | Ordered map with four subprocess workers | Individual results; output order follows input order |
+| `async_bounded` | Ordered map with the configured subprocess workers | Individual results; output order follows input order |
 | `control_serial` | One request at a time over a persistent raw control connection | Guarded blocks with boundary-window attribution |
-| `control_pipelined` | Four caller threads sharing one control connection | Complete request wires can be written before earlier replies; replies retain admission order |
+| `control_pipelined` | Configured caller threads sharing one control connection | Complete request wires can be written before earlier replies; replies retain admission order |
 | `group` | One explicit process command group | Merged bytes and final client status; individual member outcomes remain unknown |
 
 The group lane splits its merged output only at byte lengths established by
@@ -195,8 +234,8 @@ own mutex-exit observation.
 Each acquisition also reports command-client launches, distinct observed
 PIDs, exact wrapper concurrency and admitted argument bytes. The control
 connection admits at most 32 requests and 1 MiB of wire input, with a 1 MiB
-reply limit per request; the benchmark submits at most four concurrent
-exchanges. The Async scope is bounded to four running processes, 32 admitted
+reply limit per request; the benchmark submits at most the configured number
+of concurrent exchanges. The Async scope uses that process bound, 32 admitted
 requests, 4 MiB queued input and 8 MiB retained output. End-of-phase queue
 observations must return to zero; caller-held results are outside those queue
 counters.
