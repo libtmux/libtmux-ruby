@@ -87,6 +87,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p build/native-process-trace
+          bundle exec ruby .github/scripts/trace-process.rb --compare-waits \
+            > build/native-process-trace/wait-comparison.json
           # Keep every sample and failure; these diagnostics are not a test retry gate.
           for sample in 1 2 3 4 5 6; do
             if CHILD_TRACE="build/native-process-trace/sample-$sample.json" \

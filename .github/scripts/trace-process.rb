@@ -1,8 +1,45 @@
 # frozen_string_literal: true
 
-# Diagnostic preload only; the installed gems never require this file.
-require "libtmux/child"
+# Diagnostic preload and timer comparison; installed gems never require it.
 require "json"
+
+if ARGV.delete("--compare-waits")
+  requested = 0.05
+  measurements = []
+  6.times do |sample|
+    backends = sample.even? ? [:condition_variable, :select] : [:select, :condition_variable]
+    backends.each do |backend|
+      reader, writer = IO.pipe
+      mutex, changed = Mutex.new, ConditionVariable.new
+      worker = Thread.new do
+        Thread.handle_interrupt(Exception => :never) do
+          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          if backend == :condition_variable
+            mutex.synchronize { changed.wait(mutex, requested) }
+          else
+            IO.select([reader], nil, nil, requested)
+          end
+          Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+        end
+      end
+      begin
+        completed = !!worker.join(0.5)
+        measurements << {sample: sample + 1, backend: backend, requested_seconds: requested,
+          completed: completed, elapsed_seconds: completed ? worker.value : nil}
+      ensure
+        worker.kill if worker.alive?
+        worker.join(0.5)
+        reader.close
+        writer.close
+      end
+    end
+  end
+  puts JSON.pretty_generate(ruby: RUBY_DESCRIPTION, platform: RUBY_PLATFORM,
+    clock: "CLOCK_MONOTONIC", measurements: measurements)
+  exit
+end
+
+require "libtmux/child"
 require "minitest/autorun"
 
 module NativeChildTrace
