@@ -38,6 +38,8 @@ class PackageTest < Minitest::Test
 
       IMPORTS.each do |name, import|
         home = File.join(directory, name)
+        FileUtils.mkdir_p(File.join(directory, "#{name}-canonical"))
+        File.symlink("#{name}-canonical", home)
         FileUtils.mkdir_p(File.join(home, "specifications"))
         local, external = dependency_closure(specs.fetch(name), specs)
         external.each { |spec| copy_dependency(spec, home) }
@@ -71,7 +73,8 @@ class PackageTest < Minitest::Test
           raise "import changed scheduler" unless Fiber.scheduler == before_scheduler
           raise "missing version" unless LibTmux::VERSION.is_a?(String)
           own_features = $LOADED_FEATURES.select { |path| path.include?("/libtmux") }
-          raise "repository import" unless own_features.all? { |path| path.start_with?(ENV.fetch("GEM_HOME")) }
+          installed_home = File.realpath(ENV.fetch("GEM_HOME")) + File::SEPARATOR
+          raise "repository import" unless own_features.all? { |path| File.realpath(path).start_with?(installed_home) }
           if ["libtmux", "libtmux/workspace"].include?(ARGV.fetch(0))
             raise "optional dependency installed" unless Gem::Specification.find_all_by_name("async").empty? && Gem::Specification.find_all_by_name("mcp").empty?
           end

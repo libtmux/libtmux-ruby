@@ -19,6 +19,8 @@ class InstalledWorkspaceCLITest < Minitest::Test
     end
     Dir.mktmpdir("libtmux-ruby-installed-workspace-") do |directory|
       home = File.join(directory, "home")
+      FileUtils.mkdir_p(File.join(directory, "canonical-home"))
+      File.symlink("canonical-home", home)
       FileUtils.mkdir_p(File.join(home, "specifications"))
       local, external = dependency_closure(specs.fetch("libtmux-workspace"), specs)
       external.each { |spec| copy_dependency(spec, home) }
@@ -53,7 +55,13 @@ class InstalledWorkspaceCLITest < Minitest::Test
         assert_equal ["fixture", "installed"], fixture.tmux("list-sessions", "-F", '#{session_name}').first.lines.map(&:chomp).sort
         assert_empty fixture.tmux("list-clients").first
       end
-      source = 'require "libtmux/workspace/cli"; abort "repository import" unless $LOADED_FEATURES.select { |path| path.include?("/libtmux") }.all? { |path| path.start_with?(ENV.fetch("GEM_HOME")) }; abort "optional dependency" unless %w[async mcp].all? { |name| Gem::Specification.find_all_by_name(name).empty? }'
+      source = <<~'RUBY'
+        require "libtmux/workspace/cli"
+        installed_home = File.realpath(ENV.fetch("GEM_HOME")) + File::SEPARATOR
+        own = $LOADED_FEATURES.select { |path| path.include?("/libtmux") }
+        abort "repository import" unless own.all? { |path| File.realpath(path).start_with?(installed_home) }
+        abort "optional dependency" unless %w[async mcp].all? { |name| Gem::Specification.find_all_by_name(name).empty? }
+      RUBY
       output, status = Open3.capture2e(environment, Gem.ruby, "-e", source, chdir: directory)
       assert status.success?, output
       assert_empty output

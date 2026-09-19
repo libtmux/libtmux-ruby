@@ -31,7 +31,8 @@ module Example
     raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
     if ENV["LIBTMUX_EXAMPLE_INSTALLED"]
       own = $LOADED_FEATURES.select { |feature| feature.include?("/libtmux/") || feature.end_with?("/libtmux.rb") }
-      check(own.all? { |feature| feature.start_with?(ENV.fetch("GEM_HOME") + "/") }, "example loaded repository source")
+      installed_home = File.realpath(ENV.fetch("GEM_HOME")) + File::SEPARATOR
+      check(own.all? { |feature| File.realpath(feature).start_with?(installed_home) }, "example loaded repository source")
     end
     puts "PASS #{name}"
   end

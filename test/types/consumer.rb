@@ -162,7 +162,8 @@ end
 
 if ENV["LIBTMUX_EXAMPLE_INSTALLED"]
   own = $LOADED_FEATURES.select { |feature| feature.include?("/libtmux/") || feature.end_with?("/libtmux.rb") }
-  raise "consumer loaded repository source" unless own.all? { |feature| feature.start_with?(ENV.fetch("GEM_HOME") + "/") }
+  installed_home = File.realpath(ENV.fetch("GEM_HOME")) + File::SEPARATOR
+  raise "consumer loaded repository source" unless own.all? { |feature| File.realpath(feature).start_with?(installed_home) }
 end
 puts JSON.generate({"package" => package, "exercised" => consumer.exercised.uniq.sort,
   "proof" => "observed arguments, blocks and returns", "whole_program_static_check" => false})
