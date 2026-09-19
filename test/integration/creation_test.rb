@@ -19,12 +19,12 @@ class CreationTest < Minitest::Test
           literal = "#{'#{pid}'};=\n"
           session = server.new_session(name: "workspace", command: command, window_name: 'initial #{pid};',
             cwd: first_directory, environment: {"ROOT" => "root", "LITERAL" => literal}, width: 100, height: 30)
-          assert_equal [first_directory, "root", nil, literal], receive(receipt)
+          assert_equal [File.realpath(first_directory), "root", nil, literal], receive(receipt)
           initial = session.list_windows.first
           assert_equal "initial \#{pid};\n", initial.display('#{window_name}').text
           window = session.new_window(name: "second", command: command, index: 4, focus: true,
             cwd: second_directory, environment: {"CHILD" => "window"})
-          assert_equal [second_directory, "root", "window", literal], receive(receipt)
+          assert_equal [File.realpath(second_directory), "root", "window", literal], receive(receipt)
           assert_equal "4\n", window.display('#{window_index}').text
           assert_equal "#{window.id}\n", session.display('#{window_id}').text
           assert_raises(LibTmux::CommandError) { session.environment("CHILD") }
@@ -32,13 +32,13 @@ class CreationTest < Minitest::Test
           pane = window.list_panes.first
           sibling = pane.split(direction: :horizontal, size: 20, command: command,
             cwd: first_directory, environment: {"ROOT" => "override", "CHILD" => "pane"})
-          assert_equal [first_directory, "override", "pane", literal], receive(receipt)
+          assert_equal [File.realpath(first_directory), "override", "pane", literal], receive(receipt)
           assert_equal "20\n", sibling.display('#{pane_width}').text
           assert_equal "#{pane.id}\n", window.display('#{pane_id}').text
           sibling.select
           split = pane.split(direction: :vertical, size: "25%", focus: true, command: command,
             cwd: second_directory)
-          assert_equal [second_directory, "root", nil, literal], receive(receipt)
+          assert_equal [File.realpath(second_directory), "root", nil, literal], receive(receipt)
           assert_equal pane.display('#{pane_width}').text, split.display('#{pane_width}').text
           refute_equal sibling.display('#{pane_width}').text, split.display('#{pane_width}').text
           assert_operator split.display('#{pane_height}').text.to_i, :<, sibling.display('#{pane_height}').text.to_i
@@ -74,14 +74,14 @@ class CreationTest < Minitest::Test
           assert_equal old_pid, sibling.display('#{pane_pid}').text
           sibling.respawn(command: child_command(listener.path), kill: true, cwd: child_directory,
             environment: {"ROOT" => "pane"}, timeout: 0.5)
-          assert_equal [child_directory, "pane", nil, nil], receive(listener)
+          assert_equal [File.realpath(child_directory), "pane", nil, nil], receive(listener)
           refute_equal old_pid, sibling.display('#{pane_pid}').text
           assert_equal [original.id, sibling.id], window.list_panes.map(&:id)
 
           old_pid = original.display('#{pane_pid}').text
           window.respawn(command: child_command(listener.path), kill: true, cwd: directory,
             environment: {"ROOT" => "window"}, timeout: 0.5)
-          assert_equal [directory, "window", nil, nil], receive(listener)
+          assert_equal [File.realpath(directory), "window", nil, nil], receive(listener)
           assert_equal [original.id], window.list_panes.map(&:id)
           refute_equal old_pid, original.display('#{pane_pid}').text
           assert_raises(LibTmux::TargetNotFoundError) { sibling.display('#{pane_pid}') }

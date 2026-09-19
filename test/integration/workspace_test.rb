@@ -32,7 +32,7 @@ class WorkspaceApplyTest < Minitest::Test
           assert IO.select([listener], nil, nil, 0.5), "authored shell command did not send its receipt"
           client = listener.accept
           begin
-            assert_equal [directory, "pane"], Marshal.load(client.read)
+            assert_equal [File.realpath(directory), "pane"], Marshal.load(client.read)
           ensure
             client.close
           end

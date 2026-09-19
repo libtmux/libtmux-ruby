@@ -10,6 +10,8 @@ require "libtmux/terminal" if File.exist?(File.expand_path("../../gems/libtmux/l
 class TerminalTest < Minitest::Test
   def test_explicit_terminal_attach_and_user_detach_return_final_status
     LibTmuxTest::TmuxFixture.open do |fixture|
+      # One PTY write represents key presses, not a paste detected by timing.
+      assert fixture.tmux("set-option", "-g", "assume-paste-time", "0").last.success?
       LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
         session = server.list_sessions.first
         PTY.open do |master, slave|

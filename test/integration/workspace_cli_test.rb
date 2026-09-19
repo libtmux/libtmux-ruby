@@ -66,6 +66,8 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
 
   def test_explicit_attach_owns_only_its_terminal_client_and_returns_after_user_detach
     LibTmuxTest::TmuxFixture.open do |fixture|
+      # One PTY write represents key presses, not a paste detected by timing.
+      assert fixture.tmux("set-option", "-g", "assume-paste-time", "0").last.success?
       master, terminal = PTY.open
       open_file = File.method(:open)
       worker = nil
