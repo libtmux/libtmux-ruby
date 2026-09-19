@@ -52,7 +52,7 @@ jobs:
           sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config
       - name: Install macOS build dependencies
         if: runner.os == 'macOS'
-        run: brew install libevent ncurses bison pkg-config
+        run: brew install libevent ncurses bison pkg-config jemalloc
       - name: Build the exact tmux release
         shell: bash
         run: |
@@ -63,15 +63,22 @@ jobs:
             --output "$archive"
           ruby -rjson -rdigest -e 'expected = JSON.parse(File.read("scripts/tmux-releases.json")).fetch(ENV.fetch("TMUX_VERSION")); abort "tmux archive checksum mismatch" unless Digest::SHA256.file(ARGV.fetch(0)).hexdigest == expected' "$archive"
           tar -xzf "$archive" -C "$RUNNER_TEMP"
+          configure_options=(--disable-utf8proc)
           if [ "$RUNNER_OS" = macOS ]; then
             PATH="$(brew --prefix bison)/bin:$PATH"
             PKG_CONFIG_PATH="$(brew --prefix libevent)/lib/pkgconfig:$(brew --prefix ncurses)/lib/pkgconfig"
             CPPFLAGS="-I$(brew --prefix libevent)/include -I$(brew --prefix ncurses)/include"
             LDFLAGS="-L$(brew --prefix libevent)/lib -L$(brew --prefix ncurses)/lib"
+            if [ "$TMUX_VERSION" = 3.7c ]; then
+              PKG_CONFIG_PATH="$(brew --prefix jemalloc)/lib/pkgconfig:$PKG_CONFIG_PATH"
+              CPPFLAGS="-I$(brew --prefix jemalloc)/include $CPPFLAGS"
+              LDFLAGS="-L$(brew --prefix jemalloc)/lib $LDFLAGS"
+              configure_options+=(--enable-jemalloc)
+            fi
             export PATH PKG_CONFIG_PATH CPPFLAGS LDFLAGS
           fi
           cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
-          ./configure --prefix="$RUNNER_TEMP/tmux-install" --disable-utf8proc
+          ./configure --prefix="$RUNNER_TEMP/tmux-install" "${configure_options[@]}"
           make -j2
           make install
           test "$("$RUNNER_TEMP/tmux-install/bin/tmux" -V)" = "tmux $TMUX_VERSION"
