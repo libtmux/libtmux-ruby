@@ -1,0 +1,126 @@
+name: compatibility
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        type: boolean
+        description: Open tmate on the macOS Ruby 4.0.7 / tmux 3.7c cell
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatibility-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  cell:
+    name: ${{ matrix.platform.system }} / Ruby ${{ matrix.ruby }} / tmux ${{ matrix.tmux }}
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - {system: linux, runner: ubuntu-24.04}
+          - {system: macos, runner: macos-15}
+        ruby: ['3.3.12', '3.4.10', '4.0.7']
+        tmux: ['3.2a', '3.3a', '3.4', '3.5a', '3.6', '3.7c']
+    env:
+      BUNDLE_FROZEN: 'true'
+      TMUX_VERSION: ${{ matrix.tmux }}
+      RUBY_VERSION: ${{ matrix.ruby }}
+      MATRIX_SYSTEM: ${{ matrix.platform.system }}
+      TMPDIR: /tmp
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install libevent ncurses bison pkg-config
+      - name: Build the exact tmux release
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/tmux-$TMUX_VERSION.tar.gz"
+          curl --location --fail --silent --show-error \
+            "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
+            --output "$archive"
+          ruby -rjson -rdigest -e 'expected = JSON.parse(File.read("scripts/tmux-releases.json")).fetch(ENV.fetch("TMUX_VERSION")); abort "tmux archive checksum mismatch" unless Digest::SHA256.file(ARGV.fetch(0)).hexdigest == expected' "$archive"
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          if [ "$RUNNER_OS" = macOS ]; then
+            PATH="$(brew --prefix bison)/bin:$PATH"
+            PKG_CONFIG_PATH="$(brew --prefix libevent)/lib/pkgconfig:$(brew --prefix ncurses)/lib/pkgconfig"
+            CPPFLAGS="-I$(brew --prefix libevent)/include -I$(brew --prefix ncurses)/include"
+            LDFLAGS="-L$(brew --prefix libevent)/lib -L$(brew --prefix ncurses)/lib"
+            export PATH PKG_CONFIG_PATH CPPFLAGS LDFLAGS
+          fi
+          cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
+          ./configure --prefix="$RUNNER_TEMP/tmux-install" --disable-utf8proc
+          make -j2
+          make install
+          test "$("$RUNNER_TEMP/tmux-install/bin/tmux" -V)" = "tmux $TMUX_VERSION"
+      - name: Run the complete cell
+        timeout-minutes: 5
+        run: >-
+          bundle exec ruby scripts/matrix
+          --cell "$MATRIX_SYSTEM/$RUBY_VERSION/$TMUX_VERSION"
+          --ruby "$RUBY_VERSION=$(ruby -e 'print Gem.ruby')"
+          --tmux "$TMUX_VERSION=$RUNNER_TEMP/tmux-install/bin/tmux"
+          --output build/matrix
+      - name: Retain the cell report and failure output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: matrix-${{ matrix.platform.system }}-${{ matrix.ruby }}-${{ matrix.tmux }}
+          path: build/matrix/
+          if-no-files-found: warn
+      - name: Debug the selected macOS cell
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && matrix.platform.system == 'macos' && matrix.ruby == '4.0.7' && matrix.tmux == '3.7c' }}
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3
+        timeout-minutes: 10
+        with:
+          limit-access-to-actor: true
+
+  report:
+    name: All 36 required cells
+    if: always()
+    needs: cell
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1
+        with:
+          ruby-version: '4.0.7'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: matrix-*
+          path: build/matrix-input
+      - name: Reject missing, failed, skipped or stale cells
+        if: always()
+        run: ruby scripts/matrix --merge build/matrix-input --require-all --output build/matrix
+      - name: Retain the combined report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: compatibility-report
+          path: build/matrix/matrix.json
+          if-no-files-found: warn

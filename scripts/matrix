@@ -46,12 +46,13 @@ module CompatibilityMatrix
       "LIBTMUX_TEST_TMUX" => tmux, "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile"), "BUNDLE_FROZEN" => "true")
     executor = LibTmux::Internal::ProcessExecutor.new(stdout_limit: 16 << 20, stderr_limit: 4 << 20)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    ruby_identity = executor.run([ruby, "--disable=gems", "-e", "print RUBY_VERSION"], env: environment).text
-    tmux_identity = executor.run([tmux, "-V"], env: environment).text.strip
-    unless ruby_identity == cell.fetch("ruby") && tmux_identity == "tmux #{cell.fetch('tmux')}"
+    ruby_probe = executor.run([ruby, "--disable=gems", "-e", "print RUBY_VERSION"], env: environment)
+    tmux_probe = executor.run([tmux, "-V"], env: environment)
+    ruby_identity, tmux_identity = ruby_probe.text, tmux_probe.text.strip
+    unless ruby_probe.success? && tmux_probe.success? && ruby_identity == cell.fetch("ruby") && tmux_identity == "tmux #{cell.fetch('tmux')}"
       return cell.merge("status" => "WRONG_TOOLCHAIN", "observed_ruby" => ruby_identity, "observed_tmux" => tmux_identity)
     end
-    result = executor.run([ruby, "-S", "bundle", "exec", ruby, "scripts/check", "outer"], env: environment, timeout: 300)
+    result = executor.run([ruby, "-S", "bundle", "exec", ruby, "scripts/check", "outer"], env: environment, timeout: 290)
     log = cell.fetch("id").tr("/", "-") + ".log"
     File.binwrite(File.join(directory, log), result.stdout + result.stderr)
     summaries = result.stdout.scan(/(\d+) runs, (\d+) assertions, (\d+) failures, (\d+) errors, (\d+) skips/)
@@ -64,6 +65,18 @@ module CompatibilityMatrix
       "whole_monotonic_seconds" => (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).round(3))
   rescue StandardError => error
     cell.merge("status" => "FAIL", "error_class" => error.class.name)
+  end
+
+  def self.valid_pass?(item, cell)
+    item["status"] == "PASS" && item["exit_status"] == 0 &&
+      item.values_at("os", "ruby", "tmux") == cell.values_at("os", "ruby", "tmux") &&
+      item["observed_ruby"] == cell.fetch("ruby") && item["observed_tmux"] == "tmux #{cell.fetch('tmux')}" &&
+      %w[ruby_sha256 tmux_sha256].all? { |key| item[key].is_a?(String) && item[key].match?(/\A[a-f0-9]{64}\z/) } &&
+      item["whole_monotonic_seconds"].is_a?(Numeric) && item["whole_monotonic_seconds"].finite? && item["whole_monotonic_seconds"].positive? &&
+      item["suites"].is_a?(Array) && item["suites"].length == 3 && item["suites"].all? do |suite|
+        suite.is_a?(Hash) && %w[tests assertions].all? { |key| suite[key].is_a?(Integer) && suite[key].positive? } &&
+          suite.values_at("failures", "errors", "skips") == [0, 0, 0]
+      end
   end
 
   def self.run(arguments)
@@ -92,6 +105,8 @@ module CompatibilityMatrix
       report_cells = cells.map do |cell|
         evidence = inputs.flat_map { |input| input.fetch("cells") }.select do |item|
           item.fetch("id") == cell.fetch("id") && item.fetch("status") != "UNVERIFIED"
+        end.map do |item|
+          item.fetch("status") == "PASS" && !valid_pass?(item, cell) ? item.merge("status" => "INVALID_EVIDENCE") : item
         end
         evidence.find { |item| item.fetch("status") != "PASS" } || evidence.first || cell
       end
