@@ -78,28 +78,33 @@ class MCPCaptureTest < Minitest::Test
 
   def test_capture_refuses_a_session_link_removed_before_dispatch
     with_application do |app, sdk, scope, source|
-      first = scope.server.list_sessions.first
-      window = first.list_windows.first
-      pane = window.list_panes.first
-      link = first.list_window_links.first
-      second = scope.server.new_session(name: "other-context", command: ["cat"])
-      second.link_window(window.ref, index: 4)
-      armed = true
-      scope.server.singleton_class.prepend(Module.new do
-        define_method(:execute_typed) do |argv, **options|
-          if armed && argv.include?('#{==:#{after-capture-pane},}')
-            armed = false
-            run(["unlink-window", "-k", "-t", "#{first.id}:#{link.index}"]).tap do |result|
-              raise "fixture failed to remove capture context" unless result.success?
+      version = source.snapshot.server_info.fetch(:version).scan(/\d+/).first(2).map(&:to_i)
+      phases = (version <=> [3, 5]).negative? ? [:preflight, :capture] : [:capture]
+      phases.each do |phase|
+        first = scope.server.new_session(name: "context-#{phase}", command: ["cat"])
+        window = first.list_windows.first
+        pane = window.list_panes.first
+        link = first.list_window_links.first
+        second = scope.server.new_session(name: "other-context-#{phase}", command: ["cat"])
+        second.link_window(window.ref, index: 4)
+        armed = true
+        scope.server.singleton_class.prepend(Module.new do
+          define_method(:execute_typed) do |argv, **options|
+            dispatch = phase == :preflight ? argv.last == 'after-capture-pane' : argv.include?('#{==:#{after-capture-pane},}')
+            if armed && dispatch
+              armed = false
+              run(["unlink-window", "-k", "-t", "#{first.id}:#{link.index}"]).tap do |result|
+                raise "fixture failed to remove capture context" unless result.success?
+              end
             end
+            super(argv, **options)
           end
-          super(argv, **options)
-        end
-      end)
-      result = invoke(sdk, target: wire_ref(pane.ref))
-      assert_equal "stale_target", result.dig("error", "code"), result.inspect
-      refute armed, "fixture missed the capture dispatch"
-      assert_equal pane.id, second.list_panes.find { |item| item.id == pane.id }&.id
+        end)
+        result = invoke(sdk, target: wire_ref(pane.ref))
+        assert_equal "stale_target", result.dig("error", "code"), result.inspect
+        refute armed, "fixture missed the capture dispatch"
+        assert_equal pane.id, second.list_panes.find { |item| item.id == pane.id }&.id
+      end
     end
   end
 

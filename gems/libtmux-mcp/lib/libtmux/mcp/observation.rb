@@ -300,16 +300,6 @@ module LibTmux
         target = "#{link.session_id}:.#{pane.id}"
         guard = "\#{&&:\#{==:\#{session_id},#{link.session_id}},\#{==:\#{pane_id},#{pane.id}}}"
         guard = "\#{&&:#{guard},\#{&&:\#{==:\#{pane_pid},#{identity.pid}},\#{&&:\#{==:\#{pane_dead_status},},\#{==:\#{pane_dead_signal},}}}}" if identity
-        # Before tmux 3.5, whole-array formats are empty even for sparse hooks.
-        # Configuration must stay stable between this preflight and capture.
-        version = /\A(\d+)\.(\d+)/.match(snapshot.server_info.fetch(:version))
-        unless version && ([version[1].to_i, version[2].to_i] <=> [3, 5]) >= 0
-          hooks = @server.__send__(:execute_typed,
-            [names.fetch("show-options"), "-A", "-v", "-t", target, "after-capture-pane"], **@budget.options)
-          unless hooks.stdout.empty?
-            raise UnsupportedFeatureError.new("capture hooks prevent isolated screen output", phase: :read)
-          end
-        end
         body = @server.__send__(:tmux_command, [names.fetch("capture-pane"), "-p", "-t", target,
           "-S", (-limits.fetch("history_lines")).to_s, "-E", "-"])
         # The selected false branch fails parsing, independently of screen bytes.
@@ -318,6 +308,16 @@ module LibTmux
         hook_error = "libtmux-hook-refused-#{SecureRandom.hex(16)}"
         hook_failure = @server.__send__(:tmux_command, [hook_error])
         begin
+          # Before tmux 3.5, whole-array formats are empty even for sparse hooks.
+          # Configuration must stay stable between this preflight and capture.
+          version = /\A(\d+)\.(\d+)/.match(snapshot.server_info.fetch(:version))
+          unless version && ([version[1].to_i, version[2].to_i] <=> [3, 5]) >= 0
+            hooks = @server.__send__(:execute_typed,
+              [names.fetch("show-options"), "-A", "-v", "-t", target, "after-capture-pane"], **@budget.options)
+            unless hooks.stdout.empty?
+              raise UnsupportedFeatureError.new("capture hooks prevent isolated screen output", phase: :read)
+            end
+          end
           result = @server.__send__(:execute_typed, [names.fetch("if-shell"), "-F", "-t", target,
             '#{==:#{after-capture-pane},}', body, hook_failure], **@budget.options)
         rescue CommandError => error
