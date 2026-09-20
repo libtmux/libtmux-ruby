@@ -1,0 +1,35 @@
+name: docs-preview-cleanup
+
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: docs-preview-ruby-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: docs-preview-cleanup
+    steps:
+      - uses: aws-actions/configure-aws-credentials@4a1596c86fd706dc0521e32f0121ad1a6d1adb74 # v6.0.0
+        with:
+          role-to-assume: ${{ secrets.LIBTMUX_DOCS_PREVIEW_CLEANUP_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Delete this Ruby preview
+        env:
+          BUCKET: ${{ secrets.LIBTMUX_DOCS_BUCKET }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          [[ "$PR" =~ ^[0-9]+$ ]] || {
+            echo 'pull request number must be numeric' >&2
+            exit 1
+          }
+          aws s3 rm "s3://$BUCKET/en/ruby/pr-$PR/" --recursive

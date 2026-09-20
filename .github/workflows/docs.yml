@@ -1,0 +1,273 @@
+name: docs
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+      - 'v*.x'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      source-ref:
+        description: Exact source ref to build
+        required: true
+        default: master
+      version:
+        description: URL version slug
+        required: true
+        default: latest
+      version-kind:
+        description: Version policy
+        required: true
+        type: choice
+        options: [trunk, branch, tag, alias, pr]
+        default: trunk
+      is-default:
+        description: Make this version canonical
+        required: true
+        type: boolean
+        default: false
+      resolves-to:
+        description: Immutable target for an alias
+        required: false
+        default: ''
+      publish:
+        description: Publish after the exact build passes
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-deploy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  identity:
+    runs-on: ubuntu-latest
+    outputs:
+      source-ref: ${{ steps.identity.outputs.source_ref }}
+      source-repository: ${{ steps.identity.outputs.source_repository }}
+      matrix: ${{ steps.identity.outputs.matrix }}
+      should-publish: ${{ steps.identity.outputs.should_publish }}
+    steps:
+      - id: identity
+        env:
+          EVENT: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          INPUT_SOURCE_REF: ${{ inputs.source-ref }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_KIND: ${{ inputs.version-kind }}
+          INPUT_DEFAULT: ${{ inputs.is-default }}
+          INPUT_RESOLVES_TO: ${{ inputs.resolves-to }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          source_ref=''
+          source_repository="$REPOSITORY"
+          matrix=''
+
+          case "$EVENT" in
+            pull_request)
+              source_ref="$PR_HEAD_SHA"
+              source_repository="$PR_HEAD_REPOSITORY"
+              publish=false
+              [[ "$source_repository" == "$REPOSITORY" ]] && publish=true
+              matrix=$(jq -cn \
+                --arg version "pr-$PR_NUMBER" \
+                --argjson publish "$publish" \
+                '{include: [{version: $version, kind: "pr", isDefault: false, resolvesTo: "", environment: "docs-preview", publish: $publish}]}')
+              ;;
+            push)
+              source_ref="$SHA"
+              if [[ "$REF_TYPE" == tag ]]; then
+                [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(\.(alpha|beta|rc)\.[0-9]+)?$ ]] || {
+                  echo "unsupported Ruby documentation tag: $REF_NAME" >&2
+                  exit 1
+                }
+                alias=stable
+                alias_default=true
+                if [[ "$REF_NAME" =~ \.(alpha|beta|rc)\. ]]; then
+                  alias=next
+                  alias_default=false
+                fi
+                matrix=$(jq -cn \
+                  --arg tag "$REF_NAME" \
+                  --arg alias "$alias" \
+                  --argjson alias_default "$alias_default" \
+                  '{include: [
+                    {version: $tag, kind: "tag", isDefault: false, resolvesTo: "", environment: "docs", publish: true},
+                    {version: $alias, kind: "alias", isDefault: $alias_default, resolvesTo: $tag, environment: "docs", publish: true}
+                  ]}')
+              elif [[ "$REF_NAME" == master ]]; then
+                matrix='{"include":[{"version":"latest","kind":"trunk","isDefault":true,"resolvesTo":"","environment":"docs","publish":true}]}'
+              elif [[ "$REF_NAME" =~ ^v[0-9]+\.x$ ]]; then
+                matrix=$(jq -cn --arg version "$REF_NAME" \
+                  '{include: [{version: $version, kind: "branch", isDefault: false, resolvesTo: "", environment: "docs", publish: true}]}')
+              else
+                echo "unsupported documentation branch: $REF_NAME" >&2
+                exit 1
+              fi
+              ;;
+            workflow_dispatch)
+              source_ref="$INPUT_SOURCE_REF"
+              [[ "$INPUT_VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+                echo "invalid version slug: $INPUT_VERSION" >&2
+                exit 1
+              }
+              case "$INPUT_KIND" in
+                trunk|branch|tag|alias|pr) ;;
+                *) echo "invalid version kind: $INPUT_KIND" >&2; exit 1 ;;
+              esac
+              if [[ "$INPUT_KIND" == alias && -z "$INPUT_RESOLVES_TO" ]]; then
+                echo 'an alias requires resolves-to' >&2
+                exit 1
+              fi
+              if [[ "$INPUT_KIND" != alias && -n "$INPUT_RESOLVES_TO" ]]; then
+                echo 'resolves-to applies only to aliases' >&2
+                exit 1
+              fi
+              if [[ "$INPUT_KIND" == pr ]]; then
+                [[ "$INPUT_VERSION" =~ ^pr-[0-9]+$ && "$INPUT_DEFAULT" == false ]] || {
+                  echo 'PR previews require pr-N and cannot be default' >&2
+                  exit 1
+                }
+                environment=docs-preview
+              else
+                environment=docs
+              fi
+              matrix=$(jq -cn \
+                --arg version "$INPUT_VERSION" \
+                --arg kind "$INPUT_KIND" \
+                --arg resolves "$INPUT_RESOLVES_TO" \
+                --arg environment "$environment" \
+                --argjson is_default "$INPUT_DEFAULT" \
+                --argjson publish "$INPUT_PUBLISH" \
+                '{include: [{version: $version, kind: $kind, isDefault: $is_default, resolvesTo: $resolves, environment: $environment, publish: $publish}]}')
+              ;;
+            *) echo "unsupported event: $EVENT" >&2; exit 1 ;;
+          esac
+
+          {
+            echo "source_ref=$source_ref"
+            echo "source_repository=$source_repository"
+            echo "matrix=$matrix"
+            echo "should_publish=$(jq -r 'any(.include[]; .publish)' <<<"$matrix")"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: identity
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.identity.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.identity.outputs.source-repository }}
+          ref: ${{ needs.identity.outputs.source-ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: source
+        env:
+          SELECTED_REF: ${{ needs.identity.outputs.source-ref }}
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          selected=$(git rev-parse "$SELECTED_REF^{commit}")
+          [[ "$sha" == "$selected" ]] || {
+            echo "selected source resolved to $selected, checkout is $sha" >&2
+            exit 1
+          }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: .docs-generator
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: libtmux/docs
+          ref: d28aa869613f41506c2c8bc6feea789247436fc5
+          path: .site
+          persist-credentials: false
+
+      - uses: ruby/setup-ruby@a0102e0972be65f351c307e2d64b9314a57c8073 # v1.280.0
+        with:
+          ruby-version: '4.0.7'
+          bundler-cache: true
+
+      - name: Export the selected Ruby source
+        run: |
+          bundle exec ruby .docs-generator/scripts/export-docs \
+            --source "$GITHUB_WORKSPACE" \
+            --output "$GITHUB_WORKSPACE/docs/_build"
+
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6.0.0
+        with:
+          package_json_file: .site/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+          cache: pnpm
+          cache-dependency-path: .site/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: .site
+
+      - name: Build the selected Ruby documentation tree
+        working-directory: .site
+        env:
+          LIBTMUX_DOCS_PORT: ruby
+          LIBTMUX_DOCS_VERSION: ${{ matrix.version }}
+          LIBTMUX_DOCS_VERSION_KIND: ${{ matrix.kind }}
+          LIBTMUX_DOCS_IS_DEFAULT: ${{ matrix.isDefault }}
+          LIBTMUX_DOCS_RESOLVES_TO: ${{ matrix.resolvesTo }}
+          LIBTMUX_DOCS_SOURCE_REF: ${{ needs.identity.outputs.source-ref }}
+          LIBTMUX_DOCS_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          LIBTMUX_DOCS_CHECKOUT_RUBY: ${{ github.workspace }}
+        run: ./scripts/build-site.sh --ports ruby --versions "${{ matrix.version }}" --skip-refs --skip-pagefind
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docs-ruby-${{ matrix.version }}
+          path: .site/_site/en/ruby/${{ matrix.version }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [identity, build]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.identity.outputs.should-publish == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.identity.outputs.matrix) }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@d28aa869613f41506c2c8bc6feea789247436fc5
+    with:
+      path-prefix: ruby/${{ matrix.version }}
+      artifact: docs-ruby-${{ matrix.version }}
+      version-kind: ${{ matrix.kind }}
+      port: ruby
+      version: ${{ matrix.version }}
+      label: ${{ matrix.version }}
+      is-default: ${{ matrix.isDefault }}
+      resolves-to: ${{ matrix.resolvesTo }}
+      environment: ${{ matrix.environment }}
+    secrets:
+      role-arn: ${{ secrets.LIBTMUX_DOCS_ROLE_ARN }}
+      bucket: ${{ secrets.LIBTMUX_DOCS_BUCKET }}
+      distribution: ${{ secrets.LIBTMUX_DOCS_DISTRIBUTION }}
