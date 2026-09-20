@@ -42,9 +42,10 @@ retires its observation resources without signaling the pane program. Strong
 process tracking requires tmux 3.3 or later and a native identity backend:
 Linux peer pidfds with matching process namespaces, or Darwin kqueue process
 observation. Acquisition verifies the live daemon and pane before retaining
-a cursor; unavailable evidence produces an explicit refusal. The exact
-macOS/Ruby 4.0.7/tmux 3.7c cell has passed; the complete platform matrix
-remains open.
+a cursor; unavailable evidence produces an explicit refusal. The
+[compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
+records each exact platform/version result, including the required tmux 3.2a
+refusal and positive identity cases on later versions.
 
 Resource templates expose metadata pages and pane screens under encoded
 endpoint/generation URIs. They enforce the same policy and response limits as
@@ -99,8 +100,8 @@ server, pane process and enrollment generation. Execution may follow that
 authorization; a later respawn does not redirect the prepared helper to its
 replacement. Error responses retain known authorization and native completion
 receipts. Cancellation does not prove that arbitrary descendants stopped.
-Linux enrollment and installed helper closure have local runtime evidence;
-Darwin enrollment and the complete version matrix remain open.
+The Linux and macOS compatibility jobs exercise enrollment and the installed
+helper dependency closure; consult their results for the revision being used.
 
 The [complete protocol recipe](../../examples/mcp_protocol.rb) runs direct
 transport cancellation and the installed executable through actual pipes.

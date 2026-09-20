@@ -82,6 +82,7 @@ by that scope and reports a new generation plus a gap with unknown loss.
 Subscriptions expose their `generation`; prior subscriptions stay closed.
 Reconnect and resume never replay requests or missed output.
 
-Local Linux checks exercise Async 2.46 and io-event 1.22. macOS and the declared
-Ruby version range still require their matrix gates. Package builds and tests
-do not publish this gem.
+The development bundle pins Async 2.46 and io-event 1.22. The
+[compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
+exercises the selected Ruby/tmux versions on Linux and macOS and retains
+per-revision results. Package builds and tests do not publish this gem.

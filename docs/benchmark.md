@@ -242,6 +242,6 @@ counters.
 
 Six samples support descriptive medians and the raw measurements only.
 Two-sample smoke output is labeled inconclusive. This harness reports no
-tail percentiles, speedup rankings or capacity thresholds. A pressure study,
-complete process-tree resource accounting and the platform/version sweep
-remain distinct work; do not infer them from a green small comparison.
+tail percentiles, speedup rankings or capacity thresholds. Large-scale capacity
+studies, complete process-tree resource accounting and cross-platform performance
+sweeps remain distinct work; do not infer them from a green small comparison.

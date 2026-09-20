@@ -1,8 +1,8 @@
 # Contributing
 
 This repository contains the unreleased libtmux gem suite. Installed-import
-tests establish package boundaries; consumer APIs, documentation recipes and
-the supported-version matrix remain implementation work.
+tests establish package boundaries and execute consumer APIs and documentation
+recipes. Compatibility CI records the exact Ruby, tmux and operating-system cells.
 
 Read [AGENTS.md](../AGENTS.md) for change discipline and [WRITING.md](WRITING.md)
 for prose and commit conventions.
