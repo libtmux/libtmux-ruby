@@ -5,6 +5,7 @@ require "fileutils"
 require "json"
 require "open3"
 require "rubygems/package"
+require "securerandom"
 require "stringio"
 require "tmpdir"
 
@@ -263,6 +264,8 @@ class GemRelease
 
     def get(path)
       uri = URI("#{HOST}#{path}")
+      # Fastly caches missing versions too; preflight must not mask a later push.
+      uri.query = [uri.query, "release_check=#{SecureRandom.hex(16)}"].compact.join("&")
       response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 10) do |http|
         http.get(uri.request_uri)
       end

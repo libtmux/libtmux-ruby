@@ -15,7 +15,11 @@ module ReleaseHTTP
     original = Net::HTTP.method(:start)
     connection = Object.new
     connection.define_singleton_method(:get) do |path|
-      code, body = responses.fetch(path)
+      code, body = if responses.respond_to?(:call)
+        responses.call(path)
+      else
+        responses.fetch(path.sub(/[?&]release_check=[^&]+/, ""))
+      end
       response = Net::HTTPResponse::CODE_TO_OBJ.fetch(code).new("1.1", code, "fixture")
       response.body = body
       response.instance_variable_set(:@read, true)
@@ -333,6 +337,27 @@ class ReleaseRegistryTest < Minitest::Test
 
   VERSION_PATH = "/api/v2/rubygems/libtmux/versions/0.1.0.alpha.1.json?platform=ruby"
   DOWNLOADS_PATH = "/api/v1/downloads/libtmux-0.1.0.alpha.1.json"
+
+  def test_registry_checks_see_uploads_and_yanks_despite_cached_responses
+    version = nil
+    cache = {}
+    metadata = {"name" => "libtmux", "version" => "0.1.0.alpha.1",
+      "platform" => "ruby", "yanked" => false, "sha" => "a" * 64}
+    origin = lambda do |path|
+      cache[path] ||= if URI(path).path == "/api/v2/rubygems/libtmux/versions/0.1.0.alpha.1.json"
+        version == :published ? ["200", JSON.generate(metadata)] : ["404", "This version could not be found."]
+      else
+        version ? ["200", '{"total_downloads":0,"version_downloads":0}'] : ["404", "This rubygem could not be found."]
+      end
+    end
+    with_http(origin) do |registry|
+      assert_nil registry.version_sha("libtmux", "0.1.0.alpha.1")
+      version = :published
+      assert_equal "a" * 64, registry.version_sha("libtmux", "0.1.0.alpha.1")
+      version = :yanked
+      assert_raises(GemRelease::Error) { registry.version_sha("libtmux", "0.1.0.alpha.1") }
+    end
+  end
 
   def test_push_options_are_accepted_by_the_installed_rubygems_cli
     registry = GemRelease.const_get(:RubyGemsRegistry).new
