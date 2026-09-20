@@ -8,7 +8,7 @@ require "json"
 require "digest"
 require "net/http"
 
-load File.expand_path("../../scripts/release", __dir__)
+load File.expand_path("../../scripts/release", __dir__) unless defined?(GemRelease)
 
 module ReleaseHTTP
   def with_http(responses)

@@ -16,7 +16,7 @@ run = lambda do |*command|
 end
 
 if %w[mid outer].include?(mode)
-  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile scripts/check scripts/generate scripts/examples scripts/docs scripts/matrix scripts/types scripts/bench scripts/version scripts/release scripts/release-ci]
+  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile scripts/check scripts/generate scripts/examples scripts/docs scripts/matrix scripts/types scripts/bench scripts/version scripts/release scripts/release-ci scripts/release-github]
   files.each { |file| RubyVM::InstructionSequence.compile_file(file) }
   puts "Syntax: #{files.length} files"
   run.call(Gem.ruby, "scripts/generate", "--check")

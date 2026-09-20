@@ -147,8 +147,18 @@ a concurrent registry change can still interrupt publication.
 If retained files have expired, stop and recover the original bytes from a
 maintainer's saved artifact set before proceeding. A digest mismatch needs
 investigation and usually a new coordinated version; yanking does not make
-the old version reusable. If only GitHub release creation failed, rerun that
-job after checking whether it already created the prerelease.
+the old version reusable.
+
+The GitHub job can also resume. It verifies the retained source, remote tag
+commit, prerelease status and every existing asset's SHA-256, including
+`release.json`, before uploading missing files. A complete matching prerelease
+needs no uploads. Conflicting, duplicate or unexpected assets stop the job;
+it never replaces them. API errors stop the job; only HTTP 404 permits
+creation. Rerun the GitHub job after resolving the reported cause.
+
+An interrupted GitHub upload can leave a draft. Automatic retry refuses
+existing drafts. Inspect and preserve its assets before removing that draft;
+keep the tag and retained artifact set, then rerun the job.
 
 ## Authentication and attestations
 
