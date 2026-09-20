@@ -231,7 +231,7 @@ class MCPWaitTest < Minitest::Test
         wait.call
       rescue LibTmux::Error => error
         test.instance_variable_set(:@observation_failure,
-          {class: error.class.name, phase: error.phase, cleanup_errors: error.cleanup_errors})
+          {class: error.class.name, message: error.message, phase: error.phase, cleanup_errors: error.cleanup_errors})
         raise
       end
       original = observer.method(:read_rows)

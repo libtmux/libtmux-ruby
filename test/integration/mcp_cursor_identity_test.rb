@@ -116,12 +116,44 @@ class MCPCursorIdentityTest < Minitest::Test
       identity = LibTmux::MCP.const_get(:ProcessIdentity).acquire(scope.server,
         server_pid: snapshot.server_info.fetch(:pid), pane_pid: pid,
         budget: scope.server.__send__(:operation_budget, 0.5, nil))
+      klass = LibTmux::MCP.const_get(:ProcessIdentity)
+      native = klass.method(:native)
+      faults = [:interrupted]
+      klass.define_singleton_method(:native) do |name, *signature|
+        function = native.call(name, *signature)
+        next function unless name == "poll"
+
+        lambda do |*arguments|
+          case faults.shift
+          when :interrupted
+            Fiddle.last_error = Errno::EINTR::Errno
+            -1
+          when :failed
+            Fiddle.last_error = Errno::EIO::Errno
+            -1
+          when :invalid
+            arguments.first[6, 2] = [0x20].pack("s")
+            1
+          else
+            function.call(*arguments)
+          end
+        end
+      end
       refute identity.exited?
+      assert_empty faults
       connection.write("x")
       assert request.wait.success?
       assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
+      faults << :interrupted
       2.times { assert identity.exited?, "terminal process readiness was consumed" }
+      [[:interrupted, :interrupted], [:failed], [:invalid]].each do |sequence|
+        faults.replace(sequence)
+        error = assert_raises(LibTmux::TransportError) { identity.exited? }
+        assert_equal :read, error.phase
+        assert_empty faults
+      end
     ensure
+      klass.define_singleton_method(:native, native) if native
       identity&.close
       connection&.close
       listener&.close

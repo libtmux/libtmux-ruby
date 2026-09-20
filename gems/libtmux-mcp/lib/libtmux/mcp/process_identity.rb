@@ -71,10 +71,23 @@ module LibTmux
       def self.readable?(io)
         poll = native("poll", [Fiddle::TYPE_VOIDP, Fiddle::TYPE_LONG, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
         data = [io.fileno, 1, 0].pack("iss")
-        result = poll.call(data, 1, 0)
-        raise TransportError.new("process descriptor observation failed", phase: :read) if result.negative?
+        # Retry one interrupted nonblocking check without consuming readiness.
+        2.times do
+          result = poll.call(data, 1, 0)
+          if result.negative?
+            errno = Fiddle.last_error
+            next if errno == Errno::EINTR::Errno
 
-        !result.zero?
+            raise TransportError.new("process descriptor poll failed (errno #{errno})", phase: :read)
+          end
+          events = data.unpack("iss").last
+          if (events & 0x28).positive? # POLLERR | POLLNVAL are not process exits.
+            raise TransportError.new("process descriptor poll returned an invalid event", phase: :read)
+          end
+          return (events & 0x11).positive? # POLLIN | POLLHUP retain terminal readiness.
+        end
+
+        raise TransportError.new("process descriptor poll remained interrupted", phase: :read)
       end
 
       def self.procfs_namespace
