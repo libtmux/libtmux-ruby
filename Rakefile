@@ -20,4 +20,12 @@ task :build do
   end
 end
 
+namespace :version do
+  desc "Prepare all gem versions and the lockfile without publishing"
+  task :bump, [:version] do |_, args|
+    load "scripts/version"
+    puts "Prepared #{VersionBump.new(__dir__).bump(args[:version])}"
+  end
+end
+
 task default: :mid

@@ -23,6 +23,6 @@ Gem::Specification.new do |spec|
     lib/libtmux/async/control.rb
     sig/libtmux-async.rbs
   ]
-  spec.add_dependency "libtmux", "= 0.1.0.pre"
+  spec.add_dependency "libtmux", "= #{spec.version}"
   spec.add_dependency "async", "~> 2.46.0"
 end
