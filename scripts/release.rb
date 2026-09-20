@@ -251,9 +251,12 @@ class GemRelease
       key = env["GEM_HOST_API_KEY"]
       raise Error, "publication requires the trusted publishing action credential" unless key.is_a?(String) && !key.strip.empty?
 
-      _output, _errors, status = Open3.capture3({"GEM_HOST_API_KEY" => key}, Gem.ruby, "-S", "gem",
-        "--norc", "push", path, "--host", HOST)
-      raise Error, "gem push failed; retry with retained artifacts" unless status.success?
+      output, errors, status = Open3.capture3({"GEM_HOST_API_KEY" => key}, Gem.ruby, "-S", "gem",
+        "push", path, "--norc", "--host", HOST)
+      unless status.success?
+        detail = [output, errors].reject(&:empty?).join("\n").gsub(key, "[REDACTED]").byteslice(0, 4096).scrub.strip
+        raise Error, "gem push failed: #{detail}; retry with retained artifacts"
+      end
     end
 
     private

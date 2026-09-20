@@ -334,6 +334,23 @@ class ReleaseRegistryTest < Minitest::Test
   VERSION_PATH = "/api/v2/rubygems/libtmux/versions/0.1.0.alpha.1.json?platform=ruby"
   DOWNLOADS_PATH = "/api/v1/downloads/libtmux-0.1.0.alpha.1.json"
 
+  def test_push_options_are_accepted_by_the_installed_rubygems_cli
+    registry = GemRelease.const_get(:RubyGemsRegistry).new
+    assert_nil registry.push("--help", env: {"GEM_HOST_API_KEY" => "unused-test-key"})
+  end
+
+  def test_push_failure_preserves_cli_diagnostics_without_the_credential
+    registry = GemRelease.const_get(:RubyGemsRegistry).new
+    key = "private-test-credential"
+    Dir.mktmpdir("libtmux-ruby-upload-") do |directory|
+      error = assert_raises(GemRelease::Error) do
+        registry.push(File.join(directory, "missing-#{key}.gem"), env: {"GEM_HOST_API_KEY" => key})
+      end
+      assert_includes error.message, "missing-[REDACTED].gem"
+      refute_includes error.message, key
+    end
+  end
+
   def test_absence_requires_yanked_aware_lookup_and_errors_fail_closed
     with_http(VERSION_PATH => ["404", "This version could not be found."],
       DOWNLOADS_PATH => ["404", "This rubygem could not be found."]) do |registry|
