@@ -79,6 +79,7 @@ module LibTmux
   end
 
   class WindowLink < Entity
+    def snapshot: (**untyped) -> WindowLinkSnapshot
     def index: () -> Integer
     def window: () -> Window
     def session: () -> Session

@@ -108,6 +108,7 @@ module LibTmux
   end
 
   class Session < Entity
+    def snapshot: (**untyped) -> SessionSnapshot
     def kill: (?expected_windows: Array[EntityRef]?, ?expected_panes: Array[EntityRef]?, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def new_window: (name: String, command: Array[String], receipt: true, ?index: Integer?, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> CreationReceipt
                   | (name: String, command: Array[String], ?receipt: false, ?index: Integer?, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Window
@@ -116,12 +117,14 @@ module LibTmux
   end
 
   class Window < Entity
+    def snapshot: (**untyped) -> WindowSnapshot
     def list_panes: (?timeout: Numeric, ?cancel: untyped) -> Array[Pane]
     def split: (direction: :horizontal | :vertical, command: Array[String], ?size: Integer | String | nil, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Pane
     def select_layout: (String | Symbol, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
   end
 
   class Pane < Entity
+    def snapshot: (**untyped) -> PaneSnapshot
     def split: (direction: :horizontal | :vertical, command: Array[String], ?size: Integer | String | nil, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Pane
     def capture: (?start: Integer | String | nil, ?finish: Integer | String | nil, ?join: bool, ?escapes: bool, ?escape_bytes: bool, ?preserve_trailing: bool, ?trim_trailing: bool, ?alternate: bool, ?mode_screen: bool, ?pending: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def send_text: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult

@@ -51,10 +51,10 @@ class SignatureConsumer
     result
   end
 
-  def verify_rejects_wrong_return
+  def verify_rejects_wrong_return(value = Object.new)
     checker, overloads, method, trace = @last
     corrupted = trace.dup
-    corrupted.method_call = RBS::Test::ArgumentsReturn.return(arguments: trace.method_call.arguments, value: Object.new)
+    corrupted.method_call = RBS::Test::ArgumentsReturn.return(arguments: trace.method_call.arguments, value: value)
     if overloads.any? { |entry| checker.method_call(method, entry, corrupted, errors: []).empty? }
       raise "signature checker failed to reject a wrong implementation return"
     end
@@ -78,6 +78,11 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
     pane = consumer.call("::LibTmux::CreationReceipt", receipt, :pane, expected: "::LibTmux::Pane")
     consumer.call("::LibTmux::Session", session, :new_window, name: "second", command: ["/bin/cat"], expected: "::LibTmux::Window")
     snapshot = consumer.call("::LibTmux::Server", server, :snapshot, expected: "::LibTmux::Snapshot")
+    {"Session" => [session, snapshot.panes.first], "Window" => [receipt.window, snapshot.sessions.first],
+      "Pane" => [pane, snapshot.windows.first], "WindowLink" => [session.list_window_links.first, snapshot.panes.first]}.each do |kind, (handle, wrong)|
+      consumer.call("::LibTmux::#{kind}", handle, :snapshot, expected: "::LibTmux::#{kind}Snapshot")
+      consumer.verify_rejects_wrong_return(wrong)
+    end
     panes = consumer.call("::LibTmux::Snapshot", snapshot, :panes, expected: "::LibTmux::Selection[::LibTmux::PaneSnapshot]")
     records = consumer.call("::LibTmux::Selection[::LibTmux::PaneSnapshot]", panes, :to_a, expected: "Array[::LibTmux::PaneSnapshot]")
     expression = consumer.call("singleton(::LibTmux::PaneWhere)", LibTmux::PaneWhere, :build, {id: pane.id}, expected: "::LibTmux::FilterExpr")
