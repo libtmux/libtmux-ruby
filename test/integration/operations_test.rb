@@ -152,21 +152,15 @@ class OperationsTest < Minitest::Test
       session.link_window(window.ref, index: 8)
       link = session.list_window_links.find { |entry| entry.index == 8 }
       server.options.set("command-alias", "if-shell=", index: 90)
-      server.options.set("command-alias", "show-options=", index: 91)
+      server.options.set("command-alias", "show-options=show-options -v", index: 91)
       outcome = begin
         link.unlink(timeout: 0.5)
-      rescue LibTmux::UnsupportedFeatureError, LibTmux::CommandError => error
+      rescue LibTmux::UnsupportedFeatureError => error
         error
       end
       assert_equal [0, 8], session.list_window_links.map(&:index)
-      if outcome.is_a?(LibTmux::CommandError)
-        # Older tmux rejects the empty alias while acquiring the inventory.
-        assert_equal :observed, outcome.delivery
-        assert_includes outcome.result.argv, "show-options"
-      else
-        assert_instance_of LibTmux::UnsupportedFeatureError, outcome
-        assert_equal :not_sent, outcome.delivery
-      end
+      assert_instance_of LibTmux::UnsupportedFeatureError, outcome
+      assert_equal :not_sent, outcome.delivery
     end
   end
 
