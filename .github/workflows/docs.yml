@@ -44,7 +44,7 @@ permissions:
 
 concurrency:
   group: docs-deploy-${{ github.repository }}
-  cancel-in-progress: false
+  queue: max
 
 jobs:
   identity:
@@ -201,7 +201,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: libtmux/docs
-          ref: d28aa869613f41506c2c8bc6feea789247436fc5
+          ref: 4a13b5714224125636b027d23991117c3c56a81f
           path: .site
           persist-credentials: false
 
@@ -256,7 +256,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@d28aa869613f41506c2c8bc6feea789247436fc5
+    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@4a13b5714224125636b027d23991117c3c56a81f
     with:
       path-prefix: ruby/${{ matrix.version }}
       artifact: docs-ruby-${{ matrix.version }}
