@@ -213,7 +213,23 @@ class OperationsTest < Minitest::Test
       window.select_layout(layout)
       assert_equal layout, window.display('#{window_layout}').text.strip
       assert_equal "#{second.id}\n", window.display('#{pane_id}').text
-      assert_raises(LibTmux::CommandError) { window.select_layout("not-a-layout") }
+      ["not-a-layout", "", "abc", "deadbeef"].each do |invalid|
+        assert_raises(ArgumentError) { window.select_layout(invalid) }
+      end
+      invalid_checksum = "%04x" % (layout[0, 4].to_i(16) ^ 1) + layout[4..]
+      assert_raises(LibTmux::CommandError) { window.select_layout(invalid_checksum) }
+      assert_equal layout, window.display('#{window_layout}').text.strip
+      release = Gem::Version.new(server.display('#{version}').text[/\d+\.\d+/])
+      if release >= Gem::Version.new("3.5")
+        assert_raises(ArgumentError) { window.select_layout("main-h") }
+        window.select_layout(:main_vertical_mirrored)
+        assert_operator first.display('#{pane_left}').text.to_i, :>, second.display('#{pane_left}').text.to_i
+      else
+        window.select_layout("main-h")
+        error = assert_raises(LibTmux::UnsupportedFeatureError) { window.select_layout(:main_vertical_mirrored) }
+        assert_equal :not_sent, error.delivery
+      end
+      window.select_layout(layout)
       assert_equal layout, window.display('#{window_layout}').text.strip
     end
   end

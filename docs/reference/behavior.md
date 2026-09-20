@@ -295,6 +295,14 @@ zoom is opt-in. Respawn requires a command, defaults `kill: false`, and
 accepts the same cwd/environment handling as creation. Layout/focus changes
 are observable mutations, not local handle edits.
 
+Layout selection accepts native names, unambiguous native abbreviations and
+saved layouts beginning with four hexadecimal checksum digits and a comma.
+Unknown or ambiguous names and malformed headers raise `ArgumentError` before
+mutation; tmux validates the remaining checksum and geometry. Mirrored names
+require tmux 3.5+, otherwise raising `UnsupportedFeatureError`. Name resolution
+may read the version under the operation's shared deadline. The five base names
+and framed saved layouts need no version read.
+
 ## Window links
 
 Link operations preserve session/index/window identity together. `move`,
