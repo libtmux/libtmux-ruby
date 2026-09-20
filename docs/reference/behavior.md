@@ -444,6 +444,11 @@ creates a new generation and reports a continuity gap; it is not replay.
 `attribution: :boundary_window`; unsolicited hooks can share that interval.
 It intentionally has no command-result success predicate.
 
+Native `run-shell` output routing depends on tmux: 3.3a–3.4 writes it into
+pane view mode; 3.2a and 3.5+ can emit it outside reply blocks as events.
+The adapter preserves this behavior. Shell output resembling an unmatched
+control terminator fails the connection closed when it reaches the raw stream.
+
 `ControlEvent` preserves raw bytes plus decoded kind, data, pane and sequence
 where available. Gaps expose lost sequence/byte evidence or a continuity
 reason; optional fields remain nil when absent. Value constructors and

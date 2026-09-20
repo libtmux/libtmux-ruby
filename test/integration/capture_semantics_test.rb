@@ -122,6 +122,7 @@ class CaptureSemanticsTest < Minitest::Test
           session = server.new_session(name: "copy-source", command: screen_program(listener.path), width: 20, height: 8)
           source = session.list_panes.first
           target = session.new_window(name: "copy-target", command: ["/bin/cat"]).list_panes.first
+          server.run(["set-option", "-w", "-t", target.id, "mode-keys", "vi"])
           assert IO.select([listener], nil, nil, 0.5), "copy source did not connect"
           channel = listener.accept
           render(channel, (0...24).map { |index| "line%02d\r\n" % index }.join)

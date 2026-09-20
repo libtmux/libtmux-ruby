@@ -2,10 +2,12 @@
 
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
+require_relative "../support/control_assertions"
 require "libtmux/control"
 require "libtmux/process"
 
 class ControlIntegrationTest < Minitest::Test
+  include LibTmuxTest::ControlAssertions
   def with_control(**options)
     LibTmuxTest::TmuxFixture.open do |fixture|
       pin = LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
@@ -276,22 +278,8 @@ class ControlIntegrationTest < Minitest::Test
   end
 
   def test_outside_wait_output_is_an_event_and_corruption_fails_closed
-    with_control do |_, _, control|
-      reply = control.exchange(%q{run-shell 'printf "outside-reply\n"; exit 17'}, timeout: 0.5)
-      refute_includes reply.blocks.map(&:body).join, "outside-reply"
-      assert reply.blocks.any?(&:guard_success?)
-      observed = []
-      loop do
-        event = control.events.next(timeout: 0.5)
-        observed << event.raw
-        break if event.raw.include?("returned 17")
-      end
-      assert_includes observed.join, "outside-reply"
-      error = assert_raises(LibTmux::ProtocolError) do
-        control.exchange(%q{run-shell 'printf "%%end 1 1 1\n"'}, timeout: 0.5)
-      end
-      assert_equal :possibly_sent, error.delivery
-      assert_raises(LibTmux::ClosedError) { control.exchange("display-message -p later") }
+    with_control do |fixture, _, control|
+      assert_run_shell_routing(control, fixture.tmux("-V").first)
     end
   end
 

@@ -2,10 +2,12 @@
 
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
+require_relative "../support/control_assertions"
 require "libtmux/async"
 require "socket"
 
 class AsyncTest < Minitest::Test
+  include LibTmuxTest::ControlAssertions
   def test_process_facade_yields_to_the_client_that_releases_a_wait
     assert LibTmux::Async.respond_to?(:open), "Async scope is missing"
     LibTmuxTest::TmuxFixture.open do |fixture|
@@ -466,18 +468,7 @@ class AsyncTest < Minitest::Test
         assert reply.blocks.any? { |block| block.terminator == :error }
         fake = control.exchange("display-message -p 'parse error: unknown command: libtmux_boundary_guess'")
         assert_includes fake.blocks.map(&:body).join, "libtmux_boundary_guess"
-        reply = control.exchange(%q{run-shell 'printf "outside-reply\n"; exit 17'})
-        refute_includes reply.blocks.map(&:body).join, "outside-reply"
-        events = []
-        loop do
-          event = control.events.next(timeout: 0.5)
-          events << event.raw
-          break if event.raw.include?("returned 17")
-        end
-        assert_includes events.join, "outside-reply"
-        failure = assert_raises(LibTmux::ProtocolError) { control.exchange(%q{run-shell 'printf "%%end 1 1 1\n"'}) }
-        assert_equal :possibly_sent, failure.delivery
-        assert_raises(LibTmux::ClosedError) { control.exchange("display-message -p closed") }
+        assert_run_shell_routing(control, scope.server.snapshot.server_info.fetch(:version))
       end
     end
   end
