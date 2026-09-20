@@ -224,7 +224,7 @@ class MCPEnrollmentTest < Minitest::Test
 
   def test_registry_close_keeps_a_runs_final_helper_retirement_owned
     with_shell do |registry, pane, _channel, _scope, _source|
-      entered, release = Async::Queue.new, Async::Queue.new
+      entered, release, waiting = Async::Queue.new, Async::Queue.new, Async::Queue.new
       closes = 0
       original_prepare = registry.method(:prepare)
       registry.define_singleton_method(:prepare) do |*arguments, **options|
@@ -251,16 +251,31 @@ class MCPEnrollmentTest < Minitest::Test
         error
       end
       Async::Task.current.with_timeout(0.5) { entered.dequeue }
+      changed = registry.instance_variable_get(:@changed)
+      original_wait = changed.method(:wait)
+      changed.define_singleton_method(:wait) do
+        waiting.enqueue(true)
+        original_wait.call
+      end
       closing = Async::Task.current.async do
         registry.close
       rescue Exception => error
         error
       end
+      Async::Task.current.with_timeout(0.5) { waiting.dequeue }
       assert_equal 1, closes, 'registry close must not race the active run cleanup'
       refute closing.finished?, 'registry close must await the run cleanup owner'
-      closing.cancel
-      closing.cancel
+      2.times do
+        closing.cancel
+        Async::Task.current.with_timeout(0.5) { waiting.dequeue }
+      end
       refute closing.finished?, 'repeated cancellation must not abandon admitted cleanup'
+      release.enqueue(true)
+      assert_instance_of Async::Cancel, pending.wait(timeout: 0.5)
+      assert_instance_of Async::Cancel, closing.wait(timeout: 0.5)
+      assert_empty registry.instance_variable_get(:@runs)
+      assert_empty registry.instance_variable_get(:@prepared)
+      registry.close
     ensure
       release&.enqueue(true)
       pending&.wait(timeout: 0.5)
