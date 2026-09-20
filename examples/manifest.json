@@ -2,6 +2,11 @@
   "version": 1,
   "programs": [
     {
+      "id": "quickstart",
+      "path": "examples/quickstart.rb",
+      "gem": "libtmux"
+    },
+    {
       "id": "list_filter",
       "path": "examples/list_filter.rb",
       "gem": "libtmux"
@@ -67,6 +72,18 @@
     "gems/libtmux/README.md"
   ],
   "snippets": [
+    {
+      "id": "quickstart/main",
+      "source": "examples/quickstart.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "quickstart/queries",
+      "source": "examples/quickstart.rb",
+      "region": "queries",
+      "language": "ruby"
+    },
     {
       "id": "list_filter/main",
       "source": "examples/list_filter.rb",
