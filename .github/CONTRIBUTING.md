@@ -50,14 +50,14 @@ $ /usr/bin/time -p mise exec -- bundle exec ruby test/unit/process_test.rb
 Run all unit tests and Ruby syntax checks in the mid loop:
 
 ```console
-$ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check mid
+$ /usr/bin/time -p mise exec -- bundle exec scripts/check mid
 ```
 
 Run unit, isolated tmux integration, installed-artifact recipes and signature
 consumers, rendered documentation and RBS checks in the outer loop:
 
 ```console
-$ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check outer
+$ /usr/bin/time -p mise exec -- bundle exec scripts/check outer
 ```
 
 The same runner accepts `integration`, `packaging` and `types` separately.
@@ -78,6 +78,8 @@ $ mise exec -- bundle exec rake build
 ```
 
 Artifacts appear in ignored `pkg/`. No publication happens during the build.
+The [release guide](../docs/releasing.md) covers coordinated version bumps,
+retained-artifact dry runs and first-time trusted-publisher setup.
 The mid loop checks generated fields/schema/signatures, the public API
 reference and the executable example manifest. The outer loop installs each
 declared dependency closure, runs the copied recipes outside the checkout,
@@ -123,7 +125,7 @@ full sweep below one hour; reduce the workload if needed.
 Inspect the comparison configuration without starting tmux:
 
 ```console
-$ mise exec -- bundle exec ruby scripts/bench plan
+$ mise exec -- bundle exec scripts/bench plan
 ```
 
 The [benchmark guide](../docs/benchmark.md) defines equivalent workloads,

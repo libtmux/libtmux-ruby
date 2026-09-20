@@ -29,14 +29,17 @@ class InstalledWorkspaceCLITest < Minitest::Test
         "BUNDLE_LOCKFILE" => nil, "BUNDLER_SETUP" => nil,
         "TMUX" => nil, "TMUX_PANE" => nil}
       local.each do |spec|
-        artifact = File.join(directory, "#{spec.full_name}.gem")
-        Dir.chdir(File.join(ROOT, "gems", spec.name)) { Gem::Package.build(spec, false, true, artifact) }
+        artifact = package_artifact(spec, directory, ROOT)
         output, status = Open3.capture2e(environment, Gem.ruby, File.join(RbConfig::CONFIG.fetch("bindir"), "gem"),
           "install", "--local", "--no-document", artifact, chdir: directory)
         assert status.success?, "artifact installation failed: #{output}"
       end
       executable = File.join(home, "bin", "libtmux-workspace")
       assert File.file?(executable)
+      output, error, status = Open3.capture3(environment, Gem.ruby, executable, "--version", chdir: directory)
+      assert status.success?, "installed version failed: #{error}"
+      assert_equal "#{specs.fetch('libtmux-workspace').version}\n", output
+      assert_empty error
       config = File.join(directory, ".tmuxp.json")
       File.write(config, JSON.generate({session_name: "installed", windows: [{window_name: "one", panes: [{}]}]}))
       %w[validate plan].each do |command|

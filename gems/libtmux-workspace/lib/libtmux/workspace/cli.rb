@@ -19,6 +19,7 @@ module LibTmux
 
       def run
         return help if @arguments == ["--help"] || @arguments == ["-h"]
+        return version if @arguments == ["--version"]
 
         command = @arguments.shift
         raise ArgumentError unless %w[validate plan load].include?(command)
@@ -30,6 +31,7 @@ module LibTmux
         end
         parser.parse!(@arguments)
         return help if @options[:help]
+        return version if @options[:version]
 
         validate_arguments(command)
         file = configuration_file
@@ -98,11 +100,17 @@ module LibTmux
             @options.fetch(:environment)[name] = contents
           end
           options.on("-h", "--help", "Show supported commands and options") { @options[:help] = true }
+          options.on("--version", "Show the installed gem version") { @options[:version] = true }
         end
       end
 
       def help
         @out.puts(parser)
+        0
+      end
+
+      def version
+        @out.puts(VERSION)
         0
       end
 

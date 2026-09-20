@@ -6,6 +6,28 @@ module LibTmuxTest
   module InstalledGems
     private
 
+    def package_artifact(spec, directory, root)
+      if ENV["LIBTMUX_RELEASE_DIR"]
+        require "json"
+        release = File.expand_path(ENV.fetch("LIBTMUX_RELEASE_DIR"), root)
+        raise "release artifacts must be in pkg/release" unless release == File.join(root, "pkg/release")
+
+        unless @release_manifest
+          load File.join(root, "scripts/release.rb") unless defined?(GemRelease)
+          identity = JSON.parse(File.read(File.join(release, "release.json")))
+          @release_manifest = GemRelease.new(root).verify(tag: identity.fetch("tag"), commit: identity.fetch("commit"))
+        end
+        artifact = @release_manifest.fetch("artifacts").find { |entry| entry.fetch("name") == spec.name }
+        raise "release version differs from checkout" unless artifact.fetch("version") == spec.version.to_s
+
+        return File.join(release, artifact.fetch("filename"))
+      end
+
+      artifact = File.join(directory, "#{spec.full_name}.gem")
+      Dir.chdir(File.join(root, "gems", spec.name)) { Gem::Package.build(spec, false, true, artifact) }
+      artifact
+    end
+
     def run_installed_examples(package, environment, directory)
       require "json"
       root = File.expand_path("../..", __dir__)

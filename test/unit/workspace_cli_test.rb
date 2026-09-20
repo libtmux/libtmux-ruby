@@ -6,6 +6,15 @@ require "stringio"
 require "tmpdir"
 
 class WorkspaceCLITest < Minitest::Test
+  def test_version_does_not_require_configuration_or_a_tmux_endpoint
+    [[], %w[validate], %w[plan], %w[load]].each do |command|
+      status, output, error = run_cli([*command, "--version"], "/libtmux-ruby-missing-config")
+      assert_equal 0, status
+      assert_equal "#{LibTmux::Workspace::VERSION}\n", output
+      assert_empty error
+    end
+  end
+
   def test_validation_discovery_and_offline_plan_are_inert_and_render_the_same_plan
     Dir.mktmpdir("libtmux-ruby-cli-") do |directory|
       file = File.join(directory, ".tmuxp.json")

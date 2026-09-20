@@ -153,6 +153,13 @@ The locally built gem installs `libtmux-workspace`. `validate` and offline
 `plan` do not contact tmux. Without a filename, discovery requires exactly one
 `.tmuxp.yaml`, `.tmuxp.yml` or `.tmuxp.json` in the current directory.
 
+Check the installed gem version without reading a configuration or contacting
+tmux:
+
+```console
+$ libtmux-workspace --version
+```
+
 ```console
 $ libtmux-workspace validate workspace.yaml
 ```

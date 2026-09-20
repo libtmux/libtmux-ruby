@@ -57,6 +57,7 @@
     "examples/workspace.yaml"
   ],
   "documents": [
+    "CHANGELOG.md",
     "README.md",
     "docs/benchmark.md",
     "docs/index.md",
@@ -66,6 +67,7 @@
     "docs/reference/api.md",
     "docs/reference/behavior.md",
     "docs/reference/fields.md",
+    "docs/releasing.md",
     "gems/libtmux-async/README.md",
     "gems/libtmux-mcp/README.md",
     "gems/libtmux-workspace/README.md",

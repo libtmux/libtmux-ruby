@@ -16,13 +16,13 @@ and graph construction constant across transports.
 Inspect the configuration without starting tmux:
 
 ```console
-$ mise exec -- bundle exec ruby scripts/bench plan
+$ mise exec -- bundle exec scripts/bench plan
 ```
 
 Run the default comparison into a new, durable directory:
 
 ```console
-$ mise exec -- bundle exec ruby scripts/bench run \
+$ mise exec -- bundle exec scripts/bench run \
     --output build/benchmarks/comparison-01
 ```
 
@@ -37,7 +37,7 @@ and teardown are outside warm phase timings.
 A smaller correctness smoke is inconclusive for performance:
 
 ```console
-$ mise exec -- bundle exec ruby scripts/bench run \
+$ mise exec -- bundle exec scripts/bench run \
     --panes 1 \
     --samples 2 \
     --payload-bytes 1024 \
@@ -70,7 +70,7 @@ dimension; run each configuration into a distinct directory.
 Increase callers while keeping one output reader:
 
 ```console
-$ mise exec -- bundle exec ruby scripts/bench run \
+$ mise exec -- bundle exec scripts/bench run \
     --panes 8 \
     --concurrency 8 \
     --subscribers 1 \
@@ -80,7 +80,7 @@ $ mise exec -- bundle exec ruby scripts/bench run \
 Increase subscribers while retaining four callers:
 
 ```console
-$ mise exec -- bundle exec ruby scripts/bench run \
+$ mise exec -- bundle exec scripts/bench run \
     --panes 8 \
     --concurrency 4 \
     --subscribers 16 \

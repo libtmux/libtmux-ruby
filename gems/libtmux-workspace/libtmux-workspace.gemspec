@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
     lib/libtmux/workspace/version.rb
     sig/libtmux-workspace.rbs
   ]
-  spec.add_dependency "libtmux", "= 0.1.0.pre"
+  spec.add_dependency "libtmux", "= #{spec.version}"
   spec.add_dependency "json", "~> 3.0.2"
   spec.add_dependency "psych", "~> 5.5.0"
 end

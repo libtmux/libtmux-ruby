@@ -35,8 +35,8 @@ Gem::Specification.new do |spec|
     sig/libtmux-mcp.rbs
     sig/transport.rbs
   ]
-  spec.add_dependency "libtmux", "= 0.1.0.pre"
-  spec.add_dependency "libtmux-async", "= 0.1.0.pre"
+  spec.add_dependency "libtmux", "= #{spec.version}"
+  spec.add_dependency "libtmux-async", "= #{spec.version}"
   spec.add_dependency "mcp", "~> 1.5.1"
   spec.add_dependency "digest", "~> 3.2.1"
   spec.add_dependency "optparse", ">= 0.4", "< 1"

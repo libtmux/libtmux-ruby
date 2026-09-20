@@ -1,0 +1,52 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+
+class ReleaseCI
+  class Error < StandardError; end
+
+  REPOSITORY = "libtmux/libtmux-ruby"
+  WORKFLOW = ".github/workflows/compatibility.yml"
+
+  def initialize(client: method(:github))
+    @client = client
+  end
+
+  def check(commit)
+    raise Error, "release requires a full commit SHA" unless /\A[0-9a-f]{40}\z/.match?(commit)
+
+    runs = @client.call("repos/#{REPOSITORY}/actions/workflows/compatibility.yml/runs?head_sha=#{commit}&event=push&branch=master&status=success&per_page=100")
+    runs.fetch("workflow_runs").each do |run|
+      next unless run.values_at("head_sha", "head_branch", "event", "path", "status", "conclusion") ==
+        [commit, "master", "push", WORKFLOW, "completed", "success"]
+
+      jobs = @client.call("repos/#{REPOSITORY}/actions/runs/#{run.fetch('id')}/jobs?filter=latest&per_page=100")
+      next unless jobs.fetch("jobs").any? do |job|
+        job["name"] == "All 36 required cells" && job["conclusion"] == "success"
+      end
+
+      return run.fetch("id")
+    end
+    raise Error, "no successful master compatibility run for #{commit}; rerun Release after all required cells pass"
+  end
+
+  private
+
+  def github(path)
+    output, status = Open3.capture2e("gh", "api", path)
+    raise Error, "GitHub compatibility lookup failed: #{output}" unless status.success?
+
+    JSON.parse(output)
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  abort "usage: scripts/release-ci COMMIT" unless ARGV.length == 1
+  begin
+    puts "Compatibility run #{ReleaseCI.new.check(ARGV.first)} passed for #{ARGV.first}"
+  rescue ReleaseCI::Error => error
+    abort error.message
+  end
+end

@@ -31,8 +31,7 @@ class PackageTest < Minitest::Test
         assert_includes spec.files, "LICENSE"
         assert spec.files.any? { |file| file.start_with?("sig/") }, "missing signatures: #{name}"
         refute spec.files.any? { |file| file.start_with?("test/", "vendor/", "benchmark/") }
-        artifact = File.join(directory, "#{spec.full_name}.gem")
-        Dir.chdir(File.join(ROOT, "gems", name)) { Gem::Package.build(spec, false, true, artifact) }
+        artifact = package_artifact(spec, directory, ROOT)
         [name, artifact]
       end
 
