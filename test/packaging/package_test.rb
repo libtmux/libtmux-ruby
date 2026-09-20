@@ -46,6 +46,7 @@ class PackageTest < Minitest::Test
         environment = {
           "GEM_HOME" => home, "GEM_PATH" => home, "RUBYLIB" => nil,
           "RUBYOPT" => nil, "BUNDLE_GEMFILE" => nil, "BUNDLE_BIN_PATH" => nil,
+          "BUNDLE_LOCKFILE" => nil, "BUNDLER_SETUP" => nil,
           "TMUX" => nil, "TMUX_PANE" => nil
         }
         local.each do |spec|
