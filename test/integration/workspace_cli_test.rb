@@ -60,6 +60,15 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
   def test_live_plan_detached_load_and_conflict_return_distinct_json_results
     LibTmuxTest::TmuxFixture.open do |fixture|
       file = write_config(fixture, "cli")
+      valid = File.read(file)
+      invalid = JSON.parse(valid).merge("window_options" => {"pane-base-index" => 65536})
+      File.write(file, JSON.generate(invalid))
+      status, value, diagnostics = cli(fixture, ["load", file])
+      assert_equal 2, status
+      assert_equal "configuration", value.fetch("error").fetch("kind")
+      assert_empty diagnostics
+      assert_equal 1, fixture.tmux("list-sessions", "-F", '#{session_id}').first.lines.length
+      File.write(file, valid)
       status, value, diagnostics = cli(fixture, ["plan", "--live", file])
       assert_equal 0, status
       assert_equal "captured_create", value.fetch("mode")

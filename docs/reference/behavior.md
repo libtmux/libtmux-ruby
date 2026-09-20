@@ -595,6 +595,11 @@ deadline, `cancel: nil`, and `compensate: false`. It checks binding/conflicts,
 then executes ordered individually attributable operations. Shell command
 sending is recorded as dispatch only, not program completion.
 
+Session options precede subsequent window/pane creation. On tmux 3.2a–3.6,
+the reused initial pane keeps the global history limit inherited at creation;
+later panes use the configured session value. Tmux 3.7+ updates existing grids
+when `history-limit` changes. Apply preserves global options and initial IDs.
+
 Creation receipts populate a ledger only with positively returned IDs.
 Failure raises `ApplyError` carrying completed steps, known creations,
 failed action and uncertainty. Opt-in compensation removes only positively

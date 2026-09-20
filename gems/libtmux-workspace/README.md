@@ -89,6 +89,8 @@ nonnegative `base-index`, `history-limit`, `status-interval`; and enumerated
 `main-pane-height`; text `window-status-format`, `window-status-current-format`;
 and enumerated `pane-border-status`. Option text remains tmux option text,
 including any formats that tmux evaluates.
+`pane-base-index` cannot exceed 65535; the other numeric options accept
+integers through 2147483647.
 
 YAML tags, anchors, aliases, duplicate keys, multiple documents and complex
 mapping keys are rejected. JSON duplicate keys are rejected too. No Ruby,
@@ -118,6 +120,13 @@ environment overrides do not modify the session environment. Window indexes,
 splits, options, layout and focus follow the plan's order. Temporary local
 option overrides disable renumbering and pane synchronization during setup;
 the plan then restores declared values or inheritance.
+
+Session options apply before subsequent windows and split panes are created.
+On tmux 3.2a–3.6, the reused initial pane retains the global `history-limit`
+inherited at session creation. Later panes use the configured session value.
+For uniform history on these versions, configure the server's global value
+before applying the workspace. Apply does not change global options or replace
+the initial pane. On tmux 3.7+, setting the option also updates existing grids.
 
 Shell commands are sent as literal text followed by Enter. Both insertion
 and Enter are dispatch effects: embedded newlines can execute during text
