@@ -1,20 +1,49 @@
 # libtmux-mcp
 
-Expose a fixed tmux endpoint through the official MCP SDK and bounded Async
-stdio transport. This unreleased package provides capability discovery,
-immutable metadata pagination, bounded pane capture and observation, literal
-text/key input, session/window/pane creation, guarded teardown and authored
-commands in explicitly enrolled zsh shells. Discovery
-and snapshots are enabled by default; other tools require explicit policy.
+Expose an existing tmux server over MCP stdio. Read snapshots, capture pane
+output, wait for events, or explicitly enable creation, input and shell commands.
+The official MCP SDK handles the protocol; bounded Async tasks handle transport.
 
-Require `libtmux/mcp` after installing the locally built gem. Imports do not
-start tmux, a scheduler or an MCP server. See the repository's contribution
-guide for local build and verification commands.
+**Unreleased.** [Build the gems locally](../../README.md#gems) before using the
+installed `libtmux-mcp` executable.
 
-`Application` borrows an application-owned `LibTmux::Async::Server`. Its
-`sdk_server` supplies the SDK server consumed by `StdioTransport`. Both objects
-stay on that application's reactor thread. Disabled tools are absent from
-discovery and denied on direct application calls.
+## Start the server
+
+Set `TMUX_SOCKET` to an existing tmux socket. This command borrows that daemon
+and serves MCP on stdin/stdout:
+
+```console
+$ libtmux-mcp \
+    --socket "$TMUX_SOCKET" \
+    --endpoint local
+```
+
+Use `--socket-name NAME` instead of `--socket PATH` to select a named socket.
+`--endpoint` sets the public alias used in discovery and resource URIs; it does
+not select the socket. EOF retires owned clients and preserves the daemon.
+
+| Tools | Default | Purpose |
+| --- | --- | --- |
+| `tmux_capabilities`, `tmux_snapshot` | Enabled | Discover capabilities and query captured metadata |
+| `tmux_capture`, `tmux_wait` | Disabled | Capture a screen or wait for text/process exit |
+| `tmux_create`, `tmux_send`, `tmux_close` | Disabled | Create entities, send text/keys and tear down exact targets |
+| `tmux_run` | Disabled | Run a script in an explicitly enrolled zsh shell |
+
+Repeat `--enable-tool` for each additional tool. For screen capture and waits:
+
+```console
+$ libtmux-mcp \
+    --socket "$TMUX_SOCKET" \
+    --enable-tool tmux_capture \
+    --enable-tool tmux_wait
+```
+
+Disabled tools are absent from discovery and denied on direct application calls.
+The [complete protocol recipe](../../examples/mcp_protocol.rb) exercises
+discovery, snapshots, default denial, enabled mutations, cancellation and EOF
+cleanup through actual pipes, including the installed executable.
+
+## Snapshots, capture and waits
 
 Snapshot pages retain one immutable capture and query. Cursor expiry or eviction
 returns an error; it never substitutes a new live listing. Defaults retain up to
@@ -53,21 +82,16 @@ their tools. Metadata pages preserve capture identity; screen resources
 include interval, truncation and history-continuity metadata. Resource
 subscriptions are not advertised.
 
-The installed `libtmux-mcp` executable borrows an explicitly selected daemon:
-
-```console
-$ libtmux-mcp \
-    --socket "$TMUX_SOCKET" \
-    --endpoint local
-```
+## Create, send and close
 
 Add `--enable-tool tmux_create`, `--enable-tool tmux_send` or
 `--enable-tool tmux_close` to authorize those tools. Creation accepts argument
 arrays; sending text and sending named keys are separate variants. Mutation
 results contain delivery evidence and positively returned references.
 `dispatch_only` input results do not claim program completion, and unknown
-effects remain unknown after cancellation. Closing the protocol input retires
-its owned clients and preserves the borrowed tmux daemon.
+effects remain unknown after cancellation.
+
+## Run authored commands
 
 `tmux_run` requires separate policy and shell enrollment. Add
 `--enable-tool tmux_run --enroll-pane %ID=FILE` for each exact pane, then
@@ -76,13 +100,6 @@ The CLI creates a private setup file and never types into the terminal.
 It refuses existing files and symlinks. Invitations expire after 60 seconds;
 `--enrollment-timeout` accepts at most 300 seconds. At most eight panes may be
 enrolled. EOF retires pending enrollment and removes only files the CLI owns.
-
-Embedding callers use `Application#invite_shell(reference, timeout:,
-expires_in:)` and pass the returned invitation to `accept_shell`. The invitation
-exposes an immutable `shell_arguments` array for an explicitly sourced setup
-command and a monotonic `expires_at`. The invitation acquisition deadline is
-separate from its enrollment lifetime. The application owns invitations and
-accepted connections until `close`; direct enrollment calls enforce tool policy.
 
 The tool accepts an exact pane target, a POSIX `script`, and separate
 `stdout_limit`/`stderr_limit` byte counts. Scripts may contain at most 65,536
@@ -103,8 +120,17 @@ receipts. Cancellation does not prove that arbitrary descendants stopped.
 The Linux and macOS compatibility jobs exercise enrollment and the installed
 helper dependency closure; consult their results for the revision being used.
 
-The [complete protocol recipe](../../examples/mcp_protocol.rb) runs direct
-transport cancellation and the installed executable through actual pipes.
-It asserts discovery, snapshot reads, default denial, explicitly enabled
-creation/input/teardown, and EOF cleanup. See the
+## Embed in Ruby
+
+Require `libtmux/mcp`; imports start no tmux process, scheduler or MCP server.
+`Application` borrows an application-owned `LibTmux::Async::Server`. Its
+`sdk_server` supplies the SDK server consumed by `StdioTransport`. Both objects
+stay on that application's reactor thread. See the
 [execution guide](../../docs/modes.md) for result and ownership boundaries.
+
+For shell enrollment, call `Application#invite_shell(reference, timeout:,
+expires_in:)` and pass the returned invitation to `accept_shell`. The invitation
+exposes an immutable `shell_arguments` array for an explicitly sourced setup
+command and a monotonic `expires_at`. Its acquisition deadline is separate from
+its enrollment lifetime. The application owns invitations and accepted
+connections until `close`; direct enrollment calls enforce tool policy.
