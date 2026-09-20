@@ -18,7 +18,7 @@ class MCPWaitTest < Minitest::Test
       refute pending.finished?
       pane.send_text("event-visible")
       result = pending.wait(timeout: 0.5)
-      assert result.fetch("ok"), result.inspect
+      assert result.fetch("ok"), "#{result.inspect}; #{@observation_failure.inspect}"
       assert result.dig("data", "capture", "rows").join.include?("event-visible")
       assert_empty scope.server.list_clients
 
@@ -28,7 +28,7 @@ class MCPWaitTest < Minitest::Test
       await_ready(ready, pending)
       child.send_keys("Enter")
       result = pending.wait(timeout: 0.5)
-      assert result.fetch("ok"), result.inspect
+      assert result.fetch("ok"), "#{result.inspect}; #{@observation_failure.inspect}"
       assert_equal "process_exit", result.dig("data", "condition")
       assert_equal "unobserved", result.dig("data", "exit_status")
       assert source.run(["has-session", "-t", "fixture"]).success?
@@ -221,9 +221,19 @@ class MCPWaitTest < Minitest::Test
 
   def signal_after_first_capture(app)
     signal = ::Async::Notification.new
+    test = self
+    @observation_failure = nil
     factory = app.method(:observation)
     app.define_singleton_method(:observation) do |*arguments|
       observer = factory.call(*arguments)
+      wait = observer.method(:wait)
+      observer.define_singleton_method(:wait) do
+        wait.call
+      rescue LibTmux::Error => error
+        test.instance_variable_set(:@observation_failure,
+          {class: error.class.name, phase: error.phase, cleanup_errors: error.cleanup_errors})
+        raise
+      end
       original = observer.method(:read_rows)
       first = true
       observer.define_singleton_method(:read_rows) do |*values|
