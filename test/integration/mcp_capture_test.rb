@@ -64,6 +64,15 @@ class MCPCaptureTest < Minitest::Test
         assert_equal "unsupported", refused.dig("error", "code"), refused.inspect
         session.hooks.unset("after-capture-pane", index: 17)
       end
+      session.hooks.unset("after-capture-pane")
+      scope.server.hooks.set("after-capture-pane", command: "display-message -p inherited-not-screen", index: 503)
+      refused = invoke(sdk, target: target)
+      assert_equal "unsupported", refused.dig("error", "code"), refused.inspect
+
+      session.hooks.set("after-capture-pane", command: "")
+      restored = invoke(sdk, target: target, max_lines: 1)
+      assert restored.fetch("ok"), restored.inspect
+      assert_equal full.fetch("rows"), restored.fetch("data").fetch("rows")
     end
   end
 
