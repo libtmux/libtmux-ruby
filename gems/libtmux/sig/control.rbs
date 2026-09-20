@@ -50,6 +50,7 @@ module LibTmux
             | () -> Enumerator[ControlEvent, self]
     def close: () -> nil
     def closed?: () -> bool
+    def diagnostics: () -> {queued_events: Integer, retained_event_bytes: Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable | :tail, limits: {max_bytes: Integer, max_events: Integer}}
     def inspect: () -> String
   end
 
@@ -68,6 +69,7 @@ module LibTmux
     def subscribe: (?pane_id: String?, ?mode: :reliable | :tail, ?max_bytes: Integer, ?max_events: Integer) -> ControlSubscription
     def close: (?timeout: Numeric) -> nil
     def closed?: () -> bool
+    def diagnostics: () -> {admitted_requests: Integer, incomplete_requests: Integer, queued_requests: Integer, writing_requests: Integer, awaiting_reply: Integer, reserved_wire_bytes: Integer, retained_reply_bytes: Integer, stderr_received_bytes: Integer, subscription_count: Integer, stopping: bool, finished: bool, cleanup_error_count: Integer, limits: {max_requests: Integer, max_command_bytes: Integer, max_queue_bytes: Integer, max_line_bytes: Integer, max_reply_bytes: Integer, max_stderr_bytes: Integer, max_subscriptions: Integer}}
     def inspect: () -> String
   end
 end

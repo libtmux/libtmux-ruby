@@ -37,8 +37,11 @@ class AsyncTest < Minitest::Test
       input = "\0\xFF".b * 131_072
       owner = Thread.current
       owners = []
-      trace = TracePoint.new(:call, :c_call) do |event|
-        if [:read_nonblock, :write_nonblock].include?(event.method_id) &&
+      retained_output = 0
+      trace = TracePoint.new(:call, :c_call, :return) do |event|
+        if event.event == :return && event.self.equal?(scope) && event.method_id == :retain_output
+          retained_output = scope.diagnostics.fetch(:retained_output_bytes)
+        elsif [:read_nonblock, :write_nonblock].include?(event.method_id) &&
             caller_locations(1, 8).any? { |location| location.path.end_with?("libtmux/async/process.rb") }
           owners << Thread.current
         end
@@ -57,6 +60,8 @@ class AsyncTest < Minitest::Test
       assert_equal 17, result.status.exitstatus
       assert_equal "\xFF".b * 131_072, result.stdout
       assert_equal "\xFE".b * 81_920, result.stderr
+      assert_equal result.stdout.bytesize + result.stderr.bytesize, retained_output
+      assert_equal 0, scope.diagnostics.fetch(:retained_output_bytes)
       assert result.stdout.frozen?
       assert result.stderr.frozen?
       refute_empty owners
@@ -89,6 +94,16 @@ class AsyncTest < Minitest::Test
 
   def test_admission_caps_four_children_and_thirty_two_requests
     with_scope do |scope, parent, fixture|
+      assert_respond_to scope, :diagnostics
+      initial = scope.diagnostics
+      assert_equal :async_process, initial.fetch(:transport)
+      refute initial.fetch(:closed)
+      assert initial.frozen?
+      assert initial.fetch(:limits).frozen?
+      assert_equal({concurrency: 4, max_requests: 32, max_controls: 4,
+        max_queue_bytes: 1 << 22, max_output_bytes: 1 << 23,
+        stdout_limit: 1 << 20, stderr_limit: 1 << 18, input_limit: 1 << 20,
+        argv_limit: 1 << 18, cleanup_timeout: 0.5, drain_timeout: 0.5}, initial.fetch(:limits))
       listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "async-admission"))
       code = 'require "socket"; UNIXSocket.open(ARGV.fetch(0)) { |io| io.write(Process.pid.to_s + "\\n"); io.read(1) }'
       requests = 32.times.map do
@@ -101,6 +116,16 @@ class AsyncTest < Minitest::Test
       clients = 4.times.map { listener.accept }
       pids = clients.map { |client| Integer(client.gets, 10) }
       assert_equal :wait_readable, listener.accept_nonblock(exception: false), "more than four children were dispatched"
+      occupied = scope.server.diagnostics
+      assert_equal 32, occupied.fetch(:admitted_requests)
+      assert_equal 28, occupied.fetch(:waiting_requests)
+      assert_equal 4, occupied.fetch(:active_process_slots)
+      assert_equal 32 * (ruby(code) + [listener.path]).sum { |arg| arg.bytesize + 1 }, occupied.fetch(:reserved_request_bytes)
+      assert_equal 0, occupied.fetch(:retained_output_bytes)
+      assert_equal 0, occupied.fetch(:control_connections)
+      assert_equal 0, occupied.fetch(:maps)
+      assert_equal initial.keys.sort, occupied.keys.sort
+      assert_equal 0, initial.fetch(:admitted_requests), "diagnostics changed after capture"
       error = assert_raises(LibTmux::CapacityError) { scope.__send__(:execute, ruby("exit")) }
       assert_equal :not_sent, error.delivery
       requests.drop(4).each(&:cancel)
@@ -110,9 +135,15 @@ class AsyncTest < Minitest::Test
         assert_equal :not_sent, failure.delivery
         assert_nil failure.pid
       end
+      pending = scope.diagnostics
+      assert_equal 4, pending.fetch(:admitted_requests)
+      assert_equal 0, pending.fetch(:waiting_requests)
+      assert_equal 4, pending.fetch(:active_process_slots)
+      assert_equal occupied.fetch(:reserved_request_bytes) / 8, pending.fetch(:reserved_request_bytes)
       clients.each { |client| client.write("x") }
       assert requests.take(4).all? { |request| request.wait.success? }
       pids.each { |pid| assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) } }
+      assert_equal initial, scope.server.diagnostics
     ensure
       clients&.each(&:close)
       listener&.close
@@ -151,6 +182,9 @@ class AsyncTest < Minitest::Test
       trace.enable
       request.cancel
       assert_equal "reaping\n", reaping.gets
+      retiring = scope.diagnostics
+      assert_equal 1, retiring.fetch(:active_process_slots)
+      assert_equal 1, retiring.fetch(:admitted_requests)
       request.cancel
       release << true
       failure = request.wait
@@ -158,6 +192,8 @@ class AsyncTest < Minitest::Test
       assert_equal :possibly_sent, failure.delivery
       assert_equal pid, failure.pid
       assert_empty failure.cleanup_errors
+      assert_equal 0, scope.diagnostics.fetch(:active_process_slots)
+      assert_equal 0, scope.diagnostics.fetch(:admitted_requests)
       assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
       assert scope.server.run(["has-session", "-t", "$0"]).success?
     ensure
@@ -172,21 +208,37 @@ class AsyncTest < Minitest::Test
   end
 
   def test_wrong_thread_closed_binding_and_byte_admission_are_refused
+    closed_scope = nil
     with_scope(max_queue_bytes: 64) do |scope, parent|
-      failure = Thread.new do
-        scope.server.run(["list-sessions"])
-      rescue LibTmux::ClosedError => error
-        error
+      failures = Thread.new do
+        [-> { scope.server.run(["list-sessions"]) }, -> { scope.server.diagnostics }].map do |operation|
+          operation.call
+        rescue LibTmux::ClosedError => error
+          error
+        end
       end.value
-      assert_instance_of LibTmux::ClosedError, failure
+      assert failures.all? { |error| error.is_a?(LibTmux::ClosedError) }
+      child = Process.fork do
+        scope.diagnostics
+        exit! 1
+      rescue LibTmux::ClosedError
+        exit! 0
+      end
+      assert Process.waitpid2(child).last.success?, "forked child read its inherited scope diagnostics"
+      assert_equal 64, scope.diagnostics.fetch(:limits).fetch(:max_queue_bytes)
       error = assert_raises(LibTmux::CapacityError) { scope.__send__(:execute, ruby("exit"), input: "x" * 65) }
       assert_equal :not_sent, error.delivery
       assert_nil error.pid
       error = assert_raises(LibTmux::DeadlineExceeded) { scope.__send__(:execute, ruby("exit"), timeout: 0) }
       assert_equal :not_sent, error.delivery
+      before_close = scope.diagnostics
       scope.close
       assert_raises(LibTmux::ClosedError) { scope.server.list_panes }
+      assert_equal before_close.merge(closed: true), scope.server.diagnostics
+      refute before_close.fetch(:closed)
+      closed_scope = scope
     end
+    assert_raises(LibTmux::ClosedError) { closed_scope.diagnostics }
   end
 
   def test_map_failure_survives_repeated_cancellation_while_siblings_retire
@@ -322,8 +374,17 @@ class AsyncTest < Minitest::Test
       assert_equal :possibly_sent, error.delivery
       assert_raises(Errno::ECHILD) { Process.waitpid(error.pid, Process::WNOHANG) }
       assert_empty error.cleanup_errors
-      error = assert_raises(LibTmux::CapacityError) { scope.map([1, 2], max_bytes: 8) { "x" * 5 } }
+      error = assert_raises(LibTmux::CapacityError) do
+        scope.map([1, 2], max_bytes: 8) do |index|
+          snapshot = scope.diagnostics
+          assert_equal 1, snapshot.fetch(:maps)
+          assert_equal (index - 1) * 5, snapshot.fetch(:retained_output_bytes)
+          "x" * 5
+        end
+      end
       assert_equal :observed, error.delivery
+      assert_equal 0, scope.diagnostics.fetch(:retained_output_bytes)
+      assert_equal 0, scope.diagnostics.fetch(:maps)
     end
   end
 
@@ -450,6 +511,12 @@ class AsyncTest < Minitest::Test
         assert Fiber.scheduler.io_wait(reader, IO::READABLE, 0.2), "second request bytes waited for the first reply"
         refute first.finished?
         refute second.finished?
+        assert_respond_to control, :diagnostics
+        pending = control.diagnostics
+        assert_equal [2, 2, 2], pending.values_at(:admitted_requests, :incomplete_requests, :awaiting_reply)
+        assert_operator pending.fetch(:reserved_wire_bytes), :>, 0
+        assert pending.frozen?
+        assert pending.fetch(:limits).frozen?
         if cancel_first
           token.cancel
           failure, later = first.wait, second.wait
@@ -462,6 +529,9 @@ class AsyncTest < Minitest::Test
           assert_equal "pipeline-second\n", second.wait.blocks.map(&:body).join
         end
         control.close
+        assert_equal [0, 0, 0, 0], control.diagnostics.values_at(:admitted_requests,
+          :incomplete_requests, :reserved_wire_bytes, :retained_reply_bytes)
+        assert control.diagnostics.fetch(:finished)
         assert_empty control.instance_variable_get(:@requests)
         assert_empty control.instance_variable_get(:@replies)
         assert_raises(Errno::ECHILD) { Process.waitpid(control.pid, Process::WNOHANG) }
@@ -482,6 +552,9 @@ class AsyncTest < Minitest::Test
         tail = control.subscribe(mode: :tail, max_events: 1, max_bytes: 1024)
         3.times { |index| scope.server.run(["rename-window", "-t", "@0", "async-window#{index}"]) }
         assert_equal "alive\n", control.exchange("display-message -p alive").blocks.last.body
+        assert reliable.diagnostics.fetch(:overflowed)
+        assert tail.diagnostics.fetch(:gap_pending)
+        assert_equal 3, control.diagnostics.fetch(:subscription_count)
         assert_instance_of LibTmux::ControlEvent, reliable.next(timeout: 0.5)
         assert_raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 0.5) }
         gap = tail.next(timeout: 0.5)
@@ -490,6 +563,8 @@ class AsyncTest < Minitest::Test
         assert_instance_of LibTmux::ControlEvent, tail.next(timeout: 0.5)
         failure = Thread.new { control.exchange("display-message -p wrong") rescue $! }.value
         assert_instance_of LibTmux::ClosedError, failure
+        assert_instance_of LibTmux::ClosedError, Thread.new { control.diagnostics rescue $! }.value
+        assert_instance_of LibTmux::ClosedError, Thread.new { reliable.diagnostics rescue $! }.value
       end
     end
   end
@@ -539,10 +614,15 @@ class AsyncTest < Minitest::Test
       control.instance_variable_get(:@worker).wait
       parent.yield
       refute closer.finished?, "scope close returned while an exchange still owned completion pipes and a watcher"
+      retiring = scope.diagnostics
+      assert retiring.fetch(:closed)
+      assert_equal 1, retiring.fetch(:control_connections)
       release << true
       closer.wait
       assert_equal "complete\n", request.wait.blocks.last.body
       assert_empty control.instance_variable_get(:@request_pipes)
+      assert_equal 0, scope.diagnostics.fetch(:control_connections)
+      assert_equal 1, retiring.fetch(:control_connections)
     ensure
       trace&.disable
       release << true if release

@@ -199,6 +199,13 @@ class ControlIntegrationTest < Minitest::Test
       assert IO.select([reader], nil, nil, 0.2), "second request bytes waited for the first reply"
       assert first.alive?, "the first reply must remain pending at the wire witness"
       assert second.alive?, "tmux must retain the second request behind WAIT"
+      assert_respond_to control, :diagnostics
+      pending = control.diagnostics
+      assert_equal [2, 2, 2], pending.values_at(:admitted_requests, :incomplete_requests, :awaiting_reply)
+      assert_equal 0, pending.fetch(:queued_requests)
+      assert_operator pending.fetch(:reserved_wire_bytes), :>, 0
+      assert pending.frozen?
+      assert pending.fetch(:limits).frozen?
       fixture.tmux("wait-for", "-S", "pipeline-held")
       earlier = first.value
       assert_includes earlier.blocks.map(&:body).join, "pipeline-first\n"
@@ -206,6 +213,8 @@ class ControlIntegrationTest < Minitest::Test
       refute_includes earlier.blocks.map(&:body).join, "never\n"
       assert earlier.blocks.any? { |block| block.terminator == :error }
       assert_equal "pipeline-second\n", second.value.blocks.map(&:body).join
+      assert_equal [0, 0, 0, 0], control.diagnostics.values_at(:admitted_requests,
+        :incomplete_requests, :reserved_wire_bytes, :retained_reply_bytes)
       assert_empty control.instance_variable_get(:@requests)
     ensure
       fixture.tmux("wait-for", "-S", "pipeline-held") if first&.alive?
@@ -227,20 +236,40 @@ class ControlIntegrationTest < Minitest::Test
 
   def test_dispatched_cancellation_closes_connection_and_preserves_server
     with_control do |fixture, _, control|
+      entered, release = Queue.new, Queue.new
+      control.singleton_class.prepend(Module.new do
+        define_method(:receive) do |record|
+          if record.is_a?(LibTmux::GuardedBlock) && record.body == "cancelled-prefix\n"
+            entered << true
+            release.pop
+          end
+          super(record)
+        end
+      end)
       token = LibTmux::Internal::Cancellation.new
       thread = Thread.new do
-        control.exchange("wait-for -S cancellation-started ; wait-for blocked", timeout: 0.5, cancel: token)
+        control.exchange("display-message -p cancelled-prefix ; wait-for -S cancellation-started ; wait-for blocked", timeout: 0.5, cancel: token)
       rescue LibTmux::Cancelled => error
         error
       end
       fixture.tmux("wait-for", "cancellation-started")
+      entered.pop
       token.cancel
       error = thread.value
+      release << true
       assert_instance_of LibTmux::Cancelled, error
       assert_equal :possibly_sent, error.delivery
       control.close
+      retired = control.diagnostics
+      assert retired.fetch(:stopping)
+      assert retired.fetch(:finished)
+      assert_equal [0, 0, 0, 0, 0, 0, 0], retired.values_at(:admitted_requests,
+        :incomplete_requests, :queued_requests, :writing_requests, :awaiting_reply,
+        :reserved_wire_bytes, :retained_reply_bytes)
+      assert_equal 0, retired.fetch(:cleanup_error_count)
       assert fixture.tmux("has-session", "-t", "fixture").last.success?
     ensure
+      release << true
       token&.close
       thread&.join(0.5)
     end
@@ -445,9 +474,16 @@ class ControlIntegrationTest < Minitest::Test
       end)
       thread = Thread.new { control.exchange("display-message -p completed", timeout: 0.5) }
       cleanup_entered.pop
+      assert_respond_to control, :diagnostics
+      retained = control.diagnostics
+      assert_equal [1, 0, 0], retained.values_at(:admitted_requests, :incomplete_requests, :awaiting_reply)
+      assert_operator retained.fetch(:retained_reply_bytes), :>=, "completed\n".bytesize
       assert_raises(LibTmux::CapacityError) { control.exchange("display-message -p excess", timeout: 0.5) }
       cleanup_release << true
-      assert_equal "completed\n", thread.value.blocks.last.body
+      reply = thread.value
+      assert_equal "completed\n", reply.blocks.last.body
+      assert_equal reply.blocks.sum(&:bytesize), retained.fetch(:retained_reply_bytes)
+      assert_equal [0, 0], control.diagnostics.values_at(:reserved_wire_bytes, :retained_reply_bytes)
       assert_equal "next\n", control.exchange("display-message -p next", timeout: 0.5).blocks.last.body
     ensure
       cleanup_release << true

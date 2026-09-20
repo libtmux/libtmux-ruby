@@ -131,6 +131,7 @@ module LibTmux
             [request.reader, request.writer].each { |io| io.close unless io.closed? }
             @request_pipes.delete(request.id)
             @queued_bytes -= request.wire.bytesize
+            @retained_reply_bytes -= request.bytes
             @exchanges.delete(request.id)
             @exchange_changed.signal
           end
@@ -311,17 +312,13 @@ module LibTmux
         end
 
         def read_errors
-          bytes = 0
           loop do
             data = @stderr.read_nonblock(16_384, exception: false)
             case data
             when :wait_readable then Fiber.scheduler.io_wait(@stderr, IO::READABLE)
             when nil then return
             when String
-              bytes += data.bytesize
-              if bytes > @connection.instance_variable_get(:@max_stderr)
-                raise CapacityError.new("control stderr exceeds its byte limit", phase: :read, pid: @pid)
-              end
+              @connection.__send__(:receive_stderr, data.bytesize)
             end
           end
         end

@@ -135,6 +135,7 @@ module LibTmux
     def initialize: (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> void
     def run: (Array[String], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def close: () -> nil
+    def diagnostics: () -> {admitted_requests: Integer, reserved_process_slots: Integer, control_connections: Integer, closed: bool, limits: {max_requests: Integer, max_controls: Integer, close_timeout: Numeric}}
     def kill: (?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def new_session: (name: String, command: Array[String], receipt: true, ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> CreationReceipt
                    | (name: String, command: Array[String], ?receipt: false, ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> Session

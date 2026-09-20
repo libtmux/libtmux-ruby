@@ -121,6 +121,18 @@ module LibTmux
       nil
     end
 
+    # Returns a frozen local snapshot, including after close. Slots are admitted
+    # requests; control connections are retained registrations, not OS clients.
+    def diagnostics
+      ensure_owner
+      @mutex.synchronize do
+        {admitted_requests: @requests.length, reserved_process_slots: @requests.length,
+          control_connections: @controls.length, closed: @closed,
+          limits: {max_requests: @max_requests, max_controls: @max_controls,
+            close_timeout: @close_timeout}.freeze}.freeze
+      end
+    end
+
     def kill(timeout: 5.0, cancel: nil)
       execute_typed(["kill-server"], timeout: timeout, cancel: cancel)
     end
