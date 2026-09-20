@@ -1,3 +1,4 @@
+#!/usr/bin/env ruby
 # frozen_string_literal: true
 
 require "rbconfig"
@@ -7,7 +8,7 @@ Dir.chdir(root)
 
 mode = ARGV.shift || "mid"
 unless %w[unit mid integration packaging types outer].include?(mode)
-  abort "usage: ruby scripts/check [unit|mid|integration|packaging|types|outer] [test files]"
+  abort "usage: scripts/check [unit|mid|integration|packaging|types|outer] [test files]"
 end
 abort "test file arguments require unit mode" if mode != "unit" && !ARGV.empty?
 
@@ -16,7 +17,7 @@ run = lambda do |*command|
 end
 
 if %w[mid outer].include?(mode)
-  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile scripts/check scripts/generate scripts/examples scripts/docs scripts/matrix scripts/types scripts/bench scripts/version scripts/release scripts/release-ci scripts/release-github]
+  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile scripts/check scripts/generate scripts/examples scripts/docs scripts/matrix scripts/types scripts/bench scripts/version.rb scripts/release.rb scripts/release-ci scripts/release_github.rb]
   files.each { |file| RubyVM::InstructionSequence.compile_file(file) }
   puts "Syntax: #{files.length} files"
   run.call(Gem.ruby, "scripts/generate", "--check")

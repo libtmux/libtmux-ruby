@@ -13,7 +13,7 @@ module LibTmuxTest
         raise "release artifacts must be in pkg/release" unless release == File.join(root, "pkg/release")
 
         unless @release_manifest
-          load File.join(root, "scripts/release") unless defined?(GemRelease)
+          load File.join(root, "scripts/release.rb") unless defined?(GemRelease)
           identity = JSON.parse(File.read(File.join(release, "release.json")))
           @release_manifest = GemRelease.new(root).verify(tag: identity.fetch("tag"), commit: identity.fetch("commit"))
         end

@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 require "tmpdir"
 require "fileutils"
-load File.expand_path("../../scripts/release-github", __dir__)
+load File.expand_path("../../scripts/release_github.rb", __dir__)
 
 class GitHubReleaseTest < Minitest::Test
   TAG = "v0.1.0.alpha.1"

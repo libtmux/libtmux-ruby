@@ -3,7 +3,7 @@
 require "digest"
 require "json"
 require "open3"
-load File.expand_path("release", __dir__) unless defined?(GemRelease)
+load File.expand_path("release.rb", __dir__) unless defined?(GemRelease)
 
 class GitHubRelease
   class Error < StandardError; end

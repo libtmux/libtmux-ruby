@@ -1,3 +1,4 @@
+#!/usr/bin/env ruby
 # frozen_string_literal: true
 
 require "json"
@@ -169,7 +170,7 @@ class PublicAPI
 end
 
 if $PROGRAM_NAME == __FILE__
-  abort "usage: ruby scripts/types [--audit|--check|--write]" unless ARGV.empty? || [%w[--audit], %w[--check], %w[--write]].include?(ARGV)
+  abort "usage: scripts/types [--audit|--check|--write]" unless ARGV.empty? || [%w[--audit], %w[--check], %w[--write]].include?(ARGV)
   begin
     inventory = PublicAPI.new
     if ARGV.empty? || ARGV == ["--audit"]
@@ -181,7 +182,7 @@ if $PROGRAM_NAME == __FILE__
       if ARGV == ["--write"]
         File.write(path, expected)
       elsif !File.file?(path) || File.read(path) != expected
-        raise PublicAPI::Error, "public API reference is stale; run ruby scripts/types --write"
+        raise PublicAPI::Error, "public API reference is stale; run scripts/types --write"
       end
       puts "Signatures: #{inventory.records.length} public methods; source links and behavioral mappings current"
     end

@@ -34,7 +34,7 @@ jobs:
       - name: Require compatibility for the exact commit
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bundle exec ruby scripts/release-ci "$RELEASE_COMMIT"
+        run: bundle exec scripts/release-ci "$RELEASE_COMMIT"
       - name: Restore artifacts on a workflow retry
         id: restore
         env:

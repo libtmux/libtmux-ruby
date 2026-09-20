@@ -1,3 +1,4 @@
+#!/usr/bin/env ruby
 # frozen_string_literal: true
 
 require "json"
@@ -85,7 +86,7 @@ module CompatibilityMatrix
   def self.run(arguments)
     options = {rubies: {}, tmuxes: {}, directory: File.join(ROOT, "build/matrix")}
     parser = OptionParser.new do |args|
-      args.banner = "Usage: ruby scripts/matrix [--plan | --run | --merge DIR] [options]"
+      args.banner = "Usage: scripts/matrix [--plan | --run | --merge DIR] [options]"
       args.on("--plan", "Print all 36 required cells without executing") { options[:plan] = true }
       args.on("--run", "Run available local cells; retain all missing cells") { options[:run] = true }
       args.on("--cell ID", "Limit execution to os/ruby/tmux; other cells remain visible") { |value| options[:cell] = value; options[:run] = true }

@@ -56,7 +56,7 @@ For the next alpha, pass `0.1.0.alpha.2`. Review and update
 write release notes, commit, tag, push or upload.
 
 ```console
-$ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check outer
+$ /usr/bin/time -p mise exec -- bundle exec scripts/check outer
 ```
 
 Commit the preparation changes. From that clean commit, build and exercise
@@ -94,7 +94,7 @@ $ git pull --ff-only origin master
 Require a successful master compatibility run for that exact commit:
 
 ```console
-$ mise exec -- bundle exec ruby scripts/release-ci "$(git rev-parse HEAD)"
+$ mise exec -- bundle exec scripts/release-ci "$(git rev-parse HEAD)"
 ```
 
 Create the annotated version tag:

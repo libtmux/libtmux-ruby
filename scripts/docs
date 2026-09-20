@@ -1,3 +1,4 @@
+#!/usr/bin/env ruby
 # frozen_string_literal: true
 
 require "cgi"
@@ -106,7 +107,7 @@ class DocumentationSite
 end
 
 if $PROGRAM_NAME == __FILE__
-  abort "usage: ruby scripts/docs [--output DIRECTORY]" unless ARGV.empty? || (ARGV.length == 2 && ARGV.first == "--output")
+  abort "usage: scripts/docs [--output DIRECTORY]" unless ARGV.empty? || (ARGV.length == 2 && ARGV.first == "--output")
   begin
     site = DocumentationSite.new(File.expand_path("..", __dir__))
     if ARGV.empty?

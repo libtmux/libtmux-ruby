@@ -135,7 +135,7 @@ jobs:
       - name: Run the complete cell
         timeout-minutes: 5
         run: >-
-          bundle exec ruby scripts/matrix
+          bundle exec scripts/matrix
           --cell "$MATRIX_SYSTEM/$RUBY_VERSION/$TMUX_VERSION"
           --ruby "$RUBY_VERSION=$(ruby -e 'print Gem.ruby')"
           --tmux "$TMUX_VERSION=$RUNNER_TEMP/tmux-install/bin/tmux"
@@ -197,7 +197,7 @@ jobs:
           path: build/matrix-input
       - name: Reject missing, failed, skipped or stale cells
         if: always()
-        run: ruby scripts/matrix --merge build/matrix-input --require-all --output build/matrix
+        run: scripts/matrix --merge build/matrix-input --require-all --output build/matrix
       - name: Retain the combined report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

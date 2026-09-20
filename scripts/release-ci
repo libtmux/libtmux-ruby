@@ -43,7 +43,7 @@ class ReleaseCI
 end
 
 if $PROGRAM_NAME == __FILE__
-  abort "usage: ruby scripts/release-ci COMMIT" unless ARGV.length == 1
+  abort "usage: scripts/release-ci COMMIT" unless ARGV.length == 1
   begin
     puts "Compatibility run #{ReleaseCI.new.check(ARGV.first)} passed for #{ARGV.first}"
   rescue ReleaseCI::Error => error

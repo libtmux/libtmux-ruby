@@ -1,10 +1,11 @@
+#!/usr/bin/env ruby
 # frozen_string_literal: true
 
 require "json"
 require "fileutils"
 require_relative "../gems/libtmux/lib/libtmux/criteria"
 
-abort "usage: ruby scripts/generate [--check]" unless ARGV.empty? || ARGV == ["--check"]
+abort "usage: scripts/generate [--check]" unless ARGV.empty? || ARGV == ["--check"]
 
 root = File.expand_path("..", __dir__)
 catalog = LibTmux::Internal::Catalog
@@ -113,6 +114,6 @@ changed = outputs.filter_map do |relative, content|
   relative
 end
 if ARGV.include?("--check") && !changed.empty?
-  abort "generated files differ: #{changed.join(', ')}; run ruby scripts/generate"
+  abort "generated files differ: #{changed.join(', ')}; run scripts/generate"
 end
 puts "Generated files: #{outputs.length} #{ARGV.include?('--check') ? 'checked' : 'written or current'}"

@@ -4,7 +4,7 @@ require_relative "../test_helper"
 require "fileutils"
 require "tmpdir"
 
-VERSION_SCRIPT = File.expand_path("../../scripts/version", __dir__)
+VERSION_SCRIPT = File.expand_path("../../scripts/version.rb", __dir__)
 load VERSION_SCRIPT if File.file?(VERSION_SCRIPT)
 
 class VersionTest < Minitest::Test
