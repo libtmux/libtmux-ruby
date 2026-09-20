@@ -11,7 +11,10 @@ Gem::Specification.new do |spec|
   spec.homepage = "https://github.com/libtmux/libtmux-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
-  spec.metadata = { "source_code_uri" => spec.homepage }
+  spec.metadata = {
+    "source_code_uri" => spec.homepage,
+    "documentation_uri" => "https://libtmux.org/en/ruby/v#{spec.version}/reference/"
+  }
   spec.require_paths = ["lib"]
   spec.files = %w[
     LICENSE README.md

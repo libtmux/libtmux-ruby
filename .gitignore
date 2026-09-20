@@ -3,6 +3,7 @@
 /dist/
 /coverage/
 /tmp/
+/docs/_build/
 *.log
 
 # Ruby tooling and packages
