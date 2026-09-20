@@ -50,6 +50,17 @@
       ]
     },
     {
+      "id": "cancellation-tokens",
+      "title": "Cancellation tokens",
+      "methods": [
+        "LibTmux::Cancellation.new",
+        "LibTmux::Cancellation#reader",
+        "LibTmux::Cancellation#cancel",
+        "LibTmux::Cancellation#cancelled?",
+        "LibTmux::Cancellation#close"
+      ]
+    },
+    {
       "id": "captured-records",
       "title": "Captured records",
       "methods": [

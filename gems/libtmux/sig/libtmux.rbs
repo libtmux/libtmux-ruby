@@ -1,4 +1,12 @@
 module LibTmux
+  class Cancellation
+    def initialize: () -> void
+    attr_reader reader: IO
+    def cancel: () -> void
+    def cancelled?: () -> bool
+    def close: () -> void
+  end
+
   VERSION: String
 
   class Error < StandardError

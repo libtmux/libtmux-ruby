@@ -40,7 +40,10 @@ cells or a percentage string. Windows and splits retain focus unless
 
 Typed operations accept `timeout:` and `cancel:`. Composed link and copy operations
 share one deadline across their preflights and final dispatch. Copy-mode
-exit uses `cancel_mode: true`; `cancel:` always means a cancellation token.
+exit uses `cancel_mode: true`; `cancel:` accepts `LibTmux::Cancellation.new`.
+Call the token's `cancel` from another thread to wake a blocked request, join
+its caller, then `close` the token. See the [plain-Ruby cancellation recipe](../../examples/cancel.rb)
+and [ownership contract](../../docs/ownership-errors.md).
 
 `Options` retains raw bytes, inheritance and sparse array indexes;
 `OptionValue#as` requests a strict conversion. Hook values remain tmux command

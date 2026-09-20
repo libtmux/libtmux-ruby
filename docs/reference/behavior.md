@@ -303,6 +303,17 @@ require tmux 3.5+, otherwise raising `UnsupportedFeatureError`. Name resolution
 may read the version under the operation's shared deadline. The five base names
 and framed saved layouts need no version read.
 
+## Cancellation tokens
+
+`Cancellation.new` creates a caller-owned pipe without starting threads.
+`cancel` is thread-safe, irreversible and wakes requests passed this token;
+`cancelled?` reports its state. Neither call waits for those requests. Join all
+users before `close`, which retires the pipe. Repeated cancel/close is safe;
+their return values are unspecified. Do not read or close `reader` directly.
+A forked child may close inherited descriptors; querying or cancelling the
+parent's token raises `ClosedError`. See [ownership](../ownership-errors.md)
+and the [executed example](../../examples/cancel.rb).
+
 ## Window links
 
 Link operations preserve session/index/window identity together. `move`,

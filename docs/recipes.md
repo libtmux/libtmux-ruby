@@ -85,6 +85,41 @@ Example.check(session.display('#{window_index}').text == "9\n", "wrong current l
 ```
 <!-- /example -->
 
+## Blocking request cancellation
+
+[Complete plain-Ruby cancellation program](../examples/cancel.rb). A tmux event
+proves dispatch before another thread cancels the blocked client. The program
+joins the caller, checks client reaping and closes the token's owned pipe.
+
+<!-- example: cancel/main -->
+```ruby
+cancellation = LibTmux::Cancellation.new
+waiting = nil
+begin
+  waiting = Thread.new do
+    server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"],
+      timeout: 0.5, cancel: cancellation)
+  rescue LibTmux::Cancelled => error
+    error
+  end
+  server.wait_for("ready", timeout: 0.5)
+  cancellation.cancel
+  failure = waiting.value
+  Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
+  Example.check(failure.delivery == :possibly_sent, "dispatched wait claimed no effects")
+  Example.raises(Errno::ECHILD) { Process.waitpid(failure.pid, Process::WNOHANG) }
+  Example.check(server.diagnostics.fetch(:admitted_requests).zero?, "client remains admitted")
+ensure
+  begin
+    cancellation.cancel
+    waiting&.join
+  ensure
+    cancellation.close
+  end
+end
+```
+<!-- /example -->
+
 ## Async capture and cancellation
 
 [Complete Async program](../examples/async_cancel.rb). A second task captures

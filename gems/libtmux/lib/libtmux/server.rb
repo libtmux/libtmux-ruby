@@ -86,7 +86,7 @@ module LibTmux
 
     def close
       if Process.pid != @owner_pid
-        @requests.each_key(&:detach)
+        @requests.each_key(&:close)
         @controls.each(&:close)
         @requests = {}
         @controls = []

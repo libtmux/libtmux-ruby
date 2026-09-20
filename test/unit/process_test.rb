@@ -82,7 +82,7 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_cancellation_before_dispatch_never_spawns
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     cancellation.cancel
     error = assert_raises(LibTmux::Cancelled) { executor.run(["must-not-spawn"], cancel: cancellation) }
 
@@ -94,7 +94,7 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_cancellation_escalates_and_reaps_a_child_ignoring_term
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     with_child_readiness do |ready, environment|
       worker = task do
         executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
@@ -326,7 +326,7 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_observed_exit_wins_cancellation_before_native_status_publication
-    cancel = LibTmux::Internal::Cancellation.new
+    cancel = LibTmux::Cancellation.new
     release = Queue.new
     handed_off = false
     observer = nil
@@ -359,7 +359,7 @@ class ProcessExecutorTest < Minitest::Test
 
   def test_incomplete_cleanup_retains_the_obligation_to_reap
     before = Thread.list
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     with_child_readiness do |ready, environment|
       worker = task do
         executor(cleanup_timeout: 0.000000001).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
@@ -391,10 +391,10 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_fork_child_detaches_cancellation_without_waking_parent
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     child = fork do
-      cancellation.detach
-      exit! 0
+      cancellation.close
+      exit!(cancellation.reader.closed? ? 0 : 18)
     rescue Exception
       exit! 17
     end
@@ -454,7 +454,7 @@ class ProcessExecutorTest < Minitest::Test
   def test_late_observer_failure_receives_reaping_ownership_after_final_signal
     release = Queue.new
     selected = nil
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     trace = TracePoint.new(:call) do |event|
       if event.defined_class == LibTmux::Internal::ProcessWait && event.method_id == :observe && !selected
         selected = Thread.current

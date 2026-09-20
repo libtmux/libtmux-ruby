@@ -17,6 +17,11 @@
       "gem": "libtmux"
     },
     {
+      "id": "cancel",
+      "path": "examples/cancel.rb",
+      "gem": "libtmux"
+    },
+    {
       "id": "async_cancel",
       "path": "examples/async_cancel.rb",
       "gem": "libtmux-async"
@@ -77,6 +82,12 @@
     {
       "id": "window_links/main",
       "source": "examples/window_links.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "cancel/main",
+      "source": "examples/cancel.rb",
       "region": "main",
       "language": "ruby"
     },

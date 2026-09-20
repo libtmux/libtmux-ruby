@@ -109,6 +109,16 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [.open](../../gems/libtmux/lib/libtmux/server.rb#L13) | `T` / `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [.start](../../gems/libtmux-async/lib/libtmux/async/server.rb#L61) | `bot` | [Async unsupported operations](behavior.md#async-unsupported-operations) |
 
+## LibTmux::Cancellation
+
+| Method | Declared return | Contract |
+| --- | --- | --- |
+| [#cancel](../../gems/libtmux/lib/libtmux/process.rb#L53) | `void` | [Cancellation tokens](behavior.md#cancellation-tokens) |
+| [#cancelled?](../../gems/libtmux/lib/libtmux/process.rb#L63) | `bool` | [Cancellation tokens](behavior.md#cancellation-tokens) |
+| [#close](../../gems/libtmux/lib/libtmux/process.rb#L68) | `void` | [Cancellation tokens](behavior.md#cancellation-tokens) |
+| [#reader](../../gems/libtmux/lib/libtmux/process.rb#L44) | `::IO` | [Cancellation tokens](behavior.md#cancellation-tokens) |
+| [.new](../../gems/libtmux/lib/libtmux/process.rb#L46) | `::LibTmux::Cancellation` | [Cancellation tokens](behavior.md#cancellation-tokens) |
+
 ## LibTmux::Cancelled
 
 | Method | Declared return | Contract |

@@ -36,6 +36,19 @@ scheduled grace period for a TERM handler. This policy applies to owned
 command clients; cancelling their requests does not terminate borrowed panes
 or daemons.
 
+Create `LibTmux::Cancellation.new` for blocking requests and pass it as `cancel:`.
+Calling `cancel` from another thread wakes current users of that token and makes
+`cancelled?` true permanently; later requests with the same token refuse before
+dispatch. A token can cancel several requests. It owns a pipe, starts no thread,
+and must remain open until every request using it has returned. Join those
+callers before calling `close`; closing a token does not join them. Both methods
+are idempotent and their return values are unspecified. `reader` belongs to the
+token: do not consume its bytes or close it separately. After a fork, a child
+may close its inherited descriptors but cannot query or cancel the parent's token.
+The [plain-Ruby example](../examples/cancel.rb) proves wakeup, delivery evidence
+and client reaping without sleeps. Async tasks can instead use `Task#cancel` as
+shown in the [Async example](../examples/async_cancel.rb).
+
 Workspace compensation is explicit. It removes only a positively created
 session whose current windows and panes all belong to the creation ledger,
 checked in the same tmux command turn. A borrowed window or pane moved into
