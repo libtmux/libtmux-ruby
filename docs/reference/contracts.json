@@ -131,6 +131,13 @@
       ]
     },
     {
+      "id": "client-switching",
+      "title": "Client switching",
+      "methods": [
+        "LibTmux::Server#switch_client"
+      ]
+    },
+    {
       "id": "closing-bindings",
       "title": "Closing bindings",
       "methods": [
@@ -295,6 +302,17 @@
       ]
     },
     {
+      "id": "diagnostics",
+      "title": "Diagnostics",
+      "methods": [
+        "LibTmux::Async::Scope#diagnostics",
+        "LibTmux::Async::Server#diagnostics",
+        "LibTmux::ControlConnection#diagnostics",
+        "LibTmux::ControlSubscription#diagnostics",
+        "LibTmux::Server#diagnostics"
+      ]
+    },
+    {
       "id": "endpoints",
       "title": "Endpoints",
       "methods": [
@@ -437,14 +455,6 @@
       ]
     },
     {
-      "id": "mcp-cli",
-      "title": "MCP CLI",
-      "methods": [
-        "LibTmux::MCP::CLI#run",
-        "LibTmux::MCP::CLI.run"
-      ]
-    },
-    {
       "id": "mcp-application",
       "title": "MCP application",
       "methods": [
@@ -456,6 +466,14 @@
         "LibTmux::MCP::Application#sdk_server",
         "LibTmux::MCP::Application#tools",
         "LibTmux::MCP::Application.new"
+      ]
+    },
+    {
+      "id": "mcp-cli",
+      "title": "MCP CLI",
+      "methods": [
+        "LibTmux::MCP::CLI#run",
+        "LibTmux::MCP::CLI.run"
       ]
     },
     {
@@ -585,13 +603,6 @@
       ]
     },
     {
-      "id": "client-switching",
-      "title": "Client switching",
-      "methods": [
-        "LibTmux::Server#switch_client"
-      ]
-    },
-    {
       "id": "terminal-attachment",
       "title": "Terminal attachment",
       "methods": [
@@ -618,18 +629,18 @@
       ]
     },
     {
+      "id": "workspace-apply",
+      "title": "Workspace apply",
+      "methods": [
+        "LibTmux::Workspace::Plan#apply"
+      ]
+    },
+    {
       "id": "workspace-cli",
       "title": "Workspace CLI",
       "methods": [
         "LibTmux::Workspace::CLI#run",
         "LibTmux::Workspace::CLI.run"
-      ]
-    },
-    {
-      "id": "workspace-apply",
-      "title": "Workspace apply",
-      "methods": [
-        "LibTmux::Workspace::Plan#apply"
       ]
     },
     {

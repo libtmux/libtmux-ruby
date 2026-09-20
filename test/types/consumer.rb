@@ -70,6 +70,8 @@ consumer = SignatureConsumer.new
 LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |server|
   case package
   when "libtmux"
+    consumer.call("::LibTmux::Server", server, :diagnostics,
+      expected: "{admitted_requests: Integer, reserved_process_slots: Integer, control_connections: Integer, closed: bool, limits: Hash[Symbol, Numeric]}")
     receipt = consumer.call("::LibTmux::Server", server, :new_session, name: "types", command: ["/bin/cat"], receipt: true,
       expected: "::LibTmux::CreationReceipt")
     session = consumer.call("::LibTmux::CreationReceipt", receipt, :entity, expected: "::LibTmux::Session")
@@ -97,6 +99,9 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
     consumer.verify_rejects_wrong_return
     consumer.call("::LibTmux::Server", server, :open_control, session: session.ref, expected: ":checked") do |control|
       reply = consumer.call("::LibTmux::ControlConnection", control, :exchange, "display-message -p typed", expected: "::LibTmux::GuardedReply")
+      counters = consumer.call("::LibTmux::ControlConnection", control, :diagnostics,
+        expected: "Hash[Symbol, Integer | bool | Hash[Symbol, Integer]]")
+      raise "consumed reply is still retained" unless counters.fetch(:retained_reply_bytes).zero?
       blocks = consumer.call("::LibTmux::GuardedReply", reply, :blocks, expected: "Array[::LibTmux::GuardedBlock]")
       consumer.call("::LibTmux::GuardedBlock", blocks.last, :raw, expected: "String")
       client = server.list_clients.find { |entry| entry.fetch(:pid) == control.pid }.fetch(:name)
@@ -105,6 +110,8 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
       stream = consumer.call("::LibTmux::ControlConnection", control, :subscribe, max_events: 2,
         expected: "::LibTmux::ControlSubscription")
       consumer.call("::LibTmux::ControlSubscription", stream, :close, expected: "nil")
+      consumer.call("::LibTmux::ControlSubscription", stream, :diagnostics,
+        expected: "{queued_events: Integer, retained_event_bytes: Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable | :tail, limits: Hash[Symbol, Integer]}")
       :checked
     end
     consumer.call("singleton(::LibTmux::ControlEvent)", LibTmux::ControlEvent, :new,
@@ -115,6 +122,8 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
     Async do |parent|
       consumer.call("singleton(::LibTmux::Async)", LibTmux::Async, :open, parent: parent, server: server, expected: ":checked") do |scope|
         facade = consumer.call("::LibTmux::Async::Scope", scope, :server, expected: "::LibTmux::Async::Server")
+        consumer.call("::LibTmux::Async::Scope", scope, :diagnostics, expected: "::LibTmux::Async::scope_diagnostics")
+        consumer.call("::LibTmux::Async::Server", facade, :diagnostics, expected: "::LibTmux::Async::scope_diagnostics")
         panes = consumer.call("::LibTmux::Async::Server", facade, :list_panes, expected: "Array[::LibTmux::Pane]")
         consumer.call("::LibTmux::Async::Scope", scope, :map, panes, concurrency: 2, expected: "Array[::LibTmux::CommandResult]") { |pane| pane.capture }
         consumer.call("::LibTmux::Async::Server", facade, :open_control, session: session.ref, expected: ":checked") do |control|

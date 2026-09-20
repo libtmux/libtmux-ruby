@@ -119,6 +119,42 @@ status, PID and elapsed time without captured terminal output. Their
 `success?` delegates to the final client status and `delivery` is `observed`.
 Neither result proves completion of a program running inside a pane.
 
+## Diagnostics
+
+`diagnostics` returns a deeply frozen local Hash from a server, Async scope,
+control connection or subscription. It performs no tmux I/O, emits no log or
+callback, and includes no paths, command arguments, pane bytes or identifiers.
+Snapshots remain readable after close under the object's original process,
+thread and scheduler ownership rules. Each snapshot describes one owner;
+separate calls do not form an atomic view across owners.
+
+Core server `admitted_requests` and `reserved_process_slots` count admitted
+requests, including retirement. `control_connections` counts registrations
+retained by that server, including closed controls until pruning or close.
+These are ownership counts, not a census of live OS processes.
+
+Async scope snapshots distinguish admitted and waiting requests from active
+process slots. Slots remain charged through retirement. Reserved request bytes
+cover admitted argv/input; retained output bytes include pending process and
+map results. `maps` counts registered map operations; `control_connections`
+counts controls that have not retired. The Async server delegates to its scope.
+
+Control snapshots report admitted, incomplete, queued, writing and
+awaiting-reply requests, reserved wire bytes and retained parsed reply bytes.
+Completed replies remain charged until consumed. Parser framing buffers and
+caller-owned returned values are outside retained reply accounting.
+`stderr_received_bytes` is cumulative, not a retained buffer size.
+`subscription_count` includes closed subscriptions retained by the connection.
+Stopping, finished and cleanup-error counts describe connection retirement.
+
+Subscription snapshots report queued events, retained event bytes, pending
+gaps, reliable overflow, mode and closed state. Overflow leaves the reliable
+prefix readable; explicit close discards it. Every snapshot includes the
+owner's configured limits. Counts are current values, not historical peaks.
+Result `elapsed_seconds` and structured error `phase`, `delivery` and
+`cleanup_errors` supply per-operation evidence; snapshots do not retain timing
+histories or estimate process liveness.
+
 ## Command groups
 
 `run_group` submits ordered argv groups through one client. Execution is not

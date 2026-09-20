@@ -14,6 +14,8 @@ Example.run("control_overflow") do |server|
     reply = control.exchange("display-message -p alive", timeout: 0.5)
     Example.check(reply.blocks.last.body == "alive\n", "slow reader blocked commands")
     Example.check(reply.attribution == :boundary_window, "reply overclaims attribution")
+    Example.check(reliable.diagnostics.fetch(:overflowed), "overflow is missing from diagnostics")
+    Example.check(control.diagnostics.fetch(:retained_reply_bytes).zero?, "consumed reply remains retained")
     reliable.next(timeout: 0.5)
     Example.raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 0.5) }
     gap = tail.next(timeout: 0.5)

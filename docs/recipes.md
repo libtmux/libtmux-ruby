@@ -100,6 +100,7 @@ Async do |parent|
       error
     end
     scope.server.wait_for("ready", timeout: 0.5)
+    Example.check(scope.diagnostics.fetch(:active_process_slots) == 1, "waiting client lost its slot")
     captures = scope.map(scope.server.list_panes.map(&:ref), concurrency: 2) do |ref|
       scope.server.pane(ref).capture
     end
@@ -109,6 +110,7 @@ Async do |parent|
     Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
     Example.check(failure.delivery == :possibly_sent, "cancelled dispatch claimed no effects")
     Example.raises(Errno::ECHILD) { Process.waitpid(failure.pid, Process::WNOHANG) }
+    Example.check(scope.server.diagnostics.fetch(:admitted_requests).zero?, "cancelled client remains admitted")
   end
 end.wait
 ```
@@ -130,6 +132,8 @@ server.open_control(session: session.ref) do |control|
   reply = control.exchange("display-message -p alive", timeout: 0.5)
   Example.check(reply.blocks.last.body == "alive\n", "slow reader blocked commands")
   Example.check(reply.attribution == :boundary_window, "reply overclaims attribution")
+  Example.check(reliable.diagnostics.fetch(:overflowed), "overflow is missing from diagnostics")
+  Example.check(control.diagnostics.fetch(:retained_reply_bytes).zero?, "consumed reply remains retained")
   reliable.next(timeout: 0.5)
   Example.raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 0.5) }
   gap = tail.next(timeout: 0.5)
