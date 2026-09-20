@@ -2,7 +2,7 @@
 
 The four gems share one version. Prepare changes in a PR; publish by pushing
 a matching `vVERSION` tag after the merged commit passes compatibility CI.
-The first planned release is `0.1.0.alpha.1`.
+The examples below use the initial alpha, `0.1.0.alpha.1`.
 
 ## One-time account setup
 

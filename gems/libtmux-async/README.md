@@ -1,8 +1,10 @@
 # libtmux-async
 
-Run libtmux operations inside an application-owned Async task. This unreleased
+Run libtmux operations inside an application-owned Async task. This
 gem provides a subprocess facade, ordered mapping, control replies and event
 subscriptions. Imports start no scheduler, tmux server or background task.
+
+Install the alpha with `gem install libtmux-async --pre`.
 
 The [complete program](../../examples/async_cancel.rb) owns an isolated server
 and its cleanup. This excerpt uses that server and creates the Async root:

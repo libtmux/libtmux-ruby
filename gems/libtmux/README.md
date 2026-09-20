@@ -1,6 +1,6 @@
 # libtmux
 
-Ruby tmux orchestration core, under development. `Server.open` borrows an
+Ruby tmux orchestration core. `Server.open` borrows an
 existing explicit endpoint. Closing it retires owned clients and preserves
 the daemon; `kill` explicitly terminates the daemon. `Server.start` creates a
 private owned foreground daemon whose lifetime ends with its server handle.
@@ -8,7 +8,8 @@ Owned startup uses Linux and Darwin readiness backends. The
 [compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
 retains exact per-revision platform and version results.
 
-Require `libtmux` after installing the locally built gem. Imports do not
+Install the alpha with `gem install libtmux --pre`, then require `libtmux`.
+Imports do not
 start tmux, a scheduler or an MCP server. See the repository's contribution
 guide for local build and verification commands.
 
@@ -105,5 +106,4 @@ return values. [Executable recipes](../../docs/recipes.md) run
 against installed artifacts; the documentation gate renders YARD and guides
 and checks local destinations and fragments. The [public method inventory](../../docs/reference/api.md)
 links exported methods to source and behavioral contracts. These consumer
-checks do not establish whole-program static typing. The gem is unreleased;
-builds and checks do not publish artifacts.
+checks do not establish whole-program static typing.

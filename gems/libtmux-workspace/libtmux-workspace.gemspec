@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.version = LibTmux::Workspace::VERSION
   spec.authors = ["libtmux contributors"]
   spec.summary = "Data-only workspace consumer package for libtmux"
-  spec.description = "Data-only workspace consumer package for libtmux; unreleased implementation in progress."
+  spec.description = "Validate YAML or JSON workspace configurations, inspect creation plans and apply them to tmux."
   spec.homepage = "https://github.com/libtmux/libtmux-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"

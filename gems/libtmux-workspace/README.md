@@ -1,7 +1,7 @@
 # libtmux-workspace
 
 Load bounded YAML or JSON, inspect an immutable creation plan, then explicitly
-apply it to an open libtmux server. This package is unreleased. The library
+apply it to an open libtmux server. The library
 and installed command-line executable share the core
 [compatibility matrix](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml);
 consult its exact per-revision results.
@@ -10,6 +10,12 @@ The gem declares Ruby 3.3 or newer and depends on the same-version `libtmux`
 gem, JSON 3.0 and Psych 5.5. See the repository's
 [contribution guide](../../.github/CONTRIBUTING.md) for local builds and checks.
 Imports and planning do not start tmux or run commands.
+
+Install the alpha and its `libtmux-workspace` executable:
+
+```console
+$ gem install libtmux-workspace --pre
+```
 
 ## Example
 
@@ -149,7 +155,7 @@ close the supplied server binding.
 
 ## Command-line interface
 
-The locally built gem installs `libtmux-workspace`. `validate` and offline
+The gem installs `libtmux-workspace`. `validate` and offline
 `plan` do not contact tmux. Without a filename, discovery requires exactly one
 `.tmuxp.yaml`, `.tmuxp.yml` or `.tmuxp.json` in the current directory.
 

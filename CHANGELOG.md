@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.0.alpha.2 (unreleased)
 
-Initial package APIs for `0.1.0.alpha.1`.
+## 0.1.0.alpha.1 (2026-09-20)
+
+Initial alpha of the Ruby tmux suite.
 
 ### libtmux
 

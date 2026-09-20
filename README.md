@@ -8,8 +8,19 @@ and the rest of `Enumerable`.
 [Guide](docs/index.md) · [API reference](docs/reference/api.md) ·
 [Recipes](docs/recipes.md)
 
-**Unreleased.** Build and use the gems from this checkout. See the
+**Alpha.** APIs may change between releases. See the
 [initial alpha notes](CHANGELOG.md) and [release guide](docs/releasing.md).
+
+## Install
+
+Install the core prerelease from RubyGems:
+
+```console
+$ gem install libtmux --pre
+```
+
+The [companion gems](#gems) install separately; use `--pre` for their alpha
+versions too.
 
 ## Install from source
 

@@ -4,8 +4,11 @@ Expose an existing tmux server over MCP stdio. Read snapshots, capture pane
 output, wait for events, or explicitly enable creation, input and shell commands.
 The official MCP SDK handles the protocol; bounded Async tasks handle transport.
 
-**Unreleased.** [Build the gems locally](../../README.md#gems) before using the
-installed `libtmux-mcp` executable.
+Install the alpha and its `libtmux-mcp` executable:
+
+```console
+$ gem install libtmux-mcp --pre
+```
 
 ## Start the server
 

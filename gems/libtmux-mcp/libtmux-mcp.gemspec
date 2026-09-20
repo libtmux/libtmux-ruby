@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.version = LibTmux::MCP::VERSION
   spec.authors = ["libtmux contributors"]
   spec.summary = "MCP consumer package for libtmux"
-  spec.description = "MCP consumer package for libtmux; unreleased implementation in progress."
+  spec.description = "Expose tmux snapshots, captures and explicitly enabled mutations through an MCP stdio server."
   spec.homepage = "https://github.com/libtmux/libtmux-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
