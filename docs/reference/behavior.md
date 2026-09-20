@@ -137,7 +137,9 @@ Async scope snapshots distinguish admitted and waiting requests from active
 process slots. Slots remain charged through retirement. Reserved request bytes
 cover admitted argv/input; retained output bytes include pending process and
 map results. `maps` counts registered map operations; `control_connections`
-counts controls that have not retired. The Async server delegates to its scope.
+counts controls that have not retired. The Async server delegates to its scope
+and preserves the base Server keys: reserved slots include waiting admissions,
+and `limits.close_timeout` is the scope's join budget, twice its cleanup timeout.
 
 Control snapshots report admitted, incomplete, queued, writing and
 awaiting-reply requests, reserved wire bytes and retained parsed reply bytes.

@@ -62,7 +62,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#close](../../gems/libtmux-async/lib/libtmux/async/scope.rb#L36) | `nil` | [Async scope](behavior.md#async-scope) |
 | [#closed?](../../gems/libtmux-async/lib/libtmux/async/scope.rb#L81) | `bool` | [Async scope](behavior.md#async-scope) |
 | [#diagnostics](../../gems/libtmux-async/lib/libtmux/async/scope.rb#L89) | `::LibTmux::Async::scope_diagnostics` | [Diagnostics](behavior.md#diagnostics) |
-| [#map](../../gems/libtmux-async/lib/libtmux/async/scope.rb#L102) | `::Array[Output]` | [Async map](behavior.md#async-map) |
+| [#map](../../gems/libtmux-async/lib/libtmux/async/scope.rb#L104) | `::Array[Output]` | [Async map](behavior.md#async-map) |
 | [#server](../../gems/libtmux-async/lib/libtmux/async/scope.rb#L11) | `::LibTmux::Async::Server` | [Async scope](behavior.md#async-scope) |
 | [.new](../../gems/libtmux-async/lib/libtmux/async/scope.rb#L13) | `::LibTmux::Async::Scope` | [Async scope](behavior.md#async-scope) |
 

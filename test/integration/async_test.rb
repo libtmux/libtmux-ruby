@@ -103,7 +103,7 @@ class AsyncTest < Minitest::Test
       assert_equal({concurrency: 4, max_requests: 32, max_controls: 4,
         max_queue_bytes: 1 << 22, max_output_bytes: 1 << 23,
         stdout_limit: 1 << 20, stderr_limit: 1 << 18, input_limit: 1 << 20,
-        argv_limit: 1 << 18, cleanup_timeout: 0.5, drain_timeout: 0.5}, initial.fetch(:limits))
+        argv_limit: 1 << 18, cleanup_timeout: 0.5, drain_timeout: 0.5, close_timeout: 1.0}, initial.fetch(:limits))
       listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "async-admission"))
       code = 'require "socket"; UNIXSocket.open(ARGV.fetch(0)) { |io| io.write(Process.pid.to_s + "\\n"); io.read(1) }'
       requests = 32.times.map do
@@ -118,6 +118,7 @@ class AsyncTest < Minitest::Test
       assert_equal :wait_readable, listener.accept_nonblock(exception: false), "more than four children were dispatched"
       occupied = scope.server.diagnostics
       assert_equal 32, occupied.fetch(:admitted_requests)
+      assert_equal 32, occupied.fetch(:reserved_process_slots)
       assert_equal 28, occupied.fetch(:waiting_requests)
       assert_equal 4, occupied.fetch(:active_process_slots)
       assert_equal 32 * (ruby(code) + [listener.path]).sum { |arg| arg.bytesize + 1 }, occupied.fetch(:reserved_request_bytes)

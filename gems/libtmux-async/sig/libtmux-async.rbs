@@ -6,13 +6,15 @@ module LibTmux
 
     type scope_diagnostics = {
       transport: :async_process, closed: bool, admitted_requests: Integer,
+      reserved_process_slots: Integer,
       waiting_requests: Integer, active_process_slots: Integer,
       reserved_request_bytes: Integer, retained_output_bytes: Integer,
       control_connections: Integer, maps: Integer,
       limits: {concurrency: Integer, max_requests: Integer, max_controls: Integer,
         max_queue_bytes: Integer, max_output_bytes: Integer,
         stdout_limit: Integer, stderr_limit: Integer, input_limit: Integer,
-        argv_limit: Integer, cleanup_timeout: Numeric, drain_timeout: Numeric}
+        argv_limit: Integer, cleanup_timeout: Numeric, drain_timeout: Numeric,
+        close_timeout: Numeric}
     }
 
     class Scope

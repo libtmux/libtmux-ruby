@@ -123,6 +123,8 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
       consumer.call("singleton(::LibTmux::Async)", LibTmux::Async, :open, parent: parent, server: server, expected: ":checked") do |scope|
         facade = consumer.call("::LibTmux::Async::Scope", scope, :server, expected: "::LibTmux::Async::Server")
         consumer.call("::LibTmux::Async::Scope", scope, :diagnostics, expected: "::LibTmux::Async::scope_diagnostics")
+        consumer.call("::LibTmux::Server", facade, :diagnostics,
+          expected: "{reserved_process_slots: Integer, limits: {close_timeout: Numeric}}")
         consumer.call("::LibTmux::Async::Server", facade, :diagnostics, expected: "::LibTmux::Async::scope_diagnostics")
         panes = consumer.call("::LibTmux::Async::Server", facade, :list_panes, expected: "Array[::LibTmux::Pane]")
         consumer.call("::LibTmux::Async::Scope", scope, :map, panes, concurrency: 2, expected: "Array[::LibTmux::CommandResult]") { |pane| pane.capture }
