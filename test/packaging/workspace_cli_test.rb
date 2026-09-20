@@ -36,6 +36,10 @@ class InstalledWorkspaceCLITest < Minitest::Test
       end
       executable = File.join(home, "bin", "libtmux-workspace")
       assert File.file?(executable)
+      output, error, status = Open3.capture3(environment, Gem.ruby, executable, "--version", chdir: directory)
+      assert status.success?, "installed version failed: #{error}"
+      assert_equal "#{specs.fetch('libtmux-workspace').version}\n", output
+      assert_empty error
       config = File.join(directory, ".tmuxp.json")
       File.write(config, JSON.generate({session_name: "installed", windows: [{window_name: "one", panes: [{}]}]}))
       %w[validate plan].each do |command|
