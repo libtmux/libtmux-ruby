@@ -42,7 +42,7 @@ module LibTmux
         {"screen" => "bounded_rows", "history_continuity" => "unknown",
           "process_cursor" => conditional ? "conditional" : "unsupported",
           "requirements" => ["tmux >= 3.3", *(native || ["supported 64-bit Linux or Darwin process identity backend"]),
-            "live pane process", "empty effective capture hook"],
+            "live pane process", "empty effective capture hook", "stable capture-hook configuration on tmux < 3.5"],
           "wait_conditions" => %w[screen_contains process_exit]}
       end
 
@@ -104,7 +104,7 @@ module LibTmux
             identity.ensure_live!
           end
           limits = previous ? previous.options : defaults
-          rows, encoding, truncated = read_rows(pane, limits, identity)
+          rows, encoding, truncated = read_rows(snapshot, pane, limits, identity)
           id = SecureRandom.hex(16)
           result = state(reference, rows, encoding, truncated, limits, identity, id)
           if previous
@@ -172,7 +172,7 @@ module LibTmux
               control.exchange(line, **@budget.options)
             end
             limits = defaults
-            rows, encoding, truncated = read_rows(pane, limits, identity)
+            rows, encoding, truncated = read_rows(snapshot, pane, limits, identity)
             if condition.fetch("type") == "screen_contains" && contains?(rows, encoding, condition.fetch("text"))
               next {"target" => reference, "condition" => "screen_contains",
                 "capture" => state(reference, rows, encoding, truncated, limits, identity, SecureRandom.hex(16))}
@@ -229,7 +229,7 @@ module LibTmux
                 break {"target" => reference, "condition" => "process_exit", "process_generation" => identity.generation,
                   "observed_at" => clock, "exit_status" => "unobserved"}
               end
-              rows, encoding, truncated = read_rows(pane, limits, identity)
+              rows, encoding, truncated = read_rows(snapshot, pane, limits, identity)
               if contains?(rows, encoding, condition.fetch("text"))
                 break {"target" => reference, "condition" => "screen_contains",
                   "capture" => state(reference, rows, encoding, truncated, limits, identity, SecureRandom.hex(16))}
@@ -291,26 +291,45 @@ module LibTmux
         end
       end
 
-      def read_rows(pane, limits, identity)
+      def read_rows(snapshot, pane, limits, identity)
         identity&.ensure_live!
         names = spellings
-        guard = "\#{==:\#{pane_id},#{pane.id}}"
+        link = snapshot.window_links.find { |item| item.window_id == pane.window_id }
+        raise TargetNotFoundError.new("pane has no observable session", phase: :admission) unless link
+
+        target = "#{link.session_id}:.#{pane.id}"
+        guard = "\#{&&:\#{==:\#{session_id},#{link.session_id}},\#{==:\#{pane_id},#{pane.id}}}"
         guard = "\#{&&:#{guard},\#{&&:\#{==:\#{pane_pid},#{identity.pid}},\#{&&:\#{==:\#{pane_dead_status},},\#{==:\#{pane_dead_signal},}}}}" if identity
-        body = @server.__send__(:tmux_command, [names.fetch("capture-pane"), "-p", "-t", pane.id,
+        # Before tmux 3.5, whole-array formats are empty even for sparse hooks.
+        # Configuration must stay stable between this preflight and capture.
+        version = /\A(\d+)\.(\d+)/.match(snapshot.server_info.fetch(:version))
+        unless version && ([version[1].to_i, version[2].to_i] <=> [3, 5]) >= 0
+          hooks = @server.__send__(:execute_typed,
+            [names.fetch("show-options"), "-A", "-v", "-t", target, "after-capture-pane"], **@budget.options)
+          unless hooks.stdout.empty?
+            raise UnsupportedFeatureError.new("capture hooks prevent isolated screen output", phase: :read)
+          end
+        end
+        body = @server.__send__(:tmux_command, [names.fetch("capture-pane"), "-p", "-t", target,
           "-S", (-limits.fetch("history_lines")).to_s, "-E", "-"])
         # The selected false branch fails parsing, independently of screen bytes.
         failure = @server.__send__(:tmux_command, [names.fetch("capture-pane"), "-t"])
-        body = @server.__send__(:tmux_command, [names.fetch("if-shell"), "-F", "-t", pane.id, guard, body, failure])
+        body = @server.__send__(:tmux_command, [names.fetch("if-shell"), "-F", "-t", target, guard, body, failure])
         hook_error = "libtmux-hook-refused-#{SecureRandom.hex(16)}"
         hook_failure = @server.__send__(:tmux_command, [hook_error])
         begin
-          result = @server.__send__(:execute_typed, [names.fetch("if-shell"), "-F", "-t", pane.id,
+          result = @server.__send__(:execute_typed, [names.fetch("if-shell"), "-F", "-t", target,
             '#{==:#{after-capture-pane},}', body, hook_failure], **@budget.options)
         rescue CommandError => error
           if error.result&.stderr&.include?(hook_error)
             raise UnsupportedFeatureError.new("capture hooks prevent isolated screen output", phase: :read, delivery: error.delivery), cause: nil
           end
           raise TargetNotFoundError.new("screen target or process changed", phase: :read, delivery: error.delivery), cause: nil
+        end
+        # capture-pane -p prints a newline even for a blank screen; an empty
+        # successful if-shell response does not prove that capture ran.
+        unless result.stdout.end_with?("\n")
+          raise TargetNotFoundError.new("screen capture did not return complete rows", phase: :read, delivery: :observed)
         end
         identity&.ensure_live!
         @budget.options
@@ -328,7 +347,7 @@ module LibTmux
       end
 
       def spellings
-        @spellings ||= @server.__send__(:builtin_spellings, "if-shell", "capture-pane", budget: @budget)
+        @spellings ||= @server.__send__(:builtin_spellings, "if-shell", "capture-pane", "show-options", budget: @budget)
       end
 
       def contains?(rows, encoding, text)

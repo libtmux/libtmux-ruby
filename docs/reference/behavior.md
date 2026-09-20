@@ -520,6 +520,13 @@ omit raw input payloads. Close releases retained captures and tracking
 resources, not the borrowed Async scope or daemon. Calls and close require
 the creating scheduler/thread/process.
 
+Screen observation requires an empty effective capture hook. On tmux 3.2a–3.4,
+applications must coordinate hook configuration changes with captures and
+screen waits because sparse-array inspection is a separate preflight.
+tmux 3.5+ retains the hook check in the capture queue. Removing the selected
+session link refuses the operation on all versions; it cannot select another
+session's hook context.
+
 ## MCP transport
 
 `StdioTransport` borrows caller IO streams and a live Async parent. `run`

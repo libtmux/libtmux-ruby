@@ -29,6 +29,14 @@ content from unknown history continuity. Tracking produces a retained cursor;
 subsequent calls return a splice against that exact captured state. A screen
 delta does not establish that every intervening output byte was observed.
 
+Capture refuses nonempty effective `after-capture-pane` hooks, including
+inherited sparse entries. On tmux 3.2a–3.4, callers must keep capture-hook
+configuration stable throughout observation: those versions require a separate
+hook preflight. tmux 3.5+ checks the hook in the capture command queue. Both paths
+retain an explicit session/pane context and refuse its removal instead of
+switching to another session's hooks. Process tracking retains its native
+identity checks on every version that supports it.
+
 `tmux_wait` observes screen text or process exit through events. Canceling it
 retires its observation resources without signaling the pane program. Strong
 process tracking requires tmux 3.3 or later and a native identity backend:
