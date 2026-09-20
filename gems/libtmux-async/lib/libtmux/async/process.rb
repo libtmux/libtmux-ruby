@@ -82,9 +82,7 @@ module LibTmux
           begin
             if @pid && !@child.observed? && !@child.observation_error.is_a?(Errno::ECHILD)
               @child.signal("TERM")
-              cleanup_wait([clock + @limits.fetch(:cleanup_timeout) / 2, deadline].min) do
-                @child.observed? || @child.observation_error
-              end
+              # Reserve the cleanup budget for reaping; timer grace can overrun it.
               @child.signal("KILL") unless @child.observed?
             end
           rescue SystemCallError => error

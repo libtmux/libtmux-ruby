@@ -8,9 +8,13 @@ through a protocol or configuration document.
 - [Ownership and errors](ownership-errors.md) explains what close and failure mean.
 - [Executable recipes](recipes.md) links complete programs with checked excerpts.
 - [Field catalog](reference/fields.md) lists generated metadata and wire names.
+- [Public methods](reference/api.md) maps exported methods to source, returns and contracts.
+- [Public behavior](reference/behavior.md) specifies I/O, ownership, defaults and failure evidence.
+- [Benchmarks](benchmark.md) describes equal workloads, raw evidence and open comparison gates.
 - [Project entry point](../README.md) covers local installation and current gaps.
 
-The rendered site includes a separate YARD API tree. Its declarations and
-short comments do not yet provide the complete behavioral contract for every
-public method. RBS validates shipped declarations; it does not type-check the
-implementation.
+The rendered site also includes a YARD declaration tree. The public-method
+inventory checks source links, declaration visibility and behavioral mappings.
+Installed signature consumers check selected real arguments, blocks and return
+values against RBS. Their output lists the exercised methods; this does not
+establish whole-program static typing or full overload coverage.

@@ -7,9 +7,68 @@ require "stringio"
 require "pty"
 
 class WorkspaceCLIIntegrationTest < Minitest::Test
+  def test_switch_selects_current_client_after_apply_and_retains_creations_on_failure
+    LibTmuxTest::TmuxFixture.open do |fixture|
+      LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
+        token = LibTmux::Internal::Cancellation.new
+        PTY.open do |_master, terminal|
+          terminal.winsize = [24, 80]
+          assert fixture.tmux("set-hook", "-g", "client-attached", "wait-for -S cli-switch-attached").last.success?
+          session = server.list_sessions.first
+          worker = Thread.new do
+            server.attach(session: session.ref, terminal: terminal, term: "xterm", cancel: token)
+          rescue LibTmux::Cancelled
+            nil
+          end
+          begin
+            assert fixture.tmux("wait-for", "cli-switch-attached").last.success?
+            selector = server.list_clients.fetch(0).fetch(:name)
+            status, value, diagnostics = cli(fixture, ["load", write_config(fixture, "switched"), "--switch", selector])
+            assert_equal 0, status
+            assert value.fetch("success")
+            assert_empty diagnostics
+            selected_id = value.fetch("created_refs").fetch("session").fetch("id")
+            assert_equal selected_id, server.list_clients.fetch(0).fetch(:session_id)
+            assert worker.alive?, "switch must not own or retire the selected client"
+            status, value, = cli(fixture, ["load", write_config(fixture, "missing-client"), "--switch", "private-missing-client"])
+            assert_equal 3, status
+            assert_equal "execution", value.fetch("error").fetch("kind")
+            assert_equal 3, value.fetch("result").fetch("created_refs").length
+            created_id = value.fetch("result").fetch("created_refs").fetch("session").fetch("id")
+            assert_includes server.list_sessions.map(&:id), created_id
+            assert_equal selected_id, server.list_clients.fetch(0).fetch(:session_id)
+            refute_includes JSON.generate(value), "private-missing-client"
+            before = server.list_sessions.map(&:id)
+            [["--switch"], ["--switch", ""], ["--attach", "--switch", selector]].each do |flags|
+              status, value, = cli(fixture, ["load", write_config(fixture, "invalid-switch"), *flags])
+              assert_equal 2, status
+              refute value.key?("result")
+              assert_equal before, server.list_sessions.map(&:id)
+            end
+          ensure
+            token.cancel
+            assert worker.join(0.5), "owned terminal fixture client did not retire"
+            worker.value
+          end
+        end
+      ensure
+        token.close
+      end
+    end
+  end
+
   def test_live_plan_detached_load_and_conflict_return_distinct_json_results
     LibTmuxTest::TmuxFixture.open do |fixture|
       file = write_config(fixture, "cli")
+      valid = File.read(file)
+      invalid = JSON.parse(valid).merge("window_options" => {"pane-base-index" => 65536})
+      File.write(file, JSON.generate(invalid))
+      status, value, diagnostics = cli(fixture, ["load", file])
+      assert_equal 2, status
+      assert_equal "configuration", value.fetch("error").fetch("kind")
+      assert_empty diagnostics
+      assert_equal 1, fixture.tmux("list-sessions", "-F", '#{session_id}').first.lines.length
+      File.write(file, valid)
       status, value, diagnostics = cli(fixture, ["plan", "--live", file])
       assert_equal 0, status
       assert_equal "captured_create", value.fetch("mode")
@@ -66,6 +125,8 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
 
   def test_explicit_attach_owns_only_its_terminal_client_and_returns_after_user_detach
     LibTmuxTest::TmuxFixture.open do |fixture|
+      # One PTY write represents key presses, not a paste detected by timing.
+      assert fixture.tmux("set-option", "-g", "assume-paste-time", "0").last.success?
       master, terminal = PTY.open
       open_file = File.method(:open)
       worker = nil

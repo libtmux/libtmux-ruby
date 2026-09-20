@@ -20,6 +20,14 @@ does not establish shell completion. A `GuardedReply` has no `success?`:
 what finishes when. Its `boundary_window` attribution is deliberately weaker
 than per-command ownership.
 
+Concurrent control calls pipeline complete wire requests on one connection.
+The writer can submit a later request while an earlier reply waits; the reader
+assigns boundaries in the same order. Admission limits include all pending
+and completed but unconsumed requests. Cancellation after any request bytes
+are written closes the connection: other written requests have
+`possibly_sent` delivery, and requests with no written bytes have `not_sent`.
+No uncertain request is replayed. Sequential calls still wait for each reply.
+
 Reliable control subscriptions raise `SubscriptionOverflow` when they cannot
 retain the stream. Tail subscriptions emit a gap containing lost sequence
 and byte evidence. Neither mode blocks the command reader behind a slow

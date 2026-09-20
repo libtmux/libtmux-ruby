@@ -86,7 +86,7 @@ class DocumentationSite
     end
     Dir.mktmpdir("libtmux-ruby-yard-") do |scratch|
       introduction = File.join(scratch, "api-introduction.md")
-      File.write(introduction, "# API reference\n\n[Guide](../docs/index.html) | [Recipes](../docs/recipes.html)\n\nPrivate declarations are included so referenced constants resolve; they are not public API. Behavioral documentation coverage remains incomplete.\n")
+      File.write(introduction, "# API declarations\n\n[Guide](../docs/index.html) | [Public methods](../docs/reference/api.html) | [Behavior](../docs/reference/behavior.html)\n\nPrivate declarations are included so referenced constants resolve; they are not public API. Use the public method inventory for exported behavior and signature proof limits.\n")
       sources = Dir.glob("gems/*/lib/**/*.rb", base: @root).sort
       sources.each do |source|
         destination = File.join(scratch, source)

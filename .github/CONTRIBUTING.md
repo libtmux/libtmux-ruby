@@ -1,8 +1,8 @@
 # Contributing
 
 This repository contains the unreleased libtmux gem suite. Installed-import
-tests establish package boundaries; consumer APIs, documentation recipes and
-the supported-version matrix remain implementation work.
+tests establish package boundaries and execute consumer APIs and documentation
+recipes. Compatibility CI records the exact Ruby, tmux and operating-system cells.
 
 Read [AGENTS.md](../AGENTS.md) for change discipline and [WRITING.md](WRITING.md)
 for prose and commit conventions.
@@ -11,6 +11,10 @@ for prose and commit conventions.
 
 [.tool-versions](../.tool-versions) pins the development interpreter. It does not
 establish a supported Ruby version range.
+
+Integration and installed-artifact tests require tmux and `/bin/zsh` 5.9.
+The authored-shell tests use zsh's ZLE, `zsh/net/socket` and `zsh/system`
+modules. The Linux CI job installs zsh; the macOS runner supplies it.
 
 Install the pinned tool with mise:
 
@@ -49,8 +53,8 @@ Run all unit tests and Ruby syntax checks in the mid loop:
 $ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check mid
 ```
 
-Run unit, isolated tmux integration, installed-artifact recipes, rendered
-documentation and RBS declaration checks in the outer loop:
+Run unit, isolated tmux integration, installed-artifact recipes and signature
+consumers, rendered documentation and RBS checks in the outer loop:
 
 ```console
 $ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check outer
@@ -58,11 +62,14 @@ $ /usr/bin/time -p mise exec -- bundle exec ruby scripts/check outer
 
 The same runner accepts `integration`, `packaging` and `types` separately.
 It fails when a requested suite has no tests. RBS validation checks the
-shipped declarations; it does not prove implementation typing or complete
-signature coverage. The outer packaging test builds artifacts, copies only
-their declared dependency closure from the installed bundle, then installs
-the project gems into temporary gem homes and imports them outside the
-checkout. It uses no network and preserves the host gem installation.
+shipped declarations. `scripts/types --check` checks public declaration
+coverage, source links and behavioral mappings.
+Installed consumers check the argument and return types of exercised calls;
+these checks do not establish whole-program static typing. The outer
+packaging test builds artifacts, copies only their declared dependency
+closure from the installed bundle, then installs the project gems into
+temporary gem homes and imports them outside the checkout. It uses no
+network and preserves the host gem installation.
 
 Build distributable artifacts locally:
 
@@ -71,10 +78,11 @@ $ mise exec -- bundle exec rake build
 ```
 
 Artifacts appear in ignored `pkg/`. No publication happens during the build.
-The mid loop checks generated fields/schema/signatures and the executable
-example manifest. The outer loop installs each declared dependency closure,
-runs the copied recipes outside the checkout, renders YARD and Markdown, and
-checks local links and fragments. External URL availability is separate.
+The mid loop checks generated fields/schema/signatures, the public API
+reference and the executable example manifest. The outer loop installs each
+declared dependency closure, runs the copied recipes outside the checkout,
+renders YARD and Markdown, and checks local links and fragments. External URL
+availability is separate.
 The full support matrix, benchmarks and implementation type coverage remain
 separate required gates; one local outer pass does not establish them.
 
@@ -112,6 +120,14 @@ not raise its budget.
 
 Benchmarks are separate from these loops. Keep a run below ten minutes and a
 full sweep below one hour; reduce the workload if needed.
+Inspect the comparison configuration without starting tmux:
+
+```console
+$ mise exec -- bundle exec ruby scripts/bench plan
+```
+
+The [benchmark guide](../docs/benchmark.md) defines equivalent workloads,
+measurement limits, durable evidence and cleanup checks.
 
 ## Testing tmux behavior
 

@@ -85,6 +85,41 @@ Example.check(session.display('#{window_index}').text == "9\n", "wrong current l
 ```
 <!-- /example -->
 
+## Blocking request cancellation
+
+[Complete plain-Ruby cancellation program](../examples/cancel.rb). A tmux event
+proves dispatch before another thread cancels the blocked client. The program
+joins the caller, checks client reaping and closes the token's owned pipe.
+
+<!-- example: cancel/main -->
+```ruby
+cancellation = LibTmux::Cancellation.new
+waiting = nil
+begin
+  waiting = Thread.new do
+    server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"],
+      timeout: 0.5, cancel: cancellation)
+  rescue LibTmux::Cancelled => error
+    error
+  end
+  server.wait_for("ready", timeout: 0.5)
+  cancellation.cancel
+  failure = waiting.value
+  Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
+  Example.check(failure.delivery == :possibly_sent, "dispatched wait claimed no effects")
+  Example.raises(Errno::ECHILD) { Process.waitpid(failure.pid, Process::WNOHANG) }
+  Example.check(server.diagnostics.fetch(:admitted_requests).zero?, "client remains admitted")
+ensure
+  begin
+    cancellation.cancel
+    waiting&.join
+  ensure
+    cancellation.close
+  end
+end
+```
+<!-- /example -->
+
 ## Async capture and cancellation
 
 [Complete Async program](../examples/async_cancel.rb). A second task captures
@@ -100,6 +135,7 @@ Async do |parent|
       error
     end
     scope.server.wait_for("ready", timeout: 0.5)
+    Example.check(scope.diagnostics.fetch(:active_process_slots) == 1, "waiting client lost its slot")
     captures = scope.map(scope.server.list_panes.map(&:ref), concurrency: 2) do |ref|
       scope.server.pane(ref).capture
     end
@@ -109,6 +145,7 @@ Async do |parent|
     Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
     Example.check(failure.delivery == :possibly_sent, "cancelled dispatch claimed no effects")
     Example.raises(Errno::ECHILD) { Process.waitpid(failure.pid, Process::WNOHANG) }
+    Example.check(scope.server.diagnostics.fetch(:admitted_requests).zero?, "cancelled client remains admitted")
   end
 end.wait
 ```
@@ -130,6 +167,8 @@ server.open_control(session: session.ref) do |control|
   reply = control.exchange("display-message -p alive", timeout: 0.5)
   Example.check(reply.blocks.last.body == "alive\n", "slow reader blocked commands")
   Example.check(reply.attribution == :boundary_window, "reply overclaims attribution")
+  Example.check(reliable.diagnostics.fetch(:overflowed), "overflow is missing from diagnostics")
+  Example.check(control.diagnostics.fetch(:retained_reply_bytes).zero?, "consumed reply remains retained")
   reliable.next(timeout: 0.5)
   Example.raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 0.5) }
   gap = tail.next(timeout: 0.5)
@@ -154,7 +193,7 @@ group = server.run_group([
 Example.check(!group.success?, "failing group succeeded")
 Example.check(group.steps.all? { |step| step.fetch(:outcome) == :unknown }, "invented per-step status")
 Example.check(server.options(scope: :session).get("@before").raw == "retained", "earlier effect rolled back")
-Example.raises(LibTmux::CommandError) { server.options(scope: :session).get("@after") }
+Example.check(server.options(scope: :session).list.none? { |option| option.name == "@after" }, "later step executed")
 ```
 <!-- /example -->
 
@@ -176,16 +215,20 @@ runner = parent.async { transport.run }
 ```
 <!-- /example -->
 
-The installed executable also exercises explicitly enabled create, send and
-close tools, then closes stdin and verifies that EOF preserves the borrowed
-daemon:
+The installed executable also exercises explicitly enabled create, send,
+close and authored-run tools. Its complete program creates a zsh pane whose
+startup file explicitly sources the CLI's mode-0600 enrollment file, waits
+for the authenticated acknowledgement, and checks binary stderr and native
+exit status. It closes stdin and verifies enrollment cleanup and borrowed
+daemon survival. An unsupported advertised process backend exercises the
+structured refusal instead; that is not positive enrollment evidence.
 
 <!-- example: mcp_protocol/cli -->
 ```ruby
 executable = Gem.bin_path("libtmux-mcp", "libtmux-mcp")
 Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endpoint.socket_path,
   "--tmux", Example.executable, "--endpoint", "installed", "--enable-tool", "tmux_create", "--enable-tool", "tmux_send",
-  "--enable-tool", "tmux_close") do |input, output, errors, process|
+  "--enable-tool", "tmux_close", "--enable-tool", "tmux_run", *enrollment_arguments) do |input, output, errors, process|
   request = lambda do |id, method, params = {}|
     input.write(JSON.generate({jsonrpc: "2.0", id: id, method: method, params: params}) + "\n")
     Example.check(IO.select([output], nil, nil, id == 1 ? 1.0 : 0.5), "installed MCP did not return a frame")
@@ -197,7 +240,7 @@ Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endp
     clientInfo: {name: "recipe", version: "1"}})
   input.write(JSON.generate({jsonrpc: "2.0", method: "notifications/initialized"}) + "\n")
   names = request.call(2, "tools/list").fetch("tools").map { |tool| tool.fetch("name") }
-  Example.check(names.sort == %w[tmux_capabilities tmux_close tmux_create tmux_send tmux_snapshot], "tool policy differs")
+  Example.check(names.sort == %w[tmux_capabilities tmux_close tmux_create tmux_run tmux_send tmux_snapshot], "tool policy differs")
   created = request.call(3, "tools/call", {name: "tmux_create", arguments: {
     kind: "session", name: "via-protocol", argv: ["/bin/cat"]}}).fetch("structuredContent")
   Example.check(created.fetch("ok"), "protocol creation failed")
@@ -206,11 +249,32 @@ Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endp
   sent = request.call(4, "tools/call", {name: "tmux_send", arguments: {
     target: pane, input: {type: "text", text: "literal;"}}}).fetch("structuredContent")
   Example.check(sent.fetch("data").fetch("completion") == "dispatch_only", "send claimed shell completion")
-  closed = request.call(5, "tools/call", {name: "tmux_close", arguments: {target: data.fetch("entity")}})
+  target = pane
+  if channel
+    Example.check(File.stat(setup).mode & 0o777 == 0o600, "enrollment setup permissions differ")
+    channel.puts(setup)
+    Example.check(IO.select([channel], nil, nil, 0.5) && channel.gets == "ready\n", "shell enrollment was not acknowledged")
+    target = pane.merge("id" => shell_pane.id)
+  end
+  script = 'printf "%s:%s" "$EXAMPLE_CONTEXT" "$TMUX_PANE"; printf "\\000\\377" >&2; exit 9'
+  run = request.call(5, "tools/call", {name: "tmux_run", arguments: {
+    target: target, script: script, stdout_limit: 128, stderr_limit: 2}}).fetch("structuredContent")
+  if channel
+    Example.check(run.fetch("ok"), "installed authored run failed")
+    result = run.fetch("data")
+    Example.check(result.fetch("stdout").fetch("data") == "installed:#{shell_pane.id}", "authored shell context differs")
+    Example.check(result.fetch("stderr") == {"encoding" => "base64", "data" => "AP8=", "bytes" => 2, "truncated" => false}, "authored bytes differ")
+    Example.check(result.fetch("completion") == {"state" => "exited", "exit_status" => 9, "signal" => nil}, "native completion differs")
+    Example.check(result.fetch("authorization").fetch("state") == "authorized", "authorization receipt missing")
+  else
+    Example.check(run.dig("error", "code") == "unsupported" && run.dig("error", "delivery") == "not_sent", "unsupported enrollment did not refuse")
+  end
+  closed = request.call(6, "tools/call", {name: "tmux_close", arguments: {target: data.fetch("entity")}})
   Example.check(closed.fetch("structuredContent").fetch("ok"), "protocol close failed")
   input.close
   Example.check(process.join(0.5), "MCP EOF did not retire its process")
   Example.check(process.value.success? && errors.read.empty?, "MCP executable failed")
+  Example.check(!File.exist?(setup), "enrollment setup survived EOF")
 end
 ```
 <!-- /example -->

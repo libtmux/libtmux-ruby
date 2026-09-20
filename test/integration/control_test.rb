@@ -2,10 +2,12 @@
 
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
+require_relative "../support/control_assertions"
 require "libtmux/control"
 require "libtmux/process"
 
 class ControlIntegrationTest < Minitest::Test
+  include LibTmuxTest::ControlAssertions
   def with_control(**options)
     LibTmuxTest::TmuxFixture.open do |fixture|
       pin = LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
@@ -175,6 +177,55 @@ class ControlIntegrationTest < Minitest::Test
     end
   end
 
+  def test_pipeline_writes_complete_requests_before_prior_replies
+    with_control do |fixture, _, control|
+      fixture.tmux("set-option", "-s", "command-alias[99]",
+        "pipeline-probe=wait-for -S pipeline-ready ; wait-for pipeline-held ; display-message -p pipeline-first ; kill-session -t missing ; display-message -p never")
+      fixture.tmux("set-hook", "-g", "command-error", "display-message -p pipeline-hook")
+      reader, writer = IO.pipe
+      sent = +"".b
+      input = control.instance_variable_get(:@input)
+      input.define_singleton_method(:write_nonblock) do |bytes, **options|
+        result = super(bytes.byteslice(0, 7), **options)
+        if result.is_a?(Integer)
+          sent << bytes.byteslice(0, result)
+          writer.write_nonblock("x") if /pipeline-second\nlibtmux_boundary_[0-9a-f]+\n\z/.match?(sent)
+        end
+        result
+      end
+      first = Thread.new do
+        control.exchange("pipeline-probe", timeout: 0.5)
+      end
+      fixture.tmux("wait-for", "pipeline-ready")
+      second = Thread.new { control.exchange("display-message -p pipeline-second", timeout: 0.5) }
+      assert IO.select([reader], nil, nil, 0.2), "second request bytes waited for the first reply"
+      assert first.alive?, "the first reply must remain pending at the wire witness"
+      assert second.alive?, "tmux must retain the second request behind WAIT"
+      assert_respond_to control, :diagnostics
+      pending = control.diagnostics
+      assert_equal [2, 2, 2], pending.values_at(:admitted_requests, :incomplete_requests, :awaiting_reply)
+      assert_equal 0, pending.fetch(:queued_requests)
+      assert_operator pending.fetch(:reserved_wire_bytes), :>, 0
+      assert pending.frozen?
+      assert pending.fetch(:limits).frozen?
+      fixture.tmux("wait-for", "-S", "pipeline-held")
+      earlier = first.value
+      assert_includes earlier.blocks.map(&:body).join, "pipeline-first\n"
+      refute_includes earlier.blocks.map(&:body).join, "pipeline-second\n"
+      refute_includes earlier.blocks.map(&:body).join, "never\n"
+      assert earlier.blocks.any? { |block| block.terminator == :error }
+      assert_equal "pipeline-second\n", second.value.blocks.map(&:body).join
+      assert_equal [0, 0, 0, 0], control.diagnostics.values_at(:admitted_requests,
+        :incomplete_requests, :reserved_wire_bytes, :retained_reply_bytes)
+      assert_empty control.instance_variable_get(:@requests)
+    ensure
+      fixture.tmux("wait-for", "-S", "pipeline-held") if first&.alive?
+      [first, second].compact.each { |thread| thread.join(0.5) }
+      input&.singleton_class&.remove_method(:write_nonblock)
+      [reader, writer].compact.each(&:close)
+    end
+  end
+
   def test_slow_subscriber_overflows_without_blocking_replies
     with_control do |fixture, _, control|
       events = control.subscribe(max_events: 1, max_bytes: 1024)
@@ -187,42 +238,48 @@ class ControlIntegrationTest < Minitest::Test
 
   def test_dispatched_cancellation_closes_connection_and_preserves_server
     with_control do |fixture, _, control|
+      entered, release = Queue.new, Queue.new
+      control.singleton_class.prepend(Module.new do
+        define_method(:receive) do |record|
+          if record.is_a?(LibTmux::GuardedBlock) && record.body == "cancelled-prefix\n"
+            entered << true
+            release.pop
+          end
+          super(record)
+        end
+      end)
       token = LibTmux::Internal::Cancellation.new
       thread = Thread.new do
-        control.exchange("wait-for -S cancellation-started ; wait-for blocked", timeout: 0.5, cancel: token)
+        control.exchange("display-message -p cancelled-prefix ; wait-for -S cancellation-started ; wait-for blocked", timeout: 0.5, cancel: token)
       rescue LibTmux::Cancelled => error
         error
       end
       fixture.tmux("wait-for", "cancellation-started")
+      entered.pop
       token.cancel
       error = thread.value
+      release << true
       assert_instance_of LibTmux::Cancelled, error
       assert_equal :possibly_sent, error.delivery
       control.close
+      retired = control.diagnostics
+      assert retired.fetch(:stopping)
+      assert retired.fetch(:finished)
+      assert_equal [0, 0, 0, 0, 0, 0, 0], retired.values_at(:admitted_requests,
+        :incomplete_requests, :queued_requests, :writing_requests, :awaiting_reply,
+        :reserved_wire_bytes, :retained_reply_bytes)
+      assert_equal 0, retired.fetch(:cleanup_error_count)
       assert fixture.tmux("has-session", "-t", "fixture").last.success?
     ensure
+      release << true
       token&.close
       thread&.join(0.5)
     end
   end
 
   def test_outside_wait_output_is_an_event_and_corruption_fails_closed
-    with_control do |_, _, control|
-      reply = control.exchange(%q{run-shell 'printf "outside-reply\n"; exit 17'}, timeout: 0.5)
-      refute_includes reply.blocks.map(&:body).join, "outside-reply"
-      assert reply.blocks.any?(&:guard_success?)
-      observed = []
-      loop do
-        event = control.events.next(timeout: 0.5)
-        observed << event.raw
-        break if event.raw.include?("returned 17")
-      end
-      assert_includes observed.join, "outside-reply"
-      error = assert_raises(LibTmux::ProtocolError) do
-        control.exchange(%q{run-shell 'printf "%%end 1 1 1\n"'}, timeout: 0.5)
-      end
-      assert_equal :possibly_sent, error.delivery
-      assert_raises(LibTmux::ClosedError) { control.exchange("display-message -p later") }
+    with_control do |fixture, _, control|
+      assert_run_shell_routing(control, fixture.tmux("-V").first)
     end
   end
 
@@ -405,9 +462,16 @@ class ControlIntegrationTest < Minitest::Test
       end)
       thread = Thread.new { control.exchange("display-message -p completed", timeout: 0.5) }
       cleanup_entered.pop
+      assert_respond_to control, :diagnostics
+      retained = control.diagnostics
+      assert_equal [1, 0, 0], retained.values_at(:admitted_requests, :incomplete_requests, :awaiting_reply)
+      assert_operator retained.fetch(:retained_reply_bytes), :>=, "completed\n".bytesize
       assert_raises(LibTmux::CapacityError) { control.exchange("display-message -p excess", timeout: 0.5) }
       cleanup_release << true
-      assert_equal "completed\n", thread.value.blocks.last.body
+      reply = thread.value
+      assert_equal "completed\n", reply.blocks.last.body
+      assert_equal reply.blocks.sum(&:bytesize), retained.fetch(:retained_reply_bytes)
+      assert_equal [0, 0], control.diagnostics.values_at(:reserved_wire_bytes, :retained_reply_bytes)
       assert_equal "next\n", control.exchange("display-message -p next", timeout: 0.5).blocks.last.body
     ensure
       cleanup_release << true

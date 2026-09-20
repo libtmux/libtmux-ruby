@@ -1,5 +1,6 @@
 module LibTmux
   class FilterExpr
+    private def self.new: (*untyped, **untyped) -> instance
     PROFILE: String
     VERSION: Integer
     attr_reader entity: Symbol

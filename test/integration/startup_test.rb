@@ -101,12 +101,17 @@ class StartupTest < Minitest::Test
   end
 
   def test_early_daemon_exit_is_reported_and_reaped
-    error = assert_raises(LibTmux::TransportError) { LibTmux::Server.start(executable: "/bin/false") }
-    assert_equal :startup, error.phase
-    assert_equal :possibly_sent, error.delivery
-    assert_operator error.pid, :>, 0
-    assert_raises(Errno::ECHILD) { Process.waitpid(error.pid, Process::WNOHANG) }
-    assert_empty error.cleanup_errors
+    Dir.mktmpdir("libtmux-ruby-early-exit-") do |directory|
+      executable = File.join(directory, "exit")
+      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nexit 1\n")
+      File.chmod(0o700, executable)
+      error = assert_raises(LibTmux::TransportError) { LibTmux::Server.start(executable: executable) }
+      assert_equal :startup, error.phase
+      assert_equal :possibly_sent, error.delivery
+      assert_operator error.pid, :>, 0
+      assert_raises(Errno::ECHILD) { Process.waitpid(error.pid, Process::WNOHANG) }
+      assert_empty error.cleanup_errors
+    end
   end
 
   def test_no_block_constructor_interrupt_retires_daemon_during_ownership_transfer

@@ -19,6 +19,8 @@ class MatrixTest < Minitest::Test
     assert_equal "PARTIAL", report.fetch("status")
     assert report.fetch("cells").all? { |cell| cell.fetch("status") == "UNVERIFIED" }
     assert_equal %w[3.2a 3.3a 3.4 3.5a 3.6 3.7c], report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
+    assert_equal ["structured_unsupported_not_sent"], report.fetch("cells").select { |cell| cell.fetch("tmux") == "3.2a" }.map { |cell| cell["process_bound_mcp"] }.uniq
+    assert_equal ["positive_native_identity"], report.fetch("cells").reject { |cell| cell.fetch("tmux") == "3.2a" }.map { |cell| cell["process_bound_mcp"] }.uniq
     output, _, status = Open3.capture3(Gem.ruby, path, "--require-all")
     refute status.success?
     assert_equal "PARTIAL", JSON.parse(output).fetch("status")
@@ -50,6 +52,18 @@ class MatrixTest < Minitest::Test
       end
       assert_equal 0, result
       assert_equal "PASS", JSON.parse(output).fetch("status")
+
+      evidence = report.fetch("cells").first
+      expected_contract = evidence["process_bound_mcp"]
+      evidence["process_bound_mcp"] = "positive_native_identity"
+      File.delete(File.join(directory, "result/matrix.json"))
+      File.write(File.join(directory, "matrix.json"), JSON.generate(report))
+      output, = capture_io do
+        result = CompatibilityMatrix.run(["--merge", directory, "--output", File.join(directory, "result")])
+      end
+      assert_equal 1, result
+      assert_equal "INVALID_EVIDENCE", JSON.parse(output).fetch("cells").first.fetch("status")
+      evidence["process_bound_mcp"] = expected_contract
 
       report.fetch("cells").first.fetch("suites").first["skips"] = 1
       File.delete(File.join(directory, "result/matrix.json"))

@@ -1,4 +1,12 @@
 module LibTmux
+  class Cancellation
+    def initialize: () -> void
+    attr_reader reader: IO
+    def cancel: () -> void
+    def cancelled?: () -> bool
+    def close: () -> void
+  end
+
   VERSION: String
 
   class Error < StandardError
@@ -73,6 +81,7 @@ module LibTmux
   end
 
   class EntityRef
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader binding_key: String
     attr_reader kind: :session | :window | :pane | :window_link
     attr_reader id: String
@@ -85,6 +94,7 @@ module LibTmux
   end
 
   class CreationReceipt
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader entity: Session | Window
     attr_reader window: Window
     attr_reader pane: Pane
@@ -93,6 +103,7 @@ module LibTmux
   end
 
   class Entity
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader server: Server
     attr_reader ref: EntityRef
     def id: () -> String
@@ -105,6 +116,7 @@ module LibTmux
   end
 
   class Session < Entity
+    def snapshot: (**untyped) -> SessionSnapshot
     def kill: (?expected_windows: Array[EntityRef]?, ?expected_panes: Array[EntityRef]?, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def new_window: (name: String, command: Array[String], receipt: true, ?index: Integer?, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> CreationReceipt
                   | (name: String, command: Array[String], ?receipt: false, ?index: Integer?, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Window
@@ -113,12 +125,14 @@ module LibTmux
   end
 
   class Window < Entity
+    def snapshot: (**untyped) -> WindowSnapshot
     def list_panes: (?timeout: Numeric, ?cancel: untyped) -> Array[Pane]
     def split: (direction: :horizontal | :vertical, command: Array[String], ?size: Integer | String | nil, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Pane
     def select_layout: (String | Symbol, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
   end
 
   class Pane < Entity
+    def snapshot: (**untyped) -> PaneSnapshot
     def split: (direction: :horizontal | :vertical, command: Array[String], ?size: Integer | String | nil, ?cwd: String?, ?environment: Hash[String, String], ?focus: bool, ?timeout: Numeric, ?cancel: untyped) -> Pane
     def capture: (?start: Integer | String | nil, ?finish: Integer | String | nil, ?join: bool, ?escapes: bool, ?escape_bytes: bool, ?preserve_trailing: bool, ?trim_trailing: bool, ?alternate: bool, ?mode_screen: bool, ?pending: bool, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def send_text: (String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
@@ -132,6 +146,7 @@ module LibTmux
     def initialize: (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> void
     def run: (Array[String], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def close: () -> nil
+    def diagnostics: () -> {admitted_requests: Integer, reserved_process_slots: Integer, control_connections: Integer, closed: bool, limits: {max_requests: Integer, max_controls: Integer, close_timeout: Numeric}}
     def kill: (?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def new_session: (name: String, command: Array[String], receipt: true, ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> CreationReceipt
                    | (name: String, command: Array[String], ?receipt: false, ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> Session

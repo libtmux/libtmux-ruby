@@ -15,7 +15,7 @@ class CaptureSemanticsTest < Minitest::Test
       result = super
       return result unless argv.first == "list-commands" && argv.last == "capture-pane"
 
-      name, usage = LibTmux::Internal::Metadata.decode(result.stdout, fields: 2).first
+      name, usage = LibTmux::Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).first
       usage = usage.delete("MT")
       LibTmux::CommandResult.new(stdout: "#{name.bytesize}:#{name}#{usage.bytesize}:#{usage}\n",
         stderr: result.stderr, status: result.status, elapsed_seconds: result.elapsed_seconds,
@@ -109,6 +109,53 @@ class CaptureSemanticsTest < Minitest::Test
         assert_raises(ArgumentError) { pane.capture(pending: true, alternate: true) }
         assert pane.capture.success?
         assert_equal 1, server.capture_calls
+      end
+    end
+  end
+
+  def test_copy_source_scroll_selection_exit_and_mouse_context_have_observable_effects
+    LibTmuxTest::TmuxFixture.open do |fixture|
+      listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "copy-source"))
+      channel = nil
+      begin
+        LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
+          session = server.new_session(name: "copy-source", command: screen_program(listener.path), width: 20, height: 8)
+          source = session.list_panes.first
+          target = session.new_window(name: "copy-target", command: ["/bin/cat"]).list_panes.first
+          server.run(["set-option", "-w", "-t", target.id, "mode-keys", "vi"])
+          assert IO.select([listener], nil, nil, 0.5), "copy source did not connect"
+          channel = listener.accept
+          render(channel, (0...24).map { |index| "line%02d\r\n" % index }.join)
+          target.copy_mode(source: source.ref, scroll_up: true)
+          assert_equal "0\n", source.display('#{pane_in_mode}').text
+          assert_operator target.display('#{scroll_position}').text.to_i, :>, 0
+          target.copy_command("history-top")
+          top = target.display('#{scroll_position}').text.to_i
+          target.copy_command("select-line")
+          target.copy_command("copy-selection")
+          assert_equal "line00\n", server.read_buffer(server.list_buffers.first.fetch(:name)).stdout
+
+          usage = server.run(["list-commands", "-F", '#{command_list_usage}', "copy-mode"]).text
+          if usage.scan(/\[-([A-Za-z]+)(?:\]|\s)/).flatten.join.include?("d")
+            target.copy_mode(page_down: true)
+            assert_operator target.display('#{scroll_position}').text.to_i, :<, top
+          else
+            failure = assert_raises(LibTmux::UnsupportedFeatureError) { target.copy_mode(page_down: true) }
+            assert_equal :not_sent, failure.delivery
+            assert_equal top, target.display('#{scroll_position}').text.to_i
+          end
+          target.copy_mode(cancel_mode: true)
+          target.copy_mode(source: source.ref, scroll_up: true, exit_on_bottom: true)
+          assert_operator target.display('#{scroll_position}').text.to_i, :>, 0
+          target.copy_command("page-down")
+          assert_equal "0\n", target.display('#{pane_in_mode}').text
+          # Native mouse mode without a mouse event is a successful no-op.
+          assert target.copy_mode(mouse_drag: true).success?
+          assert_equal "0\n", target.display('#{pane_in_mode}').text
+        end
+      ensure
+        channel&.close
+        listener.close
       end
     end
   end

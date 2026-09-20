@@ -24,6 +24,11 @@ module LibTmux
         @scope.close
       end
 
+      # Scope counters remain readable after this facade closes its scope.
+      def diagnostics
+        @scope.diagnostics
+      end
+
       def open_control(session:, **options)
         session_id = target(session, :session)
         control = @scope.__send__(:open_control, binding: @pin, session_id: session_id, **options)

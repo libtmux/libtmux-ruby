@@ -13,6 +13,6 @@ Example.run("failed_group") do |server|
   Example.check(!group.success?, "failing group succeeded")
   Example.check(group.steps.all? { |step| step.fetch(:outcome) == :unknown }, "invented per-step status")
   Example.check(server.options(scope: :session).get("@before").raw == "retained", "earlier effect rolled back")
-  Example.raises(LibTmux::CommandError) { server.options(scope: :session).get("@after") }
+  Example.check(server.options(scope: :session).list.none? { |option| option.name == "@after" }, "later step executed")
   # docs:end main
 end

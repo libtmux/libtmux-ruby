@@ -15,7 +15,7 @@ module LibTmux
         "default-terminal" => :unsupported}.freeze
       WINDOW_OPTIONS = {"automatic-rename" => :boolean, "allow-rename" => :boolean,
         "remain-on-exit" => :boolean, "synchronize-panes" => :boolean,
-        "aggressive-resize" => :boolean, "pane-base-index" => :index,
+        "aggressive-resize" => :boolean, "pane-base-index" => :pane_index,
         "main-pane-width" => :index, "main-pane-height" => :index,
         "window-status-format" => :text, "window-status-current-format" => :text,
         "pane-border-status" => %w[off top bottom]}.freeze
@@ -234,8 +234,8 @@ module LibTmux
         value
       end
 
-      def index(value, path)
-        fail_at(path, "integer index from zero through 2147483647") unless value.is_a?(Integer) && value.between?(0, (1 << 31) - 1)
+      def index(value, path, maximum = (1 << 31) - 1)
+        fail_at(path, "integer index from zero through #{maximum}") unless value.is_a?(Integer) && value.between?(0, maximum)
         value
       end
 
@@ -247,6 +247,7 @@ module LibTmux
           converted = case type
           when :boolean then boolean(item, "#{path}.#{key}")
           when :index then index(item, "#{path}.#{key}")
+          when :pane_index then index(item, "#{path}.#{key}", 65535)
           when :text then text(item, "#{path}.#{key}")
           else
             fail_at("#{path}.#{key}", "declared option choice") unless type.include?(item)

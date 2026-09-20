@@ -1,5 +1,6 @@
 module LibTmux
   class CapturedRecord
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader capture_id: String
     def ref: () -> EntityRef
     def raw: (Symbol) -> String?
@@ -10,6 +11,7 @@ module LibTmux
   end
 
   class Snapshot
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader capture_id: String
     attr_reader binding_key: String
     attr_reader started_at: Float

@@ -61,7 +61,7 @@ class ControlTest < Minitest::Test
     control.instance_variable_set(:@wake_writer, wake_writer)
     request = control.send(:admit, "refresh-client -A '%0:pause'", nil, flow: ["%0", :pause])
     request.offset = request.wire.bytesize
-    control.instance_variable_set(:@active, request)
+    control.instance_variable_get(:@replies) << request
     parser = LibTmux::Internal::ControlParser.new
     parser.feed("%pause %0\n") { |record| control.send(:receive, record) }
     reply = LibTmux::GuardedReply.new(request_id: request.id, blocks: [], generation: control.generation)
@@ -104,7 +104,19 @@ class ControlTest < Minitest::Test
     tail = LibTmux::ControlSubscription.new(max_bytes: 100, max_events: 1, mode: :tail)
     events = (1..3).map { |seq| LibTmux::ControlEvent.new(kind: :notice, raw: "x".b, sequence: seq, generation: "g") }
     events.each { |event| reliable.send(:publish, event); tail.send(:publish, event) }
+    assert_respond_to reliable, :diagnostics
+    prefix = reliable.diagnostics
+    assert_equal({queued_events: 1, retained_event_bytes: 1, gap_pending: false,
+      overflowed: true, closed: true, mode: :reliable,
+      limits: {max_bytes: 100, max_events: 1}}, prefix)
+    assert prefix.frozen?
+    assert prefix.fetch(:limits).frozen?
+    assert_equal 1, tail.diagnostics.fetch(:queued_events)
+    assert tail.diagnostics.fetch(:gap_pending)
+    refute tail.diagnostics.fetch(:overflowed)
     assert_same events.first, reliable.next(timeout: 0)
+    assert_equal 0, reliable.diagnostics.fetch(:retained_event_bytes)
+    assert_equal 1, prefix.fetch(:retained_event_bytes), "diagnostics must be an immutable snapshot"
     error = assert_raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 0) }
     assert_equal 2, error.sequence
     gap = tail.next(timeout: 0)
@@ -113,6 +125,9 @@ class ControlTest < Minitest::Test
     assert_equal 2, gap.dropped_bytes
     assert_same events.last, tail.next(timeout: 0)
     tail.close
+    assert_equal 0, tail.diagnostics.fetch(:queued_events)
+    assert_equal 0, tail.diagnostics.fetch(:retained_event_bytes)
+    refute tail.diagnostics.fetch(:gap_pending)
     assert_raises(StopIteration) { tail.next(timeout: 0) }
   end
 end

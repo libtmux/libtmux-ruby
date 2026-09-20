@@ -155,6 +155,18 @@ module LibTmux
       @mutex.synchronize { @closed }
     end
 
+    # Returns frozen local buffer state. A reliable overflow keeps its prefix
+    # readable; explicit close discards the prefix and pending loss report.
+    def diagnostics
+      ensure_owner
+      @mutex.synchronize do
+        {queued_events: @queue.length, retained_event_bytes: @bytes,
+          gap_pending: !@gap.nil?, overflowed: @failure.is_a?(SubscriptionOverflow),
+          closed: @closed, mode: @mode,
+          limits: {max_bytes: @max_bytes, max_events: @max_events}.freeze}.freeze
+      end
+    end
+
     def inspect
       "#<#{self.class} mode=#{@mode} #{@closed ? 'closed' : 'open'}>"
     end
@@ -459,6 +471,7 @@ module LibTmux
                   [request.reader, request.writer].each { |io| io.close unless io.closed? }
                   @request_pipes.delete(request.id)
                   @queued_bytes -= request.wire.bytesize
+                  @retained_reply_bytes -= request.bytes
                 end
               end
             end
@@ -533,6 +546,22 @@ module LibTmux
       @mutex.synchronize { !!(@finished && @cleanup_errors.empty?) }
     end
 
+    # Returns frozen local accounting, without payloads or native liveness I/O.
+    # Admission and byte reservations include completed replies until consumed.
+    # Subscription count includes closed streams retained by this connection.
+    def diagnostics
+      ensure_owner
+      @mutex.synchronize do
+        {admitted_requests: @request_pipes.length, incomplete_requests: @requests.length,
+          queued_requests: @queue.length, writing_requests: @writing ? 1 : 0,
+          awaiting_reply: @replies.length, reserved_wire_bytes: @queued_bytes,
+          retained_reply_bytes: @retained_reply_bytes, stderr_received_bytes: @stderr_bytes,
+          subscription_count: @subscriptions.length, stopping: !!@stopping,
+          finished: !!@finished, cleanup_error_count: @cleanup_errors.length,
+          limits: @diagnostic_limits}.freeze
+      end
+    end
+
     def inspect
       "#<#{self.class} pid=#{@pid} generation=#{@generation} #{@stopping || @finished ? 'closed' : 'open'}>"
     end
@@ -561,7 +590,8 @@ module LibTmux
       @binding_key, @session_id = binding_key, session_id.dup.freeze
       @mutex = Mutex.new
       @queue, @requests, @request_pipes, @subscriptions, @resources = [], {}, {}, [], []
-      @next_id, @queued_bytes, @sequence = 0, 0, 0
+      @replies = []
+      @next_id, @queued_bytes, @sequence, @retained_reply_bytes = 0, 0, 0, 0
       if @previous_generation
         @sequence += 1
         @reconnect_gap = ControlEvent.new(kind: :gap, raw: "".b, sequence: @sequence,
@@ -569,6 +599,10 @@ module LibTmux
       end
       @max_requests, @max_command, @max_queue = max_requests, max_command_bytes, max_queue_bytes
       @max_reply, @max_stderr, @max_subscriptions = max_reply_bytes, max_stderr_bytes, max_subscriptions
+      @diagnostic_limits = {max_requests: max_requests, max_command_bytes: max_command_bytes,
+        max_queue_bytes: max_queue_bytes, max_line_bytes: max_line_bytes,
+        max_reply_bytes: max_reply_bytes, max_stderr_bytes: max_stderr_bytes,
+        max_subscriptions: max_subscriptions}.freeze
       @parser = Internal::ControlParser.new(max_line_bytes: max_line_bytes, max_frame_bytes: max_reply_bytes)
       @stderr_bytes, @cleanup_errors = 0, [].freeze
       @events = subscribe
@@ -617,7 +651,8 @@ module LibTmux
         delivery = request.offset.zero? ? :not_sent : :possibly_sent
         if request.offset.zero?
           @queue.delete(request)
-          @active = nil if @active.equal?(request)
+          @replies.delete(request)
+          @writing = nil if @writing.equal?(request)
         else
           # Do not reuse an undrained boundary after cancellation.
           @stopping = true
@@ -675,11 +710,8 @@ module LibTmux
       failure, exit_deadline = nil, nil
       streams = [@output, @error_output]
       loop do
-        writing, stopping = @mutex.synchronize do
-          @active ||= @queue.shift
-          [@active && @active.offset < @active.wire.bytesize, @stopping]
-        end
-        break if stopping
+        writing = pending_write
+        break if @mutex.synchronize { @stopping }
         raise TransportError.new("control client exited while a pipe remained open", phase: :read) if exit_deadline && clock >= exit_deadline
 
         ready = IO.select(streams + [@wake_reader, @exit_reader], writing ? [@input] : nil,
@@ -706,14 +738,13 @@ module LibTmux
             if io == @output
               @parser.feed(data) { |record| receive(record) }
             else
-              @stderr_bytes += data.bytesize
-              raise CapacityError.new("control stderr exceeds its byte limit", phase: :read) if @stderr_bytes > @max_stderr
+              receive_stderr(data.bytesize)
             end
           end
         end
         unless ready[1].empty?
           @mutex.synchronize do
-            request = @active
+            request = @writing
             if request && !@stopping
               sent = @input.write_nonblock(request.wire.byteslice(request.offset, 16_384), exception: false)
               request.offset += sent if sent.is_a?(Integer)
@@ -734,6 +765,8 @@ module LibTmux
             complete(request, error: error)
           end
           @queue.clear
+          @replies.clear
+          @writing = nil
           @subscriptions.each { |subscription| subscription.send(:finish, failure) }
         end
         cleanup
@@ -741,9 +774,22 @@ module LibTmux
       end
     end
 
+    def pending_write
+      @mutex.synchronize do
+        return nil if @stopping
+
+        @writing = nil if @writing && @writing.offset == @writing.wire.bytesize
+        unless @writing
+          @writing = @queue.shift
+          @replies << @writing if @writing
+        end
+        @writing
+      end
+    end
+
     def receive(record)
       @mutex.synchronize do
-        request = @active
+        request = @replies.first
         if record.is_a?(GuardedBlock) && request
           if marker?(record, request.start_marker)
             raise ProtocolError.new("duplicate control start boundary", phase: :read) if request.started
@@ -755,13 +801,17 @@ module LibTmux
 
             reply = GuardedReply.new(request_id: request.id, blocks: request.blocks, generation: @generation)
             complete(request, result: reply)
-            @active = nil
+            @replies.shift
             return
           elsif request.started
-            request.bytes += record.bytesize
-            raise CapacityError.new("control reply exceeds its byte limit", phase: :read) if request.bytes > @max_reply
+            if request.bytes + record.bytesize > @max_reply
+              raise CapacityError.new("control reply exceeds its byte limit", phase: :read)
+            end
 
             request.blocks << record
+            request.bytes += record.bytesize
+            # Cancellation can release admission while this read chunk drains.
+            @retained_reply_bytes += record.bytesize if @request_pipes.key?(request.id)
             return
           end
         end
@@ -771,6 +821,15 @@ module LibTmux
         end
         publish_event(record)
         @stopping = true if record.is_a?(ControlEvent) && (record.raw == "%exit\n".b || record.raw.start_with?("%exit "))
+      end
+    end
+
+    def receive_stderr(bytes)
+      @mutex.synchronize do
+        @stderr_bytes += bytes
+        if @stderr_bytes > @max_stderr
+          raise CapacityError.new("control stderr exceeds its byte limit", phase: :read, pid: @pid)
+        end
       end
     end
 
@@ -804,9 +863,6 @@ module LibTmux
       attempt.call("control input close") { @input.close if @input && !@input.closed? }
       if @pid
         attempt.call("control client termination") { signal("TERM") }
-        attempt.call("control exit observer join") do
-          @child.wait_observed([deadline - clock, 0.05].min.clamp(0, 0.05))
-        end
         attempt.call("control client forced termination") { signal("KILL") } unless @child.observed?
         @child.finish_signalling
         attempt.call("control exit observer join") do

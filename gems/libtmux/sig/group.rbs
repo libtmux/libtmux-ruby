@@ -1,5 +1,6 @@
 module LibTmux
   class GroupResult
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader result: CommandResult
     attr_reader steps: Array[Hash[Symbol, Integer | Symbol]]
     def success?: () -> bool

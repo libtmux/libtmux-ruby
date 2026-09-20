@@ -40,54 +40,56 @@ module LibTmux
     end
   end
 
-  module Internal
-    class Cancellation
-      attr_reader :reader
+  class Cancellation
+    attr_reader :reader
 
-      def initialize
-        @reader, @writer = IO.pipe
-        @mutex = Mutex.new
-        @cancelled = false
-        @creator_pid = Process.pid
-      end
+    def initialize
+      @reader, @writer = IO.pipe
+      @mutex = Mutex.new
+      @cancelled = false
+      @creator_pid = Process.pid
+    end
 
-      def cancel
-        ensure_owner
-        @mutex.synchronize do
-          return if @cancelled
+    def cancel
+      ensure_owner
+      @mutex.synchronize do
+        return if @cancelled
 
-          @cancelled = true
-          @writer.write_nonblock("x", exception: false)
-        end
-      end
-
-      def cancelled?
-        ensure_owner
-        @mutex.synchronize { @cancelled }
-      end
-
-      def close
-        return detach unless @creator_pid == Process.pid
-
-        cancel
-        @mutex.synchronize do
-          [@reader, @writer].each { |io| io.close unless io.closed? }
-        end
-      end
-
-      def detach
-        raise ArgumentError, "only a forked child may detach this token" if @creator_pid == Process.pid
-
-        [@reader, @writer].each { |io| io.close unless io.closed? }
-        nil
-      end
-
-      private
-
-      def ensure_owner
-        raise ClosedError.new("cancellation token belongs to another process", phase: :admission) unless @creator_pid == Process.pid
+        @cancelled = true
+        @writer.write_nonblock("x", exception: false)
       end
     end
+
+    def cancelled?
+      ensure_owner
+      @mutex.synchronize { @cancelled }
+    end
+
+    def close
+      return detach unless @creator_pid == Process.pid
+
+      cancel
+      @mutex.synchronize do
+        [@reader, @writer].each { |io| io.close unless io.closed? }
+      end
+    end
+
+    private
+
+    def detach
+      raise ArgumentError, "only a forked child may detach this token" if @creator_pid == Process.pid
+
+      [@reader, @writer].each { |io| io.close unless io.closed? }
+      nil
+    end
+
+    def ensure_owner
+      raise ClosedError.new("cancellation token belongs to another process", phase: :admission) unless @creator_pid == Process.pid
+    end
+  end
+
+  module Internal
+    Cancellation = LibTmux::Cancellation
 
     class ProcessExecutor
       def initialize(stdout_limit: 1 << 20, stderr_limit: 1 << 18, input_limit: 1 << 20, argv_limit: 1 << 18, cleanup_timeout: 0.5, drain_timeout: 0.5)
@@ -293,7 +295,7 @@ module LibTmux
           end
           unless @child.observed? || @child.observation_error.is_a?(Errno::ECHILD)
             signal("TERM", errors)
-            @child.wait_observed(@cleanup_timeout / 2)
+            # Reserve the cleanup budget for reaping; timer grace can overrun it.
             signal("KILL", errors) unless @child.observed?
           end
           @child.finish_signalling

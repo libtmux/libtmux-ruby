@@ -7,6 +7,27 @@ require "socket"
 require "shellwords"
 
 class WorkspaceApplyTest < Minitest::Test
+  def test_history_limit_precedes_new_panes_and_preserves_native_initial_grid
+    LibTmuxTest::TmuxFixture.open do |fixture|
+      LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
+        inherited = server.options(scope: :session).get("history-limit").as(:integer)
+        source = {"session_name" => "history", "options" => {"history-limit" => 123}, "windows" => [
+          {"window_name" => "first", "panes" => [{}, {}]},
+          {"window_name" => "second", "panes" => [{}]}
+        ]}
+        result = workspace(source, File.dirname(fixture.socket_path)).plan.apply(server: server)
+        assert result.success?
+        limits = %w[pane:0:0 pane:0:1 pane:1:0].map do |key|
+          server.pane(result.created_refs.fetch(key)).display('#{history_limit}').text.to_i
+        end
+        assert_equal [123, 123], limits.drop(1)
+        release = Gem::Version.new(server.snapshot.server_info.fetch(:version)[/\d+\.\d+/])
+        assert_equal release >= Gem::Version.new("3.7") ? 123 : inherited, limits.first
+        assert_equal inherited, server.options(scope: :session).get("history-limit").as(:integer)
+      end
+    end
+  end
+
   def test_apply_reuses_initial_entities_and_reports_dispatch_without_shell_completion
     LibTmuxTest::TmuxFixture.open do |fixture|
       directory = File.dirname(fixture.socket_path)
@@ -32,7 +53,7 @@ class WorkspaceApplyTest < Minitest::Test
           assert IO.select([listener], nil, nil, 0.5), "authored shell command did not send its receipt"
           client = listener.accept
           begin
-            assert_equal [directory, "pane"], Marshal.load(client.read)
+            assert_equal [File.realpath(directory), "pane"], Marshal.load(client.read)
           ensure
             client.close
           end

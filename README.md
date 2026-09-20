@@ -66,13 +66,21 @@ null decoding. Package notes cover [core](gems/libtmux/README.md),
 [Async](gems/libtmux-async/README.md), [MCP](gems/libtmux-mcp/README.md),
 and [workspace](gems/libtmux-workspace/README.md).
 
-Development uses the Ruby in [.tool-versions](.tool-versions). Focused tests
-currently establish a Linux development cell; Ruby 3.3/3.4/4.0, tmux
-3.2a through 3.7c and macOS remain candidate matrix targets. Owned daemon
-startup currently requires Linux. Workspace `--switch` refuses before
-mutation because an incarnation-safe interactive-client target is not
-available. A complete method-by-method behavioral API reference, the full
-matrix, benchmarks and release automation remain open.
+Development uses the Ruby in [.tool-versions](.tool-versions).
+[Compatibility CI](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
+requires Ruby 3.3.12, 3.4.10 and 4.0.7 on Linux and macOS, each with tmux
+3.2a, 3.3a, 3.4, 3.5a, 3.6 and 3.7c. Consult the results for the revision
+being used; a passing subset does not establish the full matrix. Tracked MCP
+captures, waits and authored runs require tmux 3.3+ and native process identity.
+Workspace `--switch CLIENT` accepts
+an explicit current native client selector after creation; it does not claim
+a historical client incarnation. The
+[public method inventory](docs/reference/api.md) links exported methods to
+source, declared returns and behavioral contracts. Installed
+signature consumers exercise selected real calls; they do not establish
+whole-program static typing. [Benchmarks](docs/benchmark.md) record workload
+equivalence, measured costs and resource cleanup with explicit measurement
+limits. Packages are unreleased and release automation is not provided.
 
 See [Contributing](.github/CONTRIBUTING.md) for setup and checks. This project
 uses the [MIT license](LICENSE).

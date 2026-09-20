@@ -17,6 +17,11 @@
       "gem": "libtmux"
     },
     {
+      "id": "cancel",
+      "path": "examples/cancel.rb",
+      "gem": "libtmux"
+    },
+    {
       "id": "async_cancel",
       "path": "examples/async_cancel.rb",
       "gem": "libtmux-async"
@@ -48,10 +53,13 @@
   ],
   "documents": [
     "README.md",
+    "docs/benchmark.md",
     "docs/index.md",
     "docs/modes.md",
     "docs/ownership-errors.md",
     "docs/recipes.md",
+    "docs/reference/api.md",
+    "docs/reference/behavior.md",
     "docs/reference/fields.md",
     "gems/libtmux-async/README.md",
     "gems/libtmux-mcp/README.md",
@@ -74,6 +82,12 @@
     {
       "id": "window_links/main",
       "source": "examples/window_links.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "cancel/main",
+      "source": "examples/cancel.rb",
       "region": "main",
       "language": "ruby"
     },

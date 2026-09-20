@@ -82,7 +82,7 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_cancellation_before_dispatch_never_spawns
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     cancellation.cancel
     error = assert_raises(LibTmux::Cancelled) { executor.run(["must-not-spawn"], cancel: cancellation) }
 
@@ -94,7 +94,7 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_cancellation_escalates_and_reaps_a_child_ignoring_term
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     with_child_readiness do |ready, environment|
       worker = task do
         executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
@@ -206,29 +206,40 @@ class ProcessExecutorTest < Minitest::Test
   def test_repeated_thread_cancellation_does_not_replace_the_first_failure
     original = RuntimeError.new("first cancellation")
     later = RuntimeError.new("cleanup cancellation")
+    release = Queue.new
+    observer = nil
     with_child_readiness do |ready, environment|
+      trace = TracePoint.new(:c_call) do |event|
+        next unless event.method_id == :wait2 && !observer
+
+        observer = Thread.current
+        ready.syswrite("reaping\n")
+        release.pop
+      end
+      trace.enable
       worker = task do
         executor(cleanup_timeout: 0.15).run(ruby(<<~RUBY), env: environment)
           input, output = IO.pipe
-          trap('TERM') do
-            File.write(ENV.fetch('READY'), "terminating\n")
-            input.read(1)
-          end
+          trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input.read(1)
         RUBY
       end
       pid = Integer(read_event(ready), 10)
       worker.raise(original)
-      assert_equal "terminating", read_event(ready)
+      assert_equal "reaping", read_event(ready)
       worker.raise(later)
+      release << true
       assert worker.join(0.5), "repeated cancellation stranded cleanup"
 
       assert_same original, worker.value
       assert_reaped(pid)
     ensure
+      trace&.disable
+      release << true
       worker&.kill
       worker&.join(0.5)
+      observer&.join(0.5)
     end
   end
 
@@ -315,7 +326,7 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_observed_exit_wins_cancellation_before_native_status_publication
-    cancel = LibTmux::Internal::Cancellation.new
+    cancel = LibTmux::Cancellation.new
     release = Queue.new
     handed_off = false
     observer = nil
@@ -348,7 +359,7 @@ class ProcessExecutorTest < Minitest::Test
 
   def test_incomplete_cleanup_retains_the_obligation_to_reap
     before = Thread.list
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     with_child_readiness do |ready, environment|
       worker = task do
         executor(cleanup_timeout: 0.000000001).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
@@ -380,10 +391,10 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_fork_child_detaches_cancellation_without_waking_parent
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     child = fork do
-      cancellation.detach
-      exit! 0
+      cancellation.close
+      exit!(cancellation.reader.closed? ? 0 : 18)
     rescue Exception
       exit! 17
     end
@@ -443,7 +454,7 @@ class ProcessExecutorTest < Minitest::Test
   def test_late_observer_failure_receives_reaping_ownership_after_final_signal
     release = Queue.new
     selected = nil
-    cancellation = LibTmux::Internal::Cancellation.new
+    cancellation = LibTmux::Cancellation.new
     trace = TracePoint.new(:call) do |event|
       if event.defined_class == LibTmux::Internal::ProcessWait && event.method_id == :observe && !selected
         selected = Thread.current

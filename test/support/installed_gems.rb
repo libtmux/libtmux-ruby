@@ -20,6 +20,23 @@ module LibTmuxTest
       end
     end
 
+    def run_installed_type_consumer(package, environment, directory)
+      # Runtime imports and recipes run before checker-only dependencies enter
+      # this gem home, so they cannot hide an undeclared runtime dependency.
+      _local, dependencies = dependency_closure(Gem::Specification.find_by_name("rbs"), {})
+      dependencies.each { |spec| copy_dependency(spec, environment.fetch("GEM_HOME")) }
+      consumer = File.join(directory, "type_consumer.rb")
+      FileUtils.cp(File.expand_path("../types/consumer.rb", __dir__), consumer) unless File.file?(consumer)
+      output, status = Open3.capture2e(environment.merge("LIBTMUX_EXAMPLE_INSTALLED" => "1"),
+        Gem.ruby, "-W:no-experimental", consumer, package, chdir: directory)
+      assert status.success?, "installed signature consumer #{package} failed: #{output}"
+      report = JSON.parse(output)
+      assert_equal package, report.fetch("package")
+      refute_empty report.fetch("exercised")
+      assert_equal false, report.fetch("whole_program_static_check")
+      puts "Signature consumer #{package}: #{report.fetch('exercised').join(', ')}"
+    end
+
     def dependency_closure(root, local_specs)
       ordered = []
       visited = {}

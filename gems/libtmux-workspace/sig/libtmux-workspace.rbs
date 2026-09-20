@@ -1,5 +1,6 @@
 module LibTmux
   class Workspace
+    private def self.new: (*untyped, **untyped) -> instance
     VERSION: String
     PROFILE: String
     CONFIG_VERSION: Integer
@@ -16,7 +17,12 @@ module LibTmux
     end
 
     class ApplyResult
+      private def self.new: (*untyped, **untyped) -> instance
       class Effect < Data
+        def self.new: (Integer?, Symbol, :observed | :dispatch_only) -> instance
+                    | (step_id: Integer?, action: Symbol, outcome: :observed | :dispatch_only) -> instance
+        alias self.[] self.new
+        def self.members: () -> Array[Symbol]
         attr_reader step_id: Integer?
         attr_reader action: Symbol
         attr_reader outcome: :observed | :dispatch_only
@@ -35,6 +41,8 @@ module LibTmux
     end
 
     class CLI
+      private def self.new: (*untyped, **untyped) -> instance
+      def run: () -> Integer
       def self.run: (Array[String], ?out: untyped, ?err: untyped, ?directory: String, ?environment: untyped) -> Integer
     end
 
@@ -46,6 +54,10 @@ module LibTmux
 
     class Plan
       class Step < Data
+        def self.new: (Integer, Symbol, String, Hash[String, untyped], Array[String], Symbol) -> instance
+                    | (id: Integer, operation: Symbol, target: String, arguments: Hash[String, untyped], produces: Array[String], effect: Symbol) -> instance
+        alias self.[] self.new
+        def self.members: () -> Array[Symbol]
         attr_reader id: Integer
         attr_reader operation: Symbol
         attr_reader target: String

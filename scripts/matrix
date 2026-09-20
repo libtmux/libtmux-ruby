@@ -14,7 +14,9 @@ module CompatibilityMatrix
 
   def self.cells
     SYSTEMS.product(RUBIES, TMUXES).map do |os, ruby, tmux|
-      {"id" => [os, ruby, tmux].join("/"), "os" => os, "ruby" => ruby, "tmux" => tmux, "status" => "UNVERIFIED"}
+      {"id" => [os, ruby, tmux].join("/"), "os" => os, "ruby" => ruby, "tmux" => tmux,
+       "process_bound_mcp" => tmux == "3.2a" ? "structured_unsupported_not_sent" : "positive_native_identity",
+       "status" => "UNVERIFIED"}
     end
   end
 
@@ -70,6 +72,7 @@ module CompatibilityMatrix
   def self.valid_pass?(item, cell)
     item["status"] == "PASS" && item["exit_status"] == 0 &&
       item.values_at("os", "ruby", "tmux") == cell.values_at("os", "ruby", "tmux") &&
+      item["process_bound_mcp"] == cell.fetch("process_bound_mcp") &&
       item["observed_ruby"] == cell.fetch("ruby") && item["observed_tmux"] == "tmux #{cell.fetch('tmux')}" &&
       %w[ruby_sha256 tmux_sha256].all? { |key| item[key].is_a?(String) && item[key].match?(/\A[a-f0-9]{64}\z/) } &&
       item["whole_monotonic_seconds"].is_a?(Numeric) && item["whole_monotonic_seconds"].finite? && item["whole_monotonic_seconds"].positive? &&

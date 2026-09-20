@@ -58,6 +58,9 @@ module LibTmux
         add(:set_session_option, "session", {"name" => "renumber-windows", "value" => false})
         add(:set_window_option, "window:0", {"name" => "synchronize-panes", "value" => false})
         add(:move_initial_window, "window:0", {"session" => "session", "index" => windows.first.fetch("window_index")})
+        @configuration.fetch("options").sort.each do |name, value|
+          add(:set_session_option, "session", {"name" => name, "value" => value}) unless name == "renumber-windows"
+        end
         windows.each_with_index do |window, position|
           unless position.zero?
             pane = window.fetch("panes").first
@@ -73,9 +76,6 @@ module LibTmux
                 "environment" => pane.fetch("environment"), "focus" => false},
               produces: ["pane:#{position}:#{pane_position}"], effect: :creation)
           end
-        end
-        @configuration.fetch("options").sort.each do |name, value|
-          add(:set_session_option, "session", {"name" => name, "value" => value}) unless name == "renumber-windows"
         end
         windows.each_with_index do |window, position|
           window.fetch("options").sort.each do |name, value|

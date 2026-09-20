@@ -83,6 +83,24 @@ module LibTmux
         !!@closed
       end
 
+      # Frozen counters and limits from this scope, without I/O or payloads.
+      # Process slots remain occupied until retirement; they are not a live PID count.
+      # Valid after close on the owning thread, process and scheduler.
+      def diagnostics
+        ensure_owner
+        {transport: :async_process, closed: !!@closed, admitted_requests: @requests.length,
+          reserved_process_slots: @requests.length,
+          waiting_requests: @waiting.length, active_process_slots: @active,
+          reserved_request_bytes: @queued_bytes, retained_output_bytes: @output_bytes,
+          control_connections: @controls.count { |control| !control.__send__(:retired?) }, maps: @maps.length,
+          limits: {concurrency: @concurrency, max_requests: @max_requests, max_controls: @max_controls,
+            max_queue_bytes: @max_queue, max_output_bytes: @max_output,
+            stdout_limit: @limits.fetch(:stdout), stderr_limit: @limits.fetch(:stderr),
+            input_limit: @limits.fetch(:input), argv_limit: @limits.fetch(:argv),
+            cleanup_timeout: @limits.fetch(:cleanup_timeout), drain_timeout: @limits.fetch(:drain_timeout),
+            close_timeout: @limits.fetch(:cleanup_timeout) * 2}.freeze}.freeze
+      end
+
       def map(values, concurrency: @concurrency, max_items: 1024, max_bytes: @max_output, result_bytes: nil)
         ensure_open
         unless concurrency.is_a?(Integer) && concurrency.positive? && concurrency <= @max_requests

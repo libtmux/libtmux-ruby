@@ -176,14 +176,29 @@ class ServerTest < Minitest::Test
           end
           assert fixture.tmux("wait-for", "ready-#{index}").last.success?
         end
+        assert_respond_to server, :diagnostics
+        active = server.diagnostics
+        assert_equal({admitted_requests: 2, reserved_process_slots: 2, control_connections: 0,
+          closed: false, limits: {max_requests: 2, max_controls: 4, close_timeout: Float::MIN}}, active)
+        assert active.frozen?
+        assert active.fetch(:limits).frozen?
         failure = assert_raises(LibTmux::CapacityError) { server.run(["list-sessions"]) }
         assert_equal :not_sent, failure.delivery
         failure = assert_raises(LibTmux::DeadlineExceeded) { server.close }
         assert_equal :retire, failure.phase
         requests.each { |request| assert request.join(0.5), "cancelled client did not retire" }
         server.close
+        assert server.diagnostics.fetch(:closed)
+        assert_equal 0, server.diagnostics.fetch(:admitted_requests)
+        assert_equal 0, server.diagnostics.fetch(:reserved_process_slots)
+        assert_equal 2, active.fetch(:admitted_requests)
         assert fixture.tmux("has-session", "-t", "fixture").last.success?
       ensure
+        begin
+          server.close
+        rescue LibTmux::DeadlineExceeded
+          nil
+        end
         requests.each { |request| request.join(0.5) }
         server.close
       end

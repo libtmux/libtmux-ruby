@@ -32,7 +32,7 @@ class MCPMutationTest < Minitest::Test
       refute File.exist?(result_file)
       assert invoke(sdk, "tmux_send", target: pane, input: {type: "keys", keys: ["Enter"]}).fetch("ok")
       scope.server.wait_for("mcp-received", timeout: 0.5)
-      assert_equal [text + "\n", File.dirname(fixture.socket_path), "env;literal", "argv;literal"], Marshal.load(File.binread(result_file))
+      assert_equal [text + "\n", File.realpath(File.dirname(fixture.socket_path)), "env;literal", "argv;literal"], Marshal.load(File.binread(result_file))
 
       split = invoke(sdk, "tmux_create", kind: "pane", parent: pane, direction: "vertical", size: "25%", argv: ["cat"])
       assert split.fetch("ok"), split.inspect

@@ -22,8 +22,15 @@ Gem::Specification.new do |spec|
     lib/libtmux/mcp/version.rb
     lib/libtmux/mcp/stdio_transport.rb
     lib/libtmux/mcp/catalog.rb
+    lib/libtmux/mcp/catalog_tool.rb
     lib/libtmux/mcp/application.rb
     lib/libtmux/mcp/mutations.rb
+    lib/libtmux/mcp/resources.rb
+    lib/libtmux/mcp/observation.rb
+    lib/libtmux/mcp/process_identity.rb
+    lib/libtmux/mcp/enrollment.rb
+    lib/libtmux/mcp/shell/integration.zsh
+    lib/libtmux/mcp/shell/prepare.rb
     lib/libtmux/mcp/cli.rb
     sig/libtmux-mcp.rbs
     sig/transport.rbs
@@ -31,5 +38,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency "libtmux", "= 0.1.0.pre"
   spec.add_dependency "libtmux-async", "= 0.1.0.pre"
   spec.add_dependency "mcp", "~> 1.5.1"
+  spec.add_dependency "digest", "~> 3.2.1"
   spec.add_dependency "optparse", ">= 0.4", "< 1"
 end

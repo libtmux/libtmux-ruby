@@ -106,6 +106,11 @@ class WorkspaceTest < Minitest::Test
     source["options"] = {"mouse" => true, "status" => false}
     source["windows"][0]["options"] = {"automatic-rename" => false, "remain-on-exit" => true}
     assert_equal 3, parse(source).to_h.fetch("windows").last.fetch("window_index")
+    source["window_options"] = {"pane-base-index" => 65535}
+    assert_equal 65535, parse(source).to_h.fetch("windows").first.fetch("options").fetch("pane-base-index")
+    source["window_options"]["pane-base-index"] = 65536
+    error = assert_raises(LibTmux::Workspace::ConfigError) { parse(source) }
+    assert_equal "$.window_options.pane-base-index", error.path
   end
 
   def test_expansion_and_inheritance_obey_normalized_memory_bounds

@@ -1,5 +1,6 @@
 module LibTmux
   class TerminalResult
+    private def self.new: (*untyped, **untyped) -> instance
     attr_reader status: Process::Status
     attr_reader pid: Integer
     attr_reader elapsed_seconds: Float
@@ -8,6 +9,7 @@ module LibTmux
     def inspect: () -> String
   end
   class Server
+    def switch_client: (client: String, session: EntityRef, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def attach: (session: EntityRef, terminal: IO, term: String, ?read_only: bool, ?timeout: Numeric?, ?cancel: untyped) -> TerminalResult
   end
 end

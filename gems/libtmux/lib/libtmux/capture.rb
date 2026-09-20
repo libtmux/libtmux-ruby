@@ -102,7 +102,7 @@ module LibTmux
       end
 
       def framing(formats)
-        formats.map { |format| "\#{n:#{format}}:\#{#{format}}" }.join
+        Metadata.format(formats)
       end
 
       def read(budget, source, attempt, argv, field_count)
@@ -114,7 +114,7 @@ module LibTmux
         capacity("capture exceeds its total byte limit") if budget.fetch(:bytes) > budget.fetch(:max_bytes)
         remaining_rows = budget.fetch(:max_rows) - budget.fetch(:rows)
         capacity("capture exceeds its total row limit") if remaining_rows <= 0 && !result.stdout.empty?
-        rows = Metadata.decode(result.stdout, fields: field_count, max_bytes: budget.fetch(:max_bytes),
+        rows = Metadata.decode(result.stdout, fields: field_count, quoted: true, max_bytes: budget.fetch(:max_bytes),
           max_rows: [remaining_rows, 1].max, max_field_bytes: budget.fetch(:max_field_bytes))
         budget[:rows] += rows.length
         budget.fetch(:reads) << {source: source, attempt: attempt, started_at: started_at,

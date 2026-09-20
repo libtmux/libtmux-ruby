@@ -4,6 +4,19 @@ module LibTmux
 
     def self.open: [T] (server: LibTmux::Server, ?parent: untyped, **untyped) { (Scope) -> T } -> T
 
+    type scope_diagnostics = {
+      transport: :async_process, closed: bool, admitted_requests: Integer,
+      reserved_process_slots: Integer,
+      waiting_requests: Integer, active_process_slots: Integer,
+      reserved_request_bytes: Integer, retained_output_bytes: Integer,
+      control_connections: Integer, maps: Integer,
+      limits: {concurrency: Integer, max_requests: Integer, max_controls: Integer,
+        max_queue_bytes: Integer, max_output_bytes: Integer,
+        stdout_limit: Integer, stderr_limit: Integer, input_limit: Integer,
+        argv_limit: Integer, cleanup_timeout: Numeric, drain_timeout: Numeric,
+        close_timeout: Numeric}
+    }
+
     class Scope
       def initialize: (parent: untyped, server: LibTmux::Server, ?concurrency: Integer, ?max_requests: Integer,
         ?max_controls: Integer, ?max_queue_bytes: Integer, ?max_output_bytes: Integer,
@@ -14,12 +27,14 @@ module LibTmux
         ?max_bytes: Integer, ?result_bytes: ^(Output) -> Integer) { (Input) -> Output } -> Array[Output]
       def close: () -> nil
       def closed?: () -> bool
+      def diagnostics: () -> scope_diagnostics
     end
 
     class Server < LibTmux::Server
       def initialize: (Scope, LibTmux::Server) -> void
       def run: (Array[String], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
       def close: () -> nil
+      def diagnostics: () -> scope_diagnostics
       def open_control: [T] (session: EntityRef, ?reconnect: LibTmux::ControlConnection?, **Integer) { (ControlConnection) -> T } -> T
                       | (session: EntityRef, ?reconnect: LibTmux::ControlConnection?, **Integer) -> ControlConnection
       def attach: (**untyped) -> bot

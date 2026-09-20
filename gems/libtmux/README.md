@@ -4,7 +4,9 @@ Ruby tmux orchestration core, under development. `Server.open` borrows an
 existing explicit endpoint. Closing it retires owned clients and preserves
 the daemon; `kill` explicitly terminates the daemon. `Server.start` creates a
 private owned foreground daemon whose lifetime ends with its server handle.
-Owned startup currently has Linux evidence; other platform cells remain open.
+Owned startup uses Linux and Darwin readiness backends. The
+[compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
+retains exact per-revision platform and version results.
 
 Require `libtmux` after installing the locally built gem. Imports do not
 start tmux, a scheduler or an MCP server. See the repository's contribution
@@ -20,7 +22,7 @@ link identity in the same tmux queue turn as their operation. Configured
 command aliases are avoided using unshadowed builtin spellings. Hook waits
 before dispatch cannot turn a stale link into its replacement. Concurrent
 rewriting of command aliases is outside this guarantee; applications must
-coordinate configuration changes. This has local Linux/tmux evidence only.
+coordinate configuration changes.
 
 Typed arguments preserve literal semicolons and distinguish pane text from
 key names. Pane commands take executable argument arrays. Hook commands,
@@ -40,7 +42,10 @@ cells or a percentage string. Windows and splits retain focus unless
 
 Typed operations accept `timeout:` and `cancel:`. Composed link and copy operations
 share one deadline across their preflights and final dispatch. Copy-mode
-exit uses `cancel_mode: true`; `cancel:` always means a cancellation token.
+exit uses `cancel_mode: true`; `cancel:` accepts `LibTmux::Cancellation.new`.
+Call the token's `cancel` from another thread to wake a blocked request, join
+its caller, then `close` the token. See the [plain-Ruby cancellation recipe](../../examples/cancel.rb)
+and [ownership contract](../../docs/ownership-errors.md).
 
 `Options` retains raw bytes, inheritance and sparse array indexes;
 `OptionValue#as` requests a strict conversion. Hook values remain tmux command
@@ -67,8 +72,11 @@ against advertised command usage; unsupported requests raise explicitly.
 Copy-mode flags are checked against the connected daemon's advertised command
 usage. Client discovery returns observations. `Server#attach` uses an explicit
 caller-owned TTY and terminal type, waits for its owned client to exit, and
-restores the terminal mode. Exact borrowed-client targeting and switching
-remain open work.
+restores the terminal mode. `Server#switch_client(client:, session:)` switches
+an explicit current native client selector to an exact bound session, keeping
+the session environment. A missing selector fails without fallback. This
+operation does not turn a client observation into an incarnation-safe
+reference; a reconnect matching the selector is eligible at dispatch.
 
 Control connections expose bounded event subscriptions and raw guarded replies.
 `pause_output(pane_id:)` and `resume_output(pane_id:)` return `GuardedReply`;
@@ -87,12 +95,15 @@ and retains `previous_generation`. Every new subscription begins with a
 subscriptions stay closed, and requests are never replayed. Event sequences
 describe one connection's observations, not durable pane history.
 
-The current typed command slice covers hierarchy creation/listing,
+Typed command coverage includes hierarchy creation/listing,
 rename/split/resize/swap/join/break/respawn/layout operations, link operations,
 options/hooks/environment, capture/send/paste/pipe/buffers, copy commands,
 display/source-file/wait-for. It does not establish complete flag parity or
-the proposed tmux/Ruby/platform matrix. RBS validation checks declarations,
-not implementation typing. [Executable recipes](../../docs/recipes.md) run
+every compatibility cell; consult the workflow results. RBS validation checks declarations;
+installed signature consumers check selected real arguments, blocks and
+return values. [Executable recipes](../../docs/recipes.md) run
 against installed artifacts; the documentation gate renders YARD and guides
-and checks local destinations and fragments. Complete behavioral reference
-coverage, the full compatibility matrix and release automation remain open.
+and checks local destinations and fragments. The [public method inventory](../../docs/reference/api.md)
+links exported methods to source and behavioral contracts. These consumer
+checks do not establish whole-program static typing. The gem is unreleased;
+builds and checks do not publish artifacts.

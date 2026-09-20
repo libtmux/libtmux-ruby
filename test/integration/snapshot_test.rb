@@ -40,7 +40,8 @@ class SnapshotIntegrationTest < Minitest::Test
   def test_embedded_newlines_and_invalid_utf8_are_preserved_in_metadata
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
-        directory = File.join(File.dirname(fixture.socket_path).b, "line\n: café\xFF".b)
+        directory = File.join(File.dirname(fixture.socket_path), "line\n: café")
+        payload = "line\n: café\\377\xFF\\001\x01".b
         Dir.mkdir(directory)
         ready = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "ready"))
         begin
@@ -55,11 +56,18 @@ class SnapshotIntegrationTest < Minitest::Test
           ensure
             peer.close
           end
+          # User options retain bytes that pane titles and some filesystems reject.
+          assert server.run(["set-option", "-p", "-t", "%1", "@binary", payload]).success?
+          format = LibTmux::Internal::Metadata.format(["@binary", "pane_current_path"])
+          result = server.run(["list-panes", "-t", "@1", "-F", format])
+          assert result.success?
+          canonical = File.realpath(directory).b
+          assert_equal [[payload, canonical]], LibTmux::Internal::Metadata.decode(result.stdout, fields: 2, quoted: true)
           capture = acquire(server)
           pane = capture.panes.select { |record| record.id == "%1" }.one
-          assert_equal directory, pane.raw(:current_path)
+          assert_equal canonical, pane.raw(:current_path)
           assert_equal 0, pane.index
-          assert_raises(LibTmux::FieldDecodeError) { pane.current_path }
+          assert_equal canonical.dup.force_encoding(Encoding::UTF_8), pane.current_path
           assert_raises(LibTmux::IncompleteSnapshotError) { capture.clients }
         ensure
           ready.close

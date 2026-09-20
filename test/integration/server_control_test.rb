@@ -11,6 +11,7 @@ class ServerControlTest < Minitest::Test
         session = server.list_sessions.first
         control = server.open_control(session: session.ref)
         assert_equal "ready\n", control.exchange("display-message -p ready", timeout: 0.5).blocks.last.body
+        assert_equal 1, server.diagnostics.fetch(:control_connections)
         assert_raises(LibTmux::CapacityError) { server.open_control(session: session.ref) }
         assert server.list_clients.any? { |client| client[:pid] == control.pid && client[:control] }
         control.close
@@ -23,6 +24,7 @@ class ServerControlTest < Minitest::Test
         begin
           assert fixture.tmux("wait-for", "scoped-ready").last.success?
           server.close
+          assert_equal 0, server.diagnostics.fetch(:control_connections)
           assert request.join(0.5), "server close did not wake the pending exchange"
           assert_instance_of LibTmux::ClosedError, request.value
           assert_raises(Errno::ECHILD) { Process.waitpid(replacement.pid, Process::WNOHANG) }

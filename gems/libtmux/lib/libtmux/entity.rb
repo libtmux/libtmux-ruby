@@ -115,6 +115,10 @@ module LibTmux
   end
 
   class Window < Entity
+    LAYOUTS = %w[even-horizontal even-vertical main-horizontal main-vertical tiled].freeze
+    MIRRORED_LAYOUTS = %w[main-horizontal-mirrored main-vertical-mirrored].freeze
+    private_constant :LAYOUTS, :MIRRORED_LAYOUTS
+
     def list_panes(timeout: 5.0, cancel: nil)
       server.__send__(:list_entities, :pane, ["-t", target], timeout: timeout, cancel: cancel)
     end
@@ -129,7 +133,30 @@ module LibTmux
         raise ArgumentError, "layout must be a String or Symbol"
       end
       value = layout.is_a?(Symbol) ? layout.to_s.tr("_", "-") : layout
-      server.__send__(:execute_typed, ["select-layout", "-t", target, "--", value], timeout: timeout, cancel: cancel)
+      budget = server.__send__(:operation_budget, timeout, cancel)
+      # Older tmux can access an invalid pointer for a malformed layout header.
+      unless LAYOUTS.include?(value) || /\A[0-9a-fA-F]{4},/.match?(value)
+        choices = (LAYOUTS + MIRRORED_LAYOUTS).select { |name| name.start_with?(value) }
+        raise ArgumentError, "layout must be a native name or a saved layout" if value.empty? || choices.empty?
+
+        if choices.any? { |name| MIRRORED_LAYOUTS.include?(name) }
+          version = server.display('#{version}', **budget.options).text
+          release = /\A(\d+)\.(\d+)/.match(version)
+          raise ProtocolError.new("tmux version is invalid", phase: :decode, delivery: :observed) unless release
+
+          if ([release[1].to_i, release[2].to_i] <=> [3, 5]).negative?
+            choices &= LAYOUTS
+            if choices.empty?
+              raise UnsupportedFeatureError.new("mirrored layouts require tmux 3.5+", phase: :admission)
+            end
+          end
+        end
+        choices = [value] if choices.include?(value)
+        raise ArgumentError, "layout name is ambiguous" unless choices.length == 1
+
+        value = choices.first
+      end
+      server.__send__(:execute_typed, ["select-layout", "-t", target, "--", value], **budget.options)
     end
   end
 

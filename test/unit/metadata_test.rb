@@ -35,5 +35,8 @@ class MetadataTest < Minitest::Test
     assert_raises(LibTmux::CapacityError) do
       LibTmux::Internal::Metadata.decode("0:\n", fields: 1, max_bytes: 2)
     end
+    assert_raises(LibTmux::ProtocolError) do
+      LibTmux::Internal::Metadata.decode("1:\\777\n", fields: 1, quoted: true)
+    end
   end
 end

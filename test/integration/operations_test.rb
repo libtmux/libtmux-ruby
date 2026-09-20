@@ -9,7 +9,7 @@ class OperationsTest < Minitest::Test
     with_server do |server, _fixture|
       session = server.list_sessions.fetch(0)
       pane = session.list_panes.fetch(0)
-      value = "first\n\#{pane_id};\\\n\xff\t'\"$`".b
+      value = "first\n\#{pane_id};\\\n\\377\xff\\001\x01\t'\"$`".b
       server.options(scope: :session).set("@literal", value)
       inherited = session.options.get("@literal")
       assert_equal value.b, inherited.raw
@@ -145,6 +145,25 @@ class OperationsTest < Minitest::Test
     end
   end
 
+  def test_missing_alias_inventory_cannot_turn_a_guarded_mutation_into_false_success
+    with_server do |server, _fixture|
+      session = server.list_sessions.first
+      window = session.list_windows.first
+      session.link_window(window.ref, index: 8)
+      link = session.list_window_links.find { |entry| entry.index == 8 }
+      server.options.set("command-alias", "if-shell=", index: 90)
+      server.options.set("command-alias", "show-options=show-options -v", index: 91)
+      outcome = begin
+        link.unlink(timeout: 0.5)
+      rescue LibTmux::UnsupportedFeatureError => error
+        error
+      end
+      assert_equal [0, 8], session.list_window_links.map(&:index)
+      assert_instance_of LibTmux::UnsupportedFeatureError, outcome
+      assert_equal :not_sent, outcome.delivery
+    end
+  end
+
   def test_swapping_distinct_window_links_preserves_windows_and_invalidates_old_occurrences
     with_server do |server, _fixture|
       session = server.list_sessions.first
@@ -162,6 +181,85 @@ class OperationsTest < Minitest::Test
       assert left.swap(right.ref, timeout: 0.5).success?
       assert_equal [right.id], initial.list_panes.map(&:id)
       assert_equal [left.id], other.list_panes.map(&:id)
+    end
+  end
+
+  def test_resize_zoom_and_layout_restore_geometry_without_changing_focus
+    with_server do |server, _fixture|
+      window = server.list_windows.first
+      window.resize(width: 80, height: 30)
+      first = window.list_panes.first
+      second = first.split(direction: :vertical, command: ["/bin/cat"])
+      second.select
+      first.resize(height: 7)
+      assert_equal "7\n", first.display('#{pane_height}').text
+      previous = second.display('#{pane_height}').text.to_i
+      first.resize(direction: :down, amount: 2)
+      assert_equal "9\n", first.display('#{pane_height}').text
+      assert_equal previous - 2, second.display('#{pane_height}').text.to_i
+      layout = window.display('#{window_layout}').text.strip
+
+      first.resize(zoom: true)
+      assert_equal "1\n", window.display('#{window_zoomed_flag}').text
+      assert_equal "80:30\n", first.display('#{pane_width}:#{pane_height}').text
+      first.resize(zoom: true)
+      assert_equal "0\n", window.display('#{window_zoomed_flag}').text
+      assert_equal layout, window.display('#{window_layout}').text.strip
+
+      second.select
+      window.select_layout(:even_horizontal)
+      assert_equal [30, 30], window.list_panes.map { |pane| pane.display('#{pane_height}').text.to_i }
+      assert_equal "#{second.id}\n", window.display('#{pane_id}').text
+      window.select_layout(layout)
+      assert_equal layout, window.display('#{window_layout}').text.strip
+      assert_equal "#{second.id}\n", window.display('#{pane_id}').text
+      ["not-a-layout", "", "abc", "deadbeef"].each do |invalid|
+        assert_raises(ArgumentError) { window.select_layout(invalid) }
+      end
+      invalid_checksum = "%04x" % (layout[0, 4].to_i(16) ^ 1) + layout[4..]
+      assert_raises(LibTmux::CommandError) { window.select_layout(invalid_checksum) }
+      assert_equal layout, window.display('#{window_layout}').text.strip
+      release = Gem::Version.new(server.display('#{version}').text[/\d+\.\d+/])
+      if release >= Gem::Version.new("3.5")
+        assert_raises(ArgumentError) { window.select_layout("main-h") }
+        window.select_layout(:main_vertical_mirrored)
+        assert_operator first.display('#{pane_left}').text.to_i, :>, second.display('#{pane_left}').text.to_i
+      else
+        window.select_layout("main-h")
+        error = assert_raises(LibTmux::UnsupportedFeatureError) { window.select_layout(:main_vertical_mirrored) }
+        assert_equal :not_sent, error.delivery
+      end
+      window.select_layout(layout)
+      assert_equal layout, window.display('#{window_layout}').text.strip
+    end
+  end
+
+  def test_link_moves_and_last_link_destruction_keep_other_windows_owned
+    with_server do |server, _fixture|
+      left = server.list_sessions.first
+      right = server.new_session(name: "destination", command: ["/bin/cat"])
+      preserved = [left.list_windows.first.id, right.list_windows.first.id]
+      moving = left.new_window(name: "moving", command: ["/bin/cat"])
+      original = left.list_window_links.find { |link| link.id == moving.id }
+      assert_raises(LibTmux::CommandError) { original.move(session: right.ref, index: 0) }
+      assert_includes left.list_windows.map(&:id), moving.id
+      original.move(session: right.ref, index: 7)
+      assert_raises(LibTmux::TargetNotFoundError) { original.kill }
+      refute_includes left.list_windows.map(&:id), moving.id
+      moved = right.list_window_links.find { |link| link.index == 7 }
+      assert_equal moving.ref, moved.window.ref
+      left.link_window(moving.ref, index: 9)
+      moved.kill
+      assert_equal preserved.sort, server.list_windows.map(&:id).sort
+      assert_raises(LibTmux::TargetNotFoundError) { moved.select }
+
+      sole = left.new_window(name: "sole", command: ["/bin/cat"])
+      only = left.list_window_links.find { |link| link.id == sole.id }
+      assert_raises(LibTmux::CommandError) { only.unlink }
+      assert_includes left.list_windows.map(&:id), sole.id
+      only.unlink(force: true)
+      assert_equal preserved.sort, server.list_windows.map(&:id).sort
+      assert_equal [left.id, right.id], server.list_sessions.map(&:id)
     end
   end
 

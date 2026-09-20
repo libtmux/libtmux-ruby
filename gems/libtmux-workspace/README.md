@@ -2,8 +2,9 @@
 
 Load bounded YAML or JSON, inspect an immutable creation plan, then explicitly
 apply it to an open libtmux server. This package is unreleased. The library
-and installed command-line executable have focused tests; the full
-Ruby/tmux/platform matrix remains unfinished.
+and installed command-line executable share the core
+[compatibility matrix](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml);
+consult its exact per-revision results.
 
 The gem declares Ruby 3.3 or newer and depends on the same-version `libtmux`
 gem, JSON 3.0 and Psych 5.5. See the repository's
@@ -89,6 +90,8 @@ nonnegative `base-index`, `history-limit`, `status-interval`; and enumerated
 `main-pane-height`; text `window-status-format`, `window-status-current-format`;
 and enumerated `pane-border-status`. Option text remains tmux option text,
 including any formats that tmux evaluates.
+`pane-base-index` cannot exceed 65535; the other numeric options accept
+integers through 2147483647.
 
 YAML tags, anchors, aliases, duplicate keys, multiple documents and complex
 mapping keys are rejected. JSON duplicate keys are rejected too. No Ruby,
@@ -118,6 +121,13 @@ environment overrides do not modify the session environment. Window indexes,
 splits, options, layout and focus follow the plan's order. Temporary local
 option overrides disable renumbering and pane synchronization during setup;
 the plan then restores declared values or inheritance.
+
+Session options apply before subsequent windows and split panes are created.
+On tmux 3.2a–3.6, the reused initial pane retains the global `history-limit`
+inherited at session creation. Later panes use the configured session value.
+For uniform history on these versions, configure the server's global value
+before applying the workspace. Apply does not change global options or replace
+the initial pane. On tmux 3.7+, setting the option also updates existing grids.
 
 Shell commands are sent as literal text followed by Enter. Both insertion
 and Enter are dispatch effects: embedded newlines can execute during text
@@ -166,7 +176,8 @@ $ libtmux-workspace load \
     workspace.yaml
 ```
 
-`--timeout` bounds apply or live capture and defaults to 5 seconds.
+`--timeout` bounds each apply, live capture or subsequent switch operation
+and defaults to 5 seconds.
 `--compensate` enables guarded cleanup after apply failure. Environment
 expansion requires both `--expand-environment` and explicit `--env NAME=VALUE`
 arguments; ambient environment variables are not copied into that mapping.
@@ -174,16 +185,25 @@ arguments; ambient environment variables are not copied into that mapping.
 `load --attach` opens the CLI's `/dev/tty` after creation and runs an owned
 terminal client until the user detaches. It requires a valid `TERM`. Failure
 to open or attach the terminal retains the successful apply ledger and
-returns status 3. `--switch` currently fails before creation because client
-incarnation identity is not implemented; attach and switch are mutually
-exclusive. No action picks the most recently used client implicitly.
+returns status 3. `load --switch CLIENT` switches the explicit current tmux
+client selector to the created session after apply, preserving the session's
+environment. It accepts a current client name, full TTY path or TTY path
+without `/dev/`; native first-match behavior applies. A missing client fails
+without fallback and retains the created session and ledger with status 3.
+Missing or invalid selector arguments fail before creation. Use
+`--switch=VALUE` for a selector beginning with `-`.
+
+The selector is resolved at dispatch; a reconnect matching it is eligible.
+It is not a captured client reference or proof of terminal ownership. Attach
+and switch are mutually exclusive. Neither operation infers a latest client,
+and library `Plan#apply` performs neither operation.
 
 | Exit status | Meaning |
 | --- | --- |
-| 0 | Validation, planning or apply succeeded; requested attachment ended successfully |
+| 0 | Validation, planning or apply succeeded; requested attach/switch succeeded |
 | 1 | Execution failed before known application effects |
 | 2 | Configuration or arguments are invalid |
-| 3 | Application was partial or uncertain, or a later attachment/cleanup failed |
+| 3 | Application was partial or uncertain, or a later attach/switch/cleanup failed |
 | 130 | Interrupted; available effect ledger is retained |
 
 JSON mode writes one result or error object to stdout. Apply errors include

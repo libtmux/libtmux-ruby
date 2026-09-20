@@ -17,6 +17,7 @@ Async do |parent|
       error
     end
     scope.server.wait_for("ready", timeout: 0.5)
+    Example.check(scope.diagnostics.fetch(:active_process_slots) == 1, "waiting client lost its slot")
     captures = scope.map(scope.server.list_panes.map(&:ref), concurrency: 2) do |ref|
       scope.server.pane(ref).capture
     end
@@ -26,6 +27,7 @@ Async do |parent|
     Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
     Example.check(failure.delivery == :possibly_sent, "cancelled dispatch claimed no effects")
     Example.raises(Errno::ECHILD) { Process.waitpid(failure.pid, Process::WNOHANG) }
+    Example.check(scope.server.diagnostics.fetch(:admitted_requests).zero?, "cancelled client remains admitted")
   end
 end.wait
 ```
@@ -80,6 +82,7 @@ by that scope and reports a new generation plus a gap with unknown loss.
 Subscriptions expose their `generation`; prior subscriptions stay closed.
 Reconnect and resume never replay requests or missed output.
 
-Local Linux checks exercise Async 2.46 and io-event 1.22. macOS and the declared
-Ruby version range still require their matrix gates. Package builds and tests
-do not publish this gem.
+The development bundle pins Async 2.46 and io-event 1.22. The
+[compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
+exercises the selected Ruby/tmux versions on Linux and macOS and retains
+per-revision results. Package builds and tests do not publish this gem.

@@ -1,0 +1,720 @@
+{
+  "version": 1,
+  "contracts": [
+    {
+      "id": "async-map",
+      "title": "Async map",
+      "methods": [
+        "LibTmux::Async::Scope#map"
+      ]
+    },
+    {
+      "id": "async-scope",
+      "title": "Async scope",
+      "methods": [
+        "LibTmux::Async.open",
+        "LibTmux::Async::Scope#close",
+        "LibTmux::Async::Scope#closed?",
+        "LibTmux::Async::Scope#server",
+        "LibTmux::Async::Scope.new",
+        "LibTmux::Async::Server#close",
+        "LibTmux::Async::Server.new"
+      ]
+    },
+    {
+      "id": "async-unsupported-operations",
+      "title": "Async unsupported operations",
+      "methods": [
+        "LibTmux::Async::Server#attach",
+        "LibTmux::Async::Server.start"
+      ]
+    },
+    {
+      "id": "borrowed-bindings",
+      "title": "Borrowed bindings",
+      "methods": [
+        "LibTmux::Server#endpoint",
+        "LibTmux::Server#owned?",
+        "LibTmux::Server.new",
+        "LibTmux::Server.open"
+      ]
+    },
+    {
+      "id": "buffers",
+      "title": "Buffers",
+      "methods": [
+        "LibTmux::Server#delete_buffer",
+        "LibTmux::Server#list_buffers",
+        "LibTmux::Server#read_buffer",
+        "LibTmux::Server#write_buffer"
+      ]
+    },
+    {
+      "id": "cancellation-tokens",
+      "title": "Cancellation tokens",
+      "methods": [
+        "LibTmux::Cancellation.new",
+        "LibTmux::Cancellation#reader",
+        "LibTmux::Cancellation#cancel",
+        "LibTmux::Cancellation#cancelled?",
+        "LibTmux::Cancellation#close"
+      ]
+    },
+    {
+      "id": "captured-records",
+      "title": "Captured records",
+      "methods": [
+        "LibTmux::CapturedRecord#==",
+        "LibTmux::CapturedRecord#capture_id",
+        "LibTmux::CapturedRecord#eql?",
+        "LibTmux::CapturedRecord#hash",
+        "LibTmux::CapturedRecord#inspect",
+        "LibTmux::CapturedRecord#raw",
+        "LibTmux::CapturedRecord#ref",
+        "LibTmux::ClientSnapshot#control_mode",
+        "LibTmux::ClientSnapshot#control_mode?",
+        "LibTmux::ClientSnapshot#created",
+        "LibTmux::ClientSnapshot#height",
+        "LibTmux::ClientSnapshot#name",
+        "LibTmux::ClientSnapshot#pid",
+        "LibTmux::ClientSnapshot#read_only",
+        "LibTmux::ClientSnapshot#read_only?",
+        "LibTmux::ClientSnapshot#session",
+        "LibTmux::ClientSnapshot#session_id",
+        "LibTmux::ClientSnapshot#tty",
+        "LibTmux::ClientSnapshot#utf8",
+        "LibTmux::ClientSnapshot#utf8?",
+        "LibTmux::ClientSnapshot#width",
+        "LibTmux::PaneSnapshot#active",
+        "LibTmux::PaneSnapshot#active?",
+        "LibTmux::PaneSnapshot#current_command",
+        "LibTmux::PaneSnapshot#current_path",
+        "LibTmux::PaneSnapshot#dead",
+        "LibTmux::PaneSnapshot#dead?",
+        "LibTmux::PaneSnapshot#dead_status",
+        "LibTmux::PaneSnapshot#height",
+        "LibTmux::PaneSnapshot#id",
+        "LibTmux::PaneSnapshot#index",
+        "LibTmux::PaneSnapshot#pid",
+        "LibTmux::PaneSnapshot#title",
+        "LibTmux::PaneSnapshot#width",
+        "LibTmux::PaneSnapshot#window",
+        "LibTmux::PaneSnapshot#window_id",
+        "LibTmux::SessionSnapshot#attached",
+        "LibTmux::SessionSnapshot#created",
+        "LibTmux::SessionSnapshot#current_window",
+        "LibTmux::SessionSnapshot#id",
+        "LibTmux::SessionSnapshot#name",
+        "LibTmux::SessionSnapshot#panes",
+        "LibTmux::SessionSnapshot#window_count",
+        "LibTmux::SessionSnapshot#window_links",
+        "LibTmux::SessionSnapshot#windows",
+        "LibTmux::Snapshot#binding_key",
+        "LibTmux::Snapshot#capture_id",
+        "LibTmux::Snapshot#clients",
+        "LibTmux::Snapshot#coverage",
+        "LibTmux::Snapshot#finished_at",
+        "LibTmux::Snapshot#inspect",
+        "LibTmux::Snapshot#panes",
+        "LibTmux::Snapshot#reads",
+        "LibTmux::Snapshot#resolve",
+        "LibTmux::Snapshot#server_info",
+        "LibTmux::Snapshot#sessions",
+        "LibTmux::Snapshot#started_at",
+        "LibTmux::Snapshot#window_links",
+        "LibTmux::Snapshot#windows",
+        "LibTmux::WindowLinkSnapshot#active",
+        "LibTmux::WindowLinkSnapshot#active?",
+        "LibTmux::WindowLinkSnapshot#index",
+        "LibTmux::WindowLinkSnapshot#session",
+        "LibTmux::WindowLinkSnapshot#session_id",
+        "LibTmux::WindowLinkSnapshot#window",
+        "LibTmux::WindowLinkSnapshot#window_id",
+        "LibTmux::WindowSnapshot#active_pane",
+        "LibTmux::WindowSnapshot#height",
+        "LibTmux::WindowSnapshot#id",
+        "LibTmux::WindowSnapshot#layout",
+        "LibTmux::WindowSnapshot#name",
+        "LibTmux::WindowSnapshot#pane_count",
+        "LibTmux::WindowSnapshot#panes",
+        "LibTmux::WindowSnapshot#width",
+        "LibTmux::WindowSnapshot#window_links"
+      ]
+    },
+    {
+      "id": "client-switching",
+      "title": "Client switching",
+      "methods": [
+        "LibTmux::Server#switch_client"
+      ]
+    },
+    {
+      "id": "closing-bindings",
+      "title": "Closing bindings",
+      "methods": [
+        "LibTmux::Server#close"
+      ]
+    },
+    {
+      "id": "command-evidence",
+      "title": "Command evidence",
+      "methods": [
+        "LibTmux::CommandResult#argv",
+        "LibTmux::CommandResult#delivery",
+        "LibTmux::CommandResult#elapsed_seconds",
+        "LibTmux::CommandResult#inspect",
+        "LibTmux::CommandResult#pid",
+        "LibTmux::CommandResult#status",
+        "LibTmux::CommandResult#stderr",
+        "LibTmux::CommandResult#stdout",
+        "LibTmux::CommandResult#success?",
+        "LibTmux::CommandResult#text",
+        "LibTmux::CommandResult.new",
+        "LibTmux::TerminalResult#delivery",
+        "LibTmux::TerminalResult#elapsed_seconds",
+        "LibTmux::TerminalResult#inspect",
+        "LibTmux::TerminalResult#pid",
+        "LibTmux::TerminalResult#status",
+        "LibTmux::TerminalResult#success?"
+      ]
+    },
+    {
+      "id": "command-groups",
+      "title": "Command groups",
+      "methods": [
+        "LibTmux::GroupResult#delivery",
+        "LibTmux::GroupResult#inspect",
+        "LibTmux::GroupResult#result",
+        "LibTmux::GroupResult#steps",
+        "LibTmux::GroupResult#success?",
+        "LibTmux::Server#run_group"
+      ]
+    },
+    {
+      "id": "control-connections",
+      "title": "Control connections",
+      "methods": [
+        "LibTmux::Async::ControlConnection#close",
+        "LibTmux::Async::ControlConnection#closed?",
+        "LibTmux::Async::ControlConnection.new",
+        "LibTmux::Async::Server#open_control",
+        "LibTmux::ControlConnection#cleanup_errors",
+        "LibTmux::ControlConnection#close",
+        "LibTmux::ControlConnection#closed?",
+        "LibTmux::ControlConnection#events",
+        "LibTmux::ControlConnection#exchange",
+        "LibTmux::ControlConnection#generation",
+        "LibTmux::ControlConnection#inspect",
+        "LibTmux::ControlConnection#pid",
+        "LibTmux::ControlConnection#previous_generation",
+        "LibTmux::ControlConnection#subscribe",
+        "LibTmux::ControlConnection.new",
+        "LibTmux::ControlConnection.open",
+        "LibTmux::Server#open_control"
+      ]
+    },
+    {
+      "id": "control-evidence",
+      "title": "Control evidence",
+      "methods": [
+        "LibTmux::ControlEvent#bytesize",
+        "LibTmux::ControlEvent#data",
+        "LibTmux::ControlEvent#dropped_bytes",
+        "LibTmux::ControlEvent#generation",
+        "LibTmux::ControlEvent#inspect",
+        "LibTmux::ControlEvent#kind",
+        "LibTmux::ControlEvent#lost_sequences",
+        "LibTmux::ControlEvent#pane_id",
+        "LibTmux::ControlEvent#previous_generation",
+        "LibTmux::ControlEvent#raw",
+        "LibTmux::ControlEvent#reason",
+        "LibTmux::ControlEvent#sequence",
+        "LibTmux::ControlEvent.new",
+        "LibTmux::GuardedBlock#body",
+        "LibTmux::GuardedBlock#bytesize",
+        "LibTmux::GuardedBlock#guard",
+        "LibTmux::GuardedBlock#guard_success?",
+        "LibTmux::GuardedBlock#inspect",
+        "LibTmux::GuardedBlock#raw",
+        "LibTmux::GuardedBlock#terminator",
+        "LibTmux::GuardedBlock.new",
+        "LibTmux::GuardedReply#attribution",
+        "LibTmux::GuardedReply#blocks",
+        "LibTmux::GuardedReply#delivery",
+        "LibTmux::GuardedReply#generation",
+        "LibTmux::GuardedReply#inspect",
+        "LibTmux::GuardedReply#request_id",
+        "LibTmux::GuardedReply.new"
+      ]
+    },
+    {
+      "id": "control-flow",
+      "title": "Control flow",
+      "methods": [
+        "LibTmux::ControlConnection#pause_output",
+        "LibTmux::ControlConnection#resume_output"
+      ]
+    },
+    {
+      "id": "control-subscriptions",
+      "title": "Control subscriptions",
+      "methods": [
+        "LibTmux::Async::ControlSubscription#next",
+        "LibTmux::Async::ControlSubscription.new",
+        "LibTmux::ControlSubscription#close",
+        "LibTmux::ControlSubscription#closed?",
+        "LibTmux::ControlSubscription#each",
+        "LibTmux::ControlSubscription#generation",
+        "LibTmux::ControlSubscription#inspect",
+        "LibTmux::ControlSubscription#next",
+        "LibTmux::ControlSubscription.new"
+      ]
+    },
+    {
+      "id": "copy-mode",
+      "title": "Copy mode",
+      "methods": [
+        "LibTmux::Pane#copy_command",
+        "LibTmux::Pane#copy_mode"
+      ]
+    },
+    {
+      "id": "creation",
+      "title": "Creation",
+      "methods": [
+        "LibTmux::Pane#split",
+        "LibTmux::Server#new_session",
+        "LibTmux::Session#new_window",
+        "LibTmux::Window#split"
+      ]
+    },
+    {
+      "id": "criteria",
+      "title": "Criteria",
+      "methods": [
+        "LibTmux::ClientWhere.build",
+        "LibTmux::FilterExpr#===",
+        "LibTmux::FilterExpr#and",
+        "LibTmux::FilterExpr#call",
+        "LibTmux::FilterExpr#entity",
+        "LibTmux::FilterExpr#inspect",
+        "LibTmux::FilterExpr#not",
+        "LibTmux::FilterExpr#or",
+        "LibTmux::FilterExpr#to_h",
+        "LibTmux::FilterExpr#to_json",
+        "LibTmux::FilterExpr#to_proc",
+        "LibTmux::FilterExpr.build",
+        "LibTmux::FilterExpr.from_json",
+        "LibTmux::FilterExpr.json_schema",
+        "LibTmux::PaneWhere.build",
+        "LibTmux::SessionWhere.build",
+        "LibTmux::WindowLinkWhere.build",
+        "LibTmux::WindowWhere.build"
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "Diagnostics",
+      "methods": [
+        "LibTmux::Async::Scope#diagnostics",
+        "LibTmux::Async::Server#diagnostics",
+        "LibTmux::ControlConnection#diagnostics",
+        "LibTmux::ControlSubscription#diagnostics",
+        "LibTmux::Server#diagnostics"
+      ]
+    },
+    {
+      "id": "endpoints",
+      "title": "Endpoints",
+      "methods": [
+        "LibTmux::Endpoint#==",
+        "LibTmux::Endpoint#eql?",
+        "LibTmux::Endpoint#executable",
+        "LibTmux::Endpoint#hash",
+        "LibTmux::Endpoint#inspect",
+        "LibTmux::Endpoint#socket_path",
+        "LibTmux::Endpoint.from_env",
+        "LibTmux::Endpoint.new"
+      ]
+    },
+    {
+      "id": "entity-mutation",
+      "title": "Entity mutation",
+      "methods": [
+        "LibTmux::Pane#break_out",
+        "LibTmux::Pane#join",
+        "LibTmux::Pane#move",
+        "LibTmux::Pane#resize",
+        "LibTmux::Pane#respawn",
+        "LibTmux::Pane#select",
+        "LibTmux::Pane#swap",
+        "LibTmux::Session#rename",
+        "LibTmux::Window#rename",
+        "LibTmux::Window#resize",
+        "LibTmux::Window#respawn",
+        "LibTmux::Window#select_layout"
+      ]
+    },
+    {
+      "id": "entity-references",
+      "title": "Entity references",
+      "methods": [
+        "LibTmux::CreationReceipt#entity",
+        "LibTmux::CreationReceipt#inspect",
+        "LibTmux::CreationReceipt#pane",
+        "LibTmux::CreationReceipt#result",
+        "LibTmux::CreationReceipt#window",
+        "LibTmux::EntityRef#==",
+        "LibTmux::EntityRef#binding_key",
+        "LibTmux::EntityRef#eql?",
+        "LibTmux::EntityRef#hash",
+        "LibTmux::EntityRef#id",
+        "LibTmux::EntityRef#index",
+        "LibTmux::EntityRef#inspect",
+        "LibTmux::EntityRef#kind",
+        "LibTmux::EntityRef#session_id"
+      ]
+    },
+    {
+      "id": "entity-removal",
+      "title": "Entity removal",
+      "methods": [
+        "LibTmux::Entity#kill",
+        "LibTmux::Session#kill"
+      ]
+    },
+    {
+      "id": "environment",
+      "title": "Environment",
+      "methods": [
+        "LibTmux::Server#environment",
+        "LibTmux::Server#set_environment",
+        "LibTmux::Server#unset_environment",
+        "LibTmux::Session#environment",
+        "LibTmux::Session#set_environment",
+        "LibTmux::Session#unset_environment"
+      ]
+    },
+    {
+      "id": "errors",
+      "title": "Errors",
+      "methods": [
+        "LibTmux::CommandError#result",
+        "LibTmux::CommandError.new",
+        "LibTmux::Error#cleanup_errors",
+        "LibTmux::Error#delivery",
+        "LibTmux::Error#entity",
+        "LibTmux::Error#expected",
+        "LibTmux::Error#path",
+        "LibTmux::Error#phase",
+        "LibTmux::Error#pid",
+        "LibTmux::Error.new",
+        "LibTmux::InvalidFilterError.new",
+        "LibTmux::SubscriptionOverflow#sequence",
+        "LibTmux::SubscriptionOverflow.new"
+      ]
+    },
+    {
+      "id": "formats",
+      "title": "Formats",
+      "methods": [
+        "LibTmux::Entity#display",
+        "LibTmux::Server#display",
+        "LibTmux::WindowLink#display"
+      ]
+    },
+    {
+      "id": "killing-daemons",
+      "title": "Killing daemons",
+      "methods": [
+        "LibTmux::Server#kill"
+      ]
+    },
+    {
+      "id": "live-acquisition",
+      "title": "Live acquisition",
+      "methods": [
+        "LibTmux::Server#list_clients",
+        "LibTmux::Server#list_panes",
+        "LibTmux::Server#list_sessions",
+        "LibTmux::Server#list_window_links",
+        "LibTmux::Server#list_windows",
+        "LibTmux::Session#list_panes",
+        "LibTmux::Session#list_window_links",
+        "LibTmux::Session#list_windows",
+        "LibTmux::Window#list_panes"
+      ]
+    },
+    {
+      "id": "live-handles",
+      "title": "Live handles",
+      "methods": [
+        "LibTmux::Entity#==",
+        "LibTmux::Entity#eql?",
+        "LibTmux::Entity#hash",
+        "LibTmux::Entity#id",
+        "LibTmux::Entity#inspect",
+        "LibTmux::Entity#ref",
+        "LibTmux::Entity#server",
+        "LibTmux::Server#pane",
+        "LibTmux::Server#session",
+        "LibTmux::Server#window",
+        "LibTmux::Server#window_link",
+        "LibTmux::WindowLink#index",
+        "LibTmux::WindowLink#session",
+        "LibTmux::WindowLink#window"
+      ]
+    },
+    {
+      "id": "mcp-application",
+      "title": "MCP application",
+      "methods": [
+        "LibTmux::MCP::Application#accept_shell",
+        "LibTmux::MCP::Application#call",
+        "LibTmux::MCP::Application#close",
+        "LibTmux::MCP::Application#inspect",
+        "LibTmux::MCP::Application#invite_shell",
+        "LibTmux::MCP::Application#sdk_server",
+        "LibTmux::MCP::Application#tools",
+        "LibTmux::MCP::Application.new"
+      ]
+    },
+    {
+      "id": "mcp-cli",
+      "title": "MCP CLI",
+      "methods": [
+        "LibTmux::MCP::CLI#run",
+        "LibTmux::MCP::CLI.run"
+      ]
+    },
+    {
+      "id": "mcp-transport",
+      "title": "MCP transport",
+      "methods": [
+        "LibTmux::MCP::StdioTransport#close",
+        "LibTmux::MCP::StdioTransport#closed?",
+        "LibTmux::MCP::StdioTransport#run",
+        "LibTmux::MCP::StdioTransport#send_notification",
+        "LibTmux::MCP::StdioTransport#send_request",
+        "LibTmux::MCP::StdioTransport#send_response",
+        "LibTmux::MCP::StdioTransport.new"
+      ]
+    },
+    {
+      "id": "option-values",
+      "title": "Option values",
+      "methods": [
+        "LibTmux::OptionValue#array?",
+        "LibTmux::OptionValue#as",
+        "LibTmux::OptionValue#index",
+        "LibTmux::OptionValue#inherited?",
+        "LibTmux::OptionValue#name",
+        "LibTmux::OptionValue#present?",
+        "LibTmux::OptionValue#raw"
+      ]
+    },
+    {
+      "id": "options-and-hooks",
+      "title": "Options and hooks",
+      "methods": [
+        "LibTmux::Entity#hooks",
+        "LibTmux::Entity#options",
+        "LibTmux::Hooks#get",
+        "LibTmux::Hooks#run",
+        "LibTmux::Hooks#set",
+        "LibTmux::Options#get",
+        "LibTmux::Options#list",
+        "LibTmux::Options#set",
+        "LibTmux::Options#unset",
+        "LibTmux::Server#hooks",
+        "LibTmux::Server#options",
+        "LibTmux::WindowLink#hooks",
+        "LibTmux::WindowLink#options"
+      ]
+    },
+    {
+      "id": "owned-daemons",
+      "title": "Owned daemons",
+      "methods": [
+        "LibTmux::Server.start"
+      ]
+    },
+    {
+      "id": "pane-input-and-capture",
+      "title": "Pane input and capture",
+      "methods": [
+        "LibTmux::Pane#capture",
+        "LibTmux::Pane#paste",
+        "LibTmux::Pane#send_keys",
+        "LibTmux::Pane#send_text"
+      ]
+    },
+    {
+      "id": "pane-pipes",
+      "title": "Pane pipes",
+      "methods": [
+        "LibTmux::Pane#pipe"
+      ]
+    },
+    {
+      "id": "raw-commands",
+      "title": "Raw commands",
+      "methods": [
+        "LibTmux::Async::Server#run",
+        "LibTmux::Server#run"
+      ]
+    },
+    {
+      "id": "selections",
+      "title": "Selections",
+      "methods": [
+        "LibTmux::Selection#each",
+        "LibTmux::Selection#empty?",
+        "LibTmux::Selection#exists?",
+        "LibTmux::Selection#filter",
+        "LibTmux::Selection#find_all",
+        "LibTmux::Selection#length",
+        "LibTmux::Selection#one",
+        "LibTmux::Selection#one_or_nil",
+        "LibTmux::Selection#reject",
+        "LibTmux::Selection#select",
+        "LibTmux::Selection#size",
+        "LibTmux::Selection#to_a",
+        "LibTmux::Selection#where",
+        "LibTmux::Selection.new"
+      ]
+    },
+    {
+      "id": "snapshot-acquisition",
+      "title": "Snapshot acquisition",
+      "methods": [
+        "LibTmux::Entity#snapshot",
+        "LibTmux::Server#snapshot"
+      ]
+    },
+    {
+      "id": "source-files",
+      "title": "Source files",
+      "methods": [
+        "LibTmux::Server#source_file"
+      ]
+    },
+    {
+      "id": "source-query-execution",
+      "title": "Source query execution",
+      "methods": [
+        "LibTmux::Server#search_panes"
+      ]
+    },
+    {
+      "id": "source-query-plans",
+      "title": "Source query plans",
+      "methods": [
+        "LibTmux::Server#explain_panes"
+      ]
+    },
+    {
+      "id": "terminal-attachment",
+      "title": "Terminal attachment",
+      "methods": [
+        "LibTmux::Server#attach"
+      ]
+    },
+    {
+      "id": "wait-channels",
+      "title": "Wait channels",
+      "methods": [
+        "LibTmux::Server#wait_for"
+      ]
+    },
+    {
+      "id": "window-links",
+      "title": "Window links",
+      "methods": [
+        "LibTmux::Session#link_window",
+        "LibTmux::WindowLink#kill",
+        "LibTmux::WindowLink#move",
+        "LibTmux::WindowLink#select",
+        "LibTmux::WindowLink#swap",
+        "LibTmux::WindowLink#unlink"
+      ]
+    },
+    {
+      "id": "workspace-apply",
+      "title": "Workspace apply",
+      "methods": [
+        "LibTmux::Workspace::Plan#apply"
+      ]
+    },
+    {
+      "id": "workspace-cli",
+      "title": "Workspace CLI",
+      "methods": [
+        "LibTmux::Workspace::CLI#run",
+        "LibTmux::Workspace::CLI.run"
+      ]
+    },
+    {
+      "id": "workspace-parsing",
+      "title": "Workspace parsing",
+      "methods": [
+        "LibTmux::Workspace#inspect",
+        "LibTmux::Workspace#plan",
+        "LibTmux::Workspace#to_h",
+        "LibTmux::Workspace.load",
+        "LibTmux::Workspace.parse",
+        "LibTmux::Workspace::ConfigError.new"
+      ]
+    },
+    {
+      "id": "workspace-plans",
+      "title": "Workspace plans",
+      "methods": [
+        "LibTmux::Workspace::Plan#inspect",
+        "LibTmux::Workspace::Plan#mode",
+        "LibTmux::Workspace::Plan#preconditions",
+        "LibTmux::Workspace::Plan#steps",
+        "LibTmux::Workspace::Plan#to_h",
+        "LibTmux::Workspace::Plan.new",
+        "LibTmux::Workspace::Plan::Step#arguments",
+        "LibTmux::Workspace::Plan::Step#effect",
+        "LibTmux::Workspace::Plan::Step#id",
+        "LibTmux::Workspace::Plan::Step#inspect",
+        "LibTmux::Workspace::Plan::Step#operation",
+        "LibTmux::Workspace::Plan::Step#produces",
+        "LibTmux::Workspace::Plan::Step#target",
+        "LibTmux::Workspace::Plan::Step.[]",
+        "LibTmux::Workspace::Plan::Step.inspect",
+        "LibTmux::Workspace::Plan::Step.members",
+        "LibTmux::Workspace::Plan::Step.new"
+      ]
+    },
+    {
+      "id": "workspace-results",
+      "title": "Workspace results",
+      "methods": [
+        "LibTmux::Workspace::ApplyError#failure_class",
+        "LibTmux::Workspace::ApplyError#result",
+        "LibTmux::Workspace::ApplyError.new",
+        "LibTmux::Workspace::ApplyResult#cleanup_errors",
+        "LibTmux::Workspace::ApplyResult#compensation",
+        "LibTmux::Workspace::ApplyResult#completed_steps",
+        "LibTmux::Workspace::ApplyResult#created_refs",
+        "LibTmux::Workspace::ApplyResult#effects",
+        "LibTmux::Workspace::ApplyResult#failed_action",
+        "LibTmux::Workspace::ApplyResult#failed_step",
+        "LibTmux::Workspace::ApplyResult#inspect",
+        "LibTmux::Workspace::ApplyResult#success?",
+        "LibTmux::Workspace::ApplyResult#to_h",
+        "LibTmux::Workspace::ApplyResult#uncertain?",
+        "LibTmux::Workspace::ApplyResult::Effect#action",
+        "LibTmux::Workspace::ApplyResult::Effect#outcome",
+        "LibTmux::Workspace::ApplyResult::Effect#step_id",
+        "LibTmux::Workspace::ApplyResult::Effect.[]",
+        "LibTmux::Workspace::ApplyResult::Effect.inspect",
+        "LibTmux::Workspace::ApplyResult::Effect.members",
+        "LibTmux::Workspace::ApplyResult::Effect.new"
+      ]
+    }
+  ]
+}
