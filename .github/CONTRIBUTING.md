@@ -78,6 +78,8 @@ $ mise exec -- bundle exec rake build
 ```
 
 Artifacts appear in ignored `pkg/`. No publication happens during the build.
+The [release guide](../docs/releasing.md) covers coordinated version bumps,
+retained-artifact dry runs and first-time trusted-publisher setup.
 The mid loop checks generated fields/schema/signatures, the public API
 reference and the executable example manifest. The outer loop installs each
 declared dependency closure, runs the copied recipes outside the checkout,

@@ -8,7 +8,8 @@ and the rest of `Enumerable`.
 [Guide](docs/index.md) · [API reference](docs/reference/api.md) ·
 [Recipes](docs/recipes.md)
 
-**Unreleased.** Build and use the gems from this checkout.
+**Unreleased.** Build and use the gems from this checkout. See the
+[initial alpha notes](CHANGELOG.md) and [release guide](docs/releasing.md).
 
 ## Install from source
 

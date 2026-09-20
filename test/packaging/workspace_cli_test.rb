@@ -29,8 +29,7 @@ class InstalledWorkspaceCLITest < Minitest::Test
         "BUNDLE_LOCKFILE" => nil, "BUNDLER_SETUP" => nil,
         "TMUX" => nil, "TMUX_PANE" => nil}
       local.each do |spec|
-        artifact = File.join(directory, "#{spec.full_name}.gem")
-        Dir.chdir(File.join(ROOT, "gems", spec.name)) { Gem::Package.build(spec, false, true, artifact) }
+        artifact = package_artifact(spec, directory, ROOT)
         output, status = Open3.capture2e(environment, Gem.ruby, File.join(RbConfig::CONFIG.fetch("bindir"), "gem"),
           "install", "--local", "--no-document", artifact, chdir: directory)
         assert status.success?, "artifact installation failed: #{output}"

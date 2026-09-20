@@ -28,4 +28,35 @@ namespace :version do
   end
 end
 
+namespace :release do
+  %w[prepare verify publish dry_run].each do |operation|
+    desc({"prepare" => "Build and retain the complete release artifact set",
+      "verify" => "Verify retained release artifacts without network access",
+      "publish" => "Publish verified artifacts from the trusted tag workflow",
+      "dry_run" => "Build, verify and test installed artifacts without uploading"}.fetch(operation))
+    task operation, [:tag, :commit] do |_, args|
+      require "open3"
+      load "scripts/release" unless defined?(GemRelease)
+      tag = args[:tag] || ENV.fetch("RELEASE_TAG")
+      commit = args[:commit] || ENV["RELEASE_COMMIT"]
+      unless commit
+        commit, status = Open3.capture2("git", "rev-parse", "HEAD")
+        abort "cannot resolve release commit" unless status.success?
+        commit = commit.strip
+      end
+      if operation == "publish"
+        load "scripts/release-ci" unless defined?(ReleaseCI)
+        ReleaseCI.new.check(commit)
+      end
+      release = GemRelease.new(__dir__)
+      manifest = release.public_send(operation == "dry_run" ? :prepare : operation, tag: tag, commit: commit)
+      if operation == "dry_run"
+        sh({"LIBTMUX_RELEASE_DIR" => "pkg/release"}, Gem.ruby, "scripts/check", "packaging")
+        release.verify(tag: tag, commit: commit)
+      end
+      puts "#{operation}: #{manifest.fetch('tag')} at #{manifest.fetch('commit')}"
+    end
+  end
+end
+
 task default: :mid

@@ -12,6 +12,7 @@ through a protocol or configuration document.
 - [Public behavior](reference/behavior.md) specifies I/O, ownership, defaults and failure evidence.
 - [Benchmarks](benchmark.md) describes equal workloads, raw evidence and open comparison gates.
 - [Project entry point](../README.md) covers local installation and current gaps.
+- [Releasing](releasing.md) covers version preparation and trusted publishing.
 
 The rendered site also includes a YARD declaration tree. The public-method
 inventory checks source links, declaration visibility and behavioral mappings.

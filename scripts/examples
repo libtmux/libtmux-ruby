@@ -46,7 +46,7 @@ class ExampleManifest
       end
       [entry.fetch("id"), "```#{entry.fetch('language')}\n#{source.chomp}\n```\n"]
     end
-    documents = Dir.glob(["README.md", "gems/*/README.md", "docs/**/*.md"], base: root).sort
+    documents = Dir.glob(["README.md", "CHANGELOG.md", "gems/*/README.md", "docs/**/*.md"], base: root).sort
     unless documents == data.fetch("documents").sort
       raise Error, "document discovery differs from manifest"
     end
