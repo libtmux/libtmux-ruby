@@ -62,6 +62,17 @@ class VersionTest < Minitest::Test
     end
   end
 
+  def test_equivalent_version_with_different_spelling_fails_before_edits
+    with_repository(version: "0.1.0.alpha.2") do |root|
+      before = contents(root)
+
+      error = assert_raises(version_error) { bump(root, "0.1.0.alpha.2.0") }
+
+      assert_match(/same version.*different spelling/, error.message)
+      assert_equal before, contents(root)
+    end
+  end
+
   def test_inconsistent_package_versions_or_constraints_fail_before_edits
     with_repository do |root|
       path = File.join(root, VERSION_FILES.last)

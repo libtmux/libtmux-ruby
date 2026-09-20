@@ -210,6 +210,9 @@ class VersionBump
   end
 
   def validate_direction(current, target)
+    if target == current && target.to_s != current.to_s
+      raise Error, "same version has a different spelling; keep #{current} or choose a newer version"
+    end
     return if target >= current
     return if current == INITIAL_VERSION && target == INITIAL_RELEASE
 
