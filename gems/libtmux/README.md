@@ -96,8 +96,8 @@ and retains `previous_generation`. Every new subscription begins with a
 subscriptions stay closed, and requests are never replayed. Event sequences
 describe one connection's observations, not durable pane history.
 
-Typed command coverage includes hierarchy creation/listing,
-rename/split/resize/swap/join/break/respawn/layout operations, link operations,
+Typed command coverage includes hierarchy creation/listing; rename, split,
+resize, swap, join, break, respawn, and layout operations; link operations;
 options/hooks/environment, capture/send/paste/pipe/buffers, copy commands,
 display/source-file/wait-for. It does not establish complete flag parity or
 every compatibility cell; consult the workflow results. RBS validation checks declarations;

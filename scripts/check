@@ -17,7 +17,7 @@ run = lambda do |*command|
 end
 
 if %w[mid outer].include?(mode)
-  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile scripts/check scripts/generate scripts/examples scripts/docs scripts/matrix scripts/types scripts/bench scripts/version.rb scripts/release.rb scripts/release-ci scripts/release_github.rb]
+  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile scripts/check scripts/generate scripts/examples scripts/docs scripts/export-docs scripts/matrix scripts/types scripts/bench scripts/version.rb scripts/release.rb scripts/release-ci scripts/release_github.rb]
   files.each { |file| RubyVM::InstructionSequence.compile_file(file) }
   puts "Syntax: #{files.length} files"
   run.call(Gem.ruby, "scripts/generate", "--check")
@@ -25,6 +25,7 @@ if %w[mid outer].include?(mode)
 end
 
 run.call(Gem.ruby, "scripts/types", "--check") if %w[mid types outer].include?(mode)
+run.call(Gem.ruby, "scripts/export-docs", "--check") if %w[types outer].include?(mode)
 
 suites = case mode
 when "unit", "mid" then ["unit"]

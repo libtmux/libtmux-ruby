@@ -1,0 +1,254 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "fileutils"
+require "json"
+require "open3"
+require "yard"
+
+load File.expand_path("types", __dir__) unless defined?(PublicAPI)
+load File.expand_path("examples", __dir__) unless defined?(ExampleManifest)
+
+class DocumentationExport
+  Error = Class.new(StandardError)
+  PACKAGE_DETAILS = {
+    "libtmux" => {"require" => "libtmux", "product" => "core"},
+    "libtmux-async" => {"require" => "libtmux/async", "product" => "core"},
+    "libtmux-mcp" => {"require" => "libtmux/mcp", "product" => "mcp", "executable" => "libtmux-mcp"},
+    "libtmux-workspace" => {
+      "require" => "libtmux/workspace", "product" => "workspace", "executable" => "libtmux-workspace"
+    }
+  }.freeze
+
+  attr_reader :root
+
+  def initialize(root)
+    @root = File.expand_path(root)
+  end
+
+  def payload
+    @payload ||= begin
+      inventory = PublicAPI.new
+      inventory.audit!
+      manifest = ExampleManifest.new(root)
+      manifest.check
+      contracts = contract_mapping
+      prepare_yard
+      symbols = inventory.records.map { |record| symbol(record, contracts.fetch(record.fetch("owner"))) }
+      validate!(symbols)
+      {
+        "schema" => 1,
+        "port" => "ruby",
+        "source" => {"repository" => "libtmux/libtmux-ruby", "revision" => revision},
+        "exporter" => {"name" => "scripts/export-docs", "version" => 1},
+        "packages" => packages,
+        "namespaces" => namespaces(inventory, symbols),
+        "aliases" => aliases,
+        "symbols" => symbols,
+        "guides" => guides(manifest),
+        "examples" => examples(manifest)
+      }
+    end
+  end
+
+  def to_json
+    JSON.pretty_generate(payload) + "\n"
+  end
+
+  def write(directory)
+    directory = File.expand_path(directory)
+    FileUtils.mkdir_p(directory)
+    File.write(File.join(directory, "api.json"), to_json)
+    write_bundle(directory, "guides", payload.fetch("guides"))
+    write_bundle(directory, "examples", payload.fetch("examples").fetch("files"))
+  end
+
+  private
+
+  def revision
+    output, status = Open3.capture2("git", "rev-parse", "HEAD", chdir: root)
+    raise Error, "could not resolve source revision" unless status.success? && output.strip.match?(/\A[0-9a-f]{40}\z/)
+    output.strip
+  end
+
+  def packages
+    PACKAGE_DETAILS.map do |name, details|
+      spec = Gem::Specification.find_by_name(name)
+      files = Dir.glob("gems/#{name}/sig/**/*.rbs", base: root).sort
+      rbs = files.map { |path| "# #{path}\n#{File.read(File.join(root, path))}" }.join("\n")
+      {"name" => name, "version" => spec.version.to_s, **details, "rbs" => rbs}
+    end
+  end
+
+  def prepare_yard
+    YARD::Registry.clear
+    sources = Dir.glob("gems/*/lib/**/*.rb", base: root).sort.map { |path| File.join(root, path) }
+    YARD.parse(sources)
+  end
+
+  def aliases
+    PACKAGE_DETAILS.flat_map do |package, details|
+      Dir.glob("gems/#{package}/sig/**/*.rbs", base: root).sort.flat_map do |path|
+        buffer = RBS::Buffer.new(name: path, content: File.read(File.join(root, path)))
+        declarations = RBS::Parser.parse_signature(buffer).last
+        collect_aliases(declarations, [], package, details.fetch("product"), path)
+      end
+    end.sort_by { |entry| entry.fetch("id") }
+  end
+
+  def collect_aliases(declarations, namespace, package, product, path)
+    declarations.flat_map do |declaration|
+      case declaration
+      when RBS::AST::Declarations::Class, RBS::AST::Declarations::Module
+        name = declaration.name.to_s.sub(/\A::/, "")
+        parts = name.include?("::") ? name.split("::") : namespace + [name]
+        collect_aliases(declaration.members.grep(RBS::AST::Declarations::Base), parts, package, product, path)
+      when RBS::AST::Declarations::TypeAlias
+        name = declaration.name.to_s.sub(/\A::/, "")
+        id = (name.include?("::") ? name.split("::") : namespace + [name]).join("::")
+        [{"id" => id, "name" => id.split("::").last, "package" => package, "product" => product,
+          "type" => declaration.type.to_s,
+          "source" => {"path" => path, "line" => declaration.location.start_line}}]
+      else
+        []
+      end
+    end
+  end
+
+  def contract_mapping
+    document = JSON.parse(File.read(File.join(root, "docs/reference/contracts.json")))
+    raise Error, "unsupported contract manifest" unless document.fetch("version") == 1
+    document.fetch("contracts").each_with_object({}) do |contract, mapping|
+      contract.fetch("methods").each do |method|
+        raise Error, "duplicate behavioral mapping: #{method}" if mapping.key?(method)
+        mapping[method] = {"id" => contract.fetch("id"), "title" => contract.fetch("title")}
+      end
+    end
+  end
+
+  def symbol(record, contract)
+    path, line = record.fetch("source").split("#L", 2)
+    object = YARD::Registry.at(record.fetch("id")) || YARD::Registry.at(record.fetch("owner"))
+    name = record.fetch("method")
+    {
+      "id" => record.fetch("id"),
+      "owner" => record.fetch("owner"),
+      "namespace" => record.fetch("class"),
+      "name" => name,
+      "kind" => "method",
+      "method_kind" => record.fetch("kind"),
+      "package" => package_for(record.fetch("class")),
+      "product" => product_for(record.fetch("class")),
+      "visibility" => record.fetch("visibility"),
+      "signatures" => record.fetch("signatures"),
+      "returns" => record.fetch("returns"),
+      "documentation" => object&.docstring.to_s,
+      "tags" => yard_tags(object),
+      "contract" => contract,
+      "source" => {"path" => path, "line" => Integer(line)}
+    }
+  end
+
+  def namespaces(inventory, symbols)
+    inventory.exports.sort_by(&:name).map do |value|
+      member = symbols.find do |symbol|
+        namespace = symbol.fetch("namespace")
+        namespace == value.name || namespace.start_with?("#{value.name}::")
+      end
+      raise Error, "namespace has no public source: #{value.name}" unless member
+      object = YARD::Registry.at(value.name)
+      entry = {
+        "id" => value.name,
+        "name" => value.name.split("::").last,
+        "kind" => value.is_a?(Class) ? "class" : "module",
+        "package" => package_for(value.name),
+        "product" => product_for(value.name),
+        "documentation" => object&.docstring.to_s,
+        "source" => member.fetch("source")
+      }
+      if value.is_a?(Class) && value.superclass&.name && value.superclass != Object
+        entry["extends"] = [value.superclass.name]
+      end
+      entry
+    end
+  end
+
+  def yard_tags(object)
+    return [] unless object
+    object.tags.map do |tag|
+      {"tag" => tag.tag_name.to_s, "name" => tag.name, "types" => tag.types, "text" => tag.text}.compact
+    end
+  end
+
+  def package_for(namespace)
+    return "libtmux-async" if namespace.start_with?("LibTmux::Async")
+    return "libtmux-mcp" if namespace.start_with?("LibTmux::MCP")
+    return "libtmux-workspace" if namespace.start_with?("LibTmux::Workspace")
+    "libtmux"
+  end
+
+  def product_for(namespace)
+    PACKAGE_DETAILS.fetch(package_for(namespace)).fetch("product")
+  end
+
+  def guides(manifest)
+    manifest.data.fetch("documents").sort.map do |path|
+      {"path" => path, "content" => File.read(File.join(root, path))}
+    end
+  end
+
+  def examples(manifest)
+    paths = manifest.data.fetch("programs").map { |entry| entry.fetch("path") } + manifest.data.fetch("support")
+    {
+      "manifest" => manifest.data,
+      "files" => paths.sort.map { |path| {"path" => path, "content" => File.read(File.join(root, path))} }
+    }
+  end
+
+  def write_bundle(directory, name, files)
+    destination = File.join(directory, name)
+    FileUtils.rm_rf(destination)
+    files.each do |entry|
+      target = File.join(destination, entry.fetch("path"))
+      FileUtils.mkdir_p(File.dirname(target))
+      File.write(target, entry.fetch("content"))
+    end
+  end
+
+  def validate!(symbols)
+    ids = symbols.map { |symbol| symbol.fetch("id") }
+    raise Error, "duplicate public symbol IDs" unless ids.uniq.length == ids.length
+    symbols.each do |symbol|
+      path = symbol.dig("source", "path")
+      raise Error, "invalid source path: #{path}" unless path&.start_with?("gems/") && !path.start_with?("/")
+      raise Error, "non-public symbol: #{symbol.fetch('id')}" unless symbol.fetch("visibility") == "public"
+    end
+    serialized = JSON.generate(symbols)
+    raise Error, "machine-specific path in export" if serialized.match?(%r{/(?:home|Users)/})
+  end
+end
+
+if $PROGRAM_NAME == __FILE__
+  root = File.expand_path("..", __dir__)
+  output = File.join(root, "docs/_build")
+  check = false
+  until ARGV.empty?
+    case (argument = ARGV.shift)
+    when "--source" then root = ARGV.shift || abort("--source requires a directory")
+    when "--output" then output = ARGV.shift || abort("--output requires a directory")
+    when "--check" then check = true
+    else abort "usage: scripts/export-docs [--source DIRECTORY] [--output DIRECTORY] [--check] (unknown: #{argument})"
+    end
+  end
+  begin
+    export = DocumentationExport.new(root)
+    if check
+      export.payload
+    else
+      export.write(output)
+    end
+    puts "Documentation export: #{export.payload.fetch('symbols').length} public methods across #{export.payload.fetch('packages').length} gems"
+  rescue DocumentationExport::Error, PublicAPI::Error, ExampleManifest::Error => error
+    abort error.message
+  end
+end
