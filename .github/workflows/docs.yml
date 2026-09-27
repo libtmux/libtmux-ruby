@@ -110,7 +110,16 @@ jobs:
                     {version: $alias, kind: "alias", isDefault: $alias_default, resolvesTo: $tag, environment: "docs", publish: true}
                   ]}')
               elif [[ "$REF_NAME" == master ]]; then
-                matrix='{"include":[{"version":"latest","kind":"trunk","isDefault":true,"resolvesTo":"","environment":"docs","publish":true}]}'
+                # latest is the default only until the first stable release:
+                # from then on stable is, and a trunk push must not take the
+                # default back from it.
+                trunk_default=true
+                tags=$(git ls-remote --tags --refs "https://github.com/$REPOSITORY" | sed 's#.*refs/tags/##')
+                if grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' <<< "$tags"; then
+                  trunk_default=false
+                fi
+                matrix=$(jq -cn --argjson isDefault "$trunk_default" \
+                  '{include: [{version: "latest", kind: "trunk", isDefault: $isDefault, resolvesTo: "", environment: "docs", publish: true}]}')
               elif [[ "$REF_NAME" =~ ^v[0-9]+\.x$ ]]; then
                 matrix=$(jq -cn --arg version "$REF_NAME" \
                   '{include: [{version: $version, kind: "branch", isDefault: false, resolvesTo: "", environment: "docs", publish: true}]}')
