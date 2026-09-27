@@ -20,6 +20,7 @@ Gem::Specification.new do |spec|
   spec.executables = ["libtmux-mcp"]
   spec.files = %w[
     LICENSE README.md
+    assets/logo.svg assets/logo.png
     exe/libtmux-mcp
     lib/libtmux/mcp.rb
     lib/libtmux/mcp/version.rb

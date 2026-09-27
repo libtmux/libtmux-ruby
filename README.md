@@ -1,3 +1,12 @@
+<!-- libtmux-logo -->
+<p align="center">
+  <picture>
+    <source srcset="assets/logo.svg" type="image/svg+xml">
+    <img src="assets/logo.png" width="128" height="128" alt="libtmux for Ruby">
+  </picture>
+</p>
+<!-- /libtmux-logo -->
+
 # libtmux for Ruby
 
 Create tmux sessions, split windows, send input, and capture pane output from

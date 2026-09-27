@@ -1,3 +1,12 @@
+<!-- libtmux-logo -->
+<p align="center">
+  <picture>
+    <source srcset="assets/logo.svg" type="image/svg+xml">
+    <img src="assets/logo.png" width="128" height="128" alt="libtmux for Ruby MCP">
+  </picture>
+</p>
+<!-- /libtmux-logo -->
+
 # libtmux-mcp
 
 Expose an existing tmux server over MCP stdio. Read snapshots, capture pane
