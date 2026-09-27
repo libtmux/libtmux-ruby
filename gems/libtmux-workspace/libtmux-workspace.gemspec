@@ -20,6 +20,7 @@ Gem::Specification.new do |spec|
   spec.executables = ["libtmux-workspace"]
   spec.files = %w[
     LICENSE README.md
+    assets/logo.svg assets/logo.png
     exe/libtmux-workspace
     lib/libtmux/workspace.rb
     lib/libtmux/workspace/apply.rb

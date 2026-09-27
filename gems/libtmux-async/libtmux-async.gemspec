@@ -18,6 +18,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   spec.files = %w[
     LICENSE README.md
+    assets/logo.svg assets/logo.png
     lib/libtmux/async.rb
     lib/libtmux/async/version.rb
     lib/libtmux/async/process.rb
