@@ -7,6 +7,8 @@
 </p>
 <!-- /libtmux-logo -->
 
+<div align="center">
+
 # libtmux for Ruby
 
 Create tmux sessions, split windows, send input, and capture pane output from
@@ -16,6 +18,8 @@ and the rest of `Enumerable`.
 [Quick start](#quick-start) · [Queries](#query-a-snapshot) · [Gems](#gems) ·
 [Guide](docs/index.md) · [API reference](docs/reference/api.md) ·
 [Recipes](docs/recipes.md)
+
+</div>
 
 **Alpha.** APIs may change between releases. See the
 [initial alpha notes](CHANGELOG.md) and [release guide](docs/releasing.md).

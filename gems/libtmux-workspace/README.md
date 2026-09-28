@@ -7,6 +7,8 @@
 </p>
 <!-- /libtmux-logo -->
 
+<div align="center">
+
 # libtmux-workspace
 
 Load bounded YAML or JSON, inspect an immutable creation plan, then explicitly
@@ -14,6 +16,8 @@ apply it to an open libtmux server. The library
 and installed command-line executable share the core
 [compatibility matrix](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml);
 consult its exact per-revision results.
+
+</div>
 
 The gem declares Ruby 3.3 or newer and depends on the same-version `libtmux`
 gem, JSON 3.0 and Psych 5.5. See the repository's
