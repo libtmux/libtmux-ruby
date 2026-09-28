@@ -7,6 +7,8 @@
 </p>
 <!-- /libtmux-logo -->
 
+<div align="center">
+
 # libtmux
 
 Ruby tmux orchestration core. `Server.open` borrows an
@@ -16,6 +18,8 @@ private owned foreground daemon whose lifetime ends with its server handle.
 Owned startup uses Linux and Darwin readiness backends. The
 [compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
 retains exact per-revision platform and version results.
+
+</div>
 
 Install the alpha with `gem install libtmux --pre`, then require `libtmux`.
 Imports do not

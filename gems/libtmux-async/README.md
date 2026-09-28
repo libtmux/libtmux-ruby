@@ -7,11 +7,15 @@
 </p>
 <!-- /libtmux-logo -->
 
+<div align="center">
+
 # libtmux-async
 
 Run libtmux operations inside an application-owned Async task. This
 gem provides a subprocess facade, ordered mapping, control replies and event
 subscriptions. Imports start no scheduler, tmux server or background task.
+
+</div>
 
 Install the alpha with `gem install libtmux-async --pre`.
 
