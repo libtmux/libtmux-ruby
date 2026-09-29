@@ -89,7 +89,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L140) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
 | [#open_control](../../gems/libtmux-async/lib/libtmux/async/server.rb#L32) | `T` / `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L7) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L16) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L15) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#pane](../../gems/libtmux/lib/libtmux/server.rb#L174) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
 | [#read_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L58) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [#run](../../gems/libtmux-async/lib/libtmux/async/server.rb#L14) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
@@ -187,7 +187,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L405) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L431) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
 
 ## LibTmux::ClosedError
 
@@ -380,18 +380,18 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#===](../../gems/libtmux/lib/libtmux/criteria.rb#L95) | `bool` | [Criteria](behavior.md#criteria) |
-| [#and](../../gems/libtmux/lib/libtmux/criteria.rb#L83) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
-| [#call](../../gems/libtmux/lib/libtmux/criteria.rb#L95) | `bool` | [Criteria](behavior.md#criteria) |
-| [#entity](../../gems/libtmux/lib/libtmux/criteria.rb#L32) | `::Symbol` | [Criteria](behavior.md#criteria) |
-| [#inspect](../../gems/libtmux/lib/libtmux/criteria.rb#L119) | `::String` | [Criteria](behavior.md#criteria) |
-| [#not](../../gems/libtmux/lib/libtmux/criteria.rb#L91) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
-| [#or](../../gems/libtmux/lib/libtmux/criteria.rb#L87) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
-| [#to_h](../../gems/libtmux/lib/libtmux/criteria.rb#L105) | `::Hash[::String, untyped]` | [Criteria](behavior.md#criteria) |
-| [#to_json](../../gems/libtmux/lib/libtmux/criteria.rb#L111) | `::String` | [Criteria](behavior.md#criteria) |
-| [#to_proc](../../gems/libtmux/lib/libtmux/criteria.rb#L101) | `^(untyped) -> bool` | [Criteria](behavior.md#criteria) |
-| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L34) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
-| [.from_json](../../gems/libtmux/lib/libtmux/criteria.rb#L54) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [#===](../../gems/libtmux/lib/libtmux/criteria.rb#L121) | `bool` | [Criteria](behavior.md#criteria) |
+| [#and](../../gems/libtmux/lib/libtmux/criteria.rb#L109) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [#call](../../gems/libtmux/lib/libtmux/criteria.rb#L121) | `bool` | [Criteria](behavior.md#criteria) |
+| [#entity](../../gems/libtmux/lib/libtmux/criteria.rb#L39) | `::Symbol` | [Criteria](behavior.md#criteria) |
+| [#inspect](../../gems/libtmux/lib/libtmux/criteria.rb#L145) | `::String` | [Criteria](behavior.md#criteria) |
+| [#not](../../gems/libtmux/lib/libtmux/criteria.rb#L117) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [#or](../../gems/libtmux/lib/libtmux/criteria.rb#L113) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [#to_h](../../gems/libtmux/lib/libtmux/criteria.rb#L131) | `::Hash[::String, untyped]` | [Criteria](behavior.md#criteria) |
+| [#to_json](../../gems/libtmux/lib/libtmux/criteria.rb#L137) | `::String` | [Criteria](behavior.md#criteria) |
+| [#to_proc](../../gems/libtmux/lib/libtmux/criteria.rb#L127) | `^(untyped) -> bool` | [Criteria](behavior.md#criteria) |
+| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L41) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [.from_json](../../gems/libtmux/lib/libtmux/criteria.rb#L61) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
 | [.json_schema](../../gems/libtmux/lib/libtmux/criteria.rb#L11) | `::Hash[::String, untyped]` | [Criteria](behavior.md#criteria) |
 
 ## LibTmux::GroupResult
@@ -633,7 +633,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L405) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L431) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
 
 ## LibTmux::ProtocolError
 
@@ -690,7 +690,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L140) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
 | [#open_control](../../gems/libtmux/lib/libtmux/server.rb#L178) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L7) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L16) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L15) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#pane](../../gems/libtmux/lib/libtmux/server.rb#L174) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
 | [#read_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L58) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [#run](../../gems/libtmux/lib/libtmux/server.rb#L75) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
@@ -708,7 +708,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#write_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L54) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [.new](../../gems/libtmux/lib/libtmux/server.rb#L45) | `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [.open](../../gems/libtmux/lib/libtmux/server.rb#L13) | `T` / `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [.start](../../gems/libtmux/lib/libtmux/owned.rb#L12) | `::LibTmux::Server` / `T` | [Owned daemons](behavior.md#owned-daemons) |
+| [.start](../../gems/libtmux/lib/libtmux/owned.rb#L11) | `::LibTmux::Server` / `T` | [Owned daemons](behavior.md#owned-daemons) |
 
 ## LibTmux::Session
 
@@ -761,7 +761,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L405) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L431) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
 
 ## LibTmux::Snapshot
 
@@ -916,7 +916,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L405) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L431) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
 
 ## LibTmux::WindowSnapshot
 
@@ -943,7 +943,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L405) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
+| [.build](../../gems/libtmux/lib/libtmux/criteria.rb#L431) | `::LibTmux::FilterExpr` | [Criteria](behavior.md#criteria) |
 
 ## LibTmux::Workspace
 

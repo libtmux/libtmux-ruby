@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "fcntl"
 require "fiddle"
 require "libtmux/errors"
 
@@ -14,7 +13,7 @@ module LibTmux
         init = Fiddle::Function.new(libc["inotify_init1"], [Fiddle::TYPE_INT], Fiddle::TYPE_INT)
         add = Fiddle::Function.new(libc["inotify_add_watch"],
           [Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
-        fd = init.call(Fcntl::O_NONBLOCK)
+        fd = init.call(File::NONBLOCK) # IN_NONBLOCK equals O_NONBLOCK
         raise SystemCallError.new("inotify_init1", Fiddle.last_error) if fd.negative?
 
         @reader = IO.for_fd(fd, autoclose: true)

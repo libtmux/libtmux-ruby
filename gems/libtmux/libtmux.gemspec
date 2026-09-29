@@ -53,9 +53,8 @@ Gem::Specification.new do |spec|
     sig/fields.rbs
     schema/where-v1.json
   ]
-  spec.add_dependency "json", "~> 3.0.2"
-  spec.add_dependency "tmpdir", "~> 0.3"
-  spec.add_dependency "securerandom", "~> 0.4"
+  # Default gems (json, tmpdir, securerandom, io-console) load from every
+  # supported Ruby without a declaration. fiddle is a bundled gem from Ruby 4.0,
+  # so Bundler needs it declared.
   spec.add_dependency "fiddle", "~> 1.1"
-  spec.add_dependency "io-console", "~> 0.8"
 end

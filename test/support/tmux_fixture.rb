@@ -2,7 +2,6 @@
 
 require "fileutils"
 require "fiddle"
-require "fcntl"
 require "libtmux/child"
 require "libtmux/socket_readiness"
 require "tmpdir"

@@ -208,6 +208,21 @@ class CriteriaTest < Minitest::Test
     assert_raises(LibTmux::InvalidFilterError) { LibTmux::PaneWhere.build(query) }
   end
 
+  def test_wire_rejects_comments_bad_escapes_and_repeated_members_but_keeps_punctuation_in_strings
+    expr = LibTmux::PaneWhere.build(current_path: %q(a"b\c:/d))
+    wire = expr.to_json
+    assert_equal expr.to_h, LibTmux::FilterExpr.from_json(wire).to_h
+    [wire + "\n// trailing", "/* leading */ " + wire, wire.sub(":", " /* inner */ :"),
+      wire.sub('"currentPath":', '"currentPath":"/a","currentPath":'),
+      wire.sub("/d") { "/\\d" },
+      wire.sub("/d") { "/\\ud83d\\u0041" }, wire.sub("/d") { "/\\ud83daaaaaaaaaa" },
+      wire.sub("/d") { "/\\ude00" }].each do |invalid|
+      assert_raises(LibTmux::InvalidFilterError) { LibTmux::FilterExpr.from_json(invalid) }
+    end
+    paired = wire.sub("/d") { "/\\ud83d\\ude00" }
+    assert_equal "/\u{1F600}", LibTmux::FilterExpr.from_json(paired).to_h.dig("where", "currentPath", "equals")[-2..]
+  end
+
   def test_diagnostics_redact_operands_and_serialization_respects_wire_limits
     expression = LibTmux::PaneWhere.build(current_path: "private-secret")
     refute_includes expression.inspect, "private-secret"

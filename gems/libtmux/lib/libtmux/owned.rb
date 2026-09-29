@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "fcntl"
 require "libtmux/server"
 require "libtmux/child"
 require "libtmux/socket_readiness"

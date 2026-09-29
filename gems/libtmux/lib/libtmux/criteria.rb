@@ -26,8 +26,15 @@ module LibTmux
     MAX_MEMBERS = 1024
     MAX_STRING_BYTES = 65_536
     MAX_BYTES = 262_144
+    # Strict-JSON checks that hold on every json version. `allow_duplicate_key:
+    # false` is avoided: older json ignores it and some releases format-string-
+    # inject the key name (CVE-2026-33210). Older json also accepts comments,
+    # invalid escapes, repeated keys (the last wins) and unpaired surrogate
+    # escapes. After removing well-formed strings, a quote, backslash or "/" is
+    # a bad escape or a comment, and each ":" is one object member.
+    JSON_STRING = /"(?:[^"\\]++|\\["\\\/bfnrt]|\\u(?![dD][89a-fA-F])\h{4}|\\u[dD][89abAB]\h{2}\\u[dD][c-fC-F]\h{2})*+"/n
     private_constant :OMITTED, :OPERATORS, :MAX_DEPTH, :MAX_NODES, :MAX_MEMBERS,
-      :MAX_STRING_BYTES, :MAX_BYTES
+      :MAX_STRING_BYTES, :MAX_BYTES, :JSON_STRING
 
     attr_reader :entity
 
@@ -55,8 +62,11 @@ module LibTmux
       unless input.is_a?(String) && input.bytesize <= MAX_BYTES
         raise InvalidFilterError.new(expected: "JSON string of at most #{MAX_BYTES} bytes")
       end
-      data = JSON.parse(input, max_nesting: MAX_DEPTH * 2 + 4,
-        allow_nan: false, allow_duplicate_key: false)
+      data = JSON.parse(input, max_nesting: MAX_DEPTH * 2 + 4, allow_nan: false)
+      unquoted = input.b.gsub(JSON_STRING, "")
+      if unquoted.match?(%r{["\\/]}) || unquoted.count(":") != member_count(data)
+        raise JSON::ParserError, "comment, bad escape or repeated member"
+      end
       required = %w[profile version entity where]
       unless data.is_a?(Hash) && data.keys.sort == required.sort &&
           data["profile"] == PROFILE && data["version"].is_a?(Integer) && data["version"] == VERSION
@@ -72,6 +82,22 @@ module LibTmux
     rescue JSON::ParserError, JSON::NestingError, EncodingError
       raise InvalidFilterError.new(expected: "bounded UTF-8 JSON object"), cause: nil
     end
+
+    def self.member_count(root)
+      count = 0
+      pending = [root]
+      until pending.empty?
+        case (value = pending.pop)
+        when Hash
+          count += value.size
+          pending.concat(value.values)
+        when Array
+          pending.concat(value)
+        end
+      end
+      count
+    end
+    private_class_method :member_count
 
     def initialize(entity, tree)
       @entity = entity
