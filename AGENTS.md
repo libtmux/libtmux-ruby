@@ -25,3 +25,12 @@ requested work.
 
 Each guide is the single home for its subject. `CLAUDE.md` is a relative
 symlink to this file; keep the instructions here.
+
+## Merging pull requests
+
+Use a descriptive subject ending in the actual PR number: `Title (#PRNUM)`.
+Follow it with `what:` and `why:` sections describing the change and its
+reason. Never use the default `Merge pull request ... from ...` subject.
+
+Pass the subject and body explicitly to the merge command. Read back the
+resulting commit message before starting another merge.
