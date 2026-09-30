@@ -176,7 +176,14 @@ jobs:
 
   build:
     needs: identity
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      LIBTMUX_DOCS_PORT: ruby
+      LIBTMUX_DOCS_VERSION: ${{ matrix.version }}
+      LIBTMUX_DOCS_SOURCE_REPOSITORY: ${{ needs.identity.outputs.source-repository }}
+      LIBTMUX_DOCS_CHECKOUT_RUBY: ${{ github.workspace }}/port
+      LIBTMUX_DOCS_GENERATOR_CHECKOUT: ${{ github.workspace }}/docs-generator
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.identity.outputs.matrix) }}
@@ -186,9 +193,11 @@ jobs:
           repository: ${{ needs.identity.outputs.source-repository }}
           ref: ${{ needs.identity.outputs.source-ref }}
           fetch-depth: 0
+          path: port
           persist-credentials: false
 
       - id: source
+        working-directory: port
         env:
           SELECTED_REF: ${{ needs.identity.outputs.source-ref }}
         run: |
@@ -204,40 +213,58 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          path: .docs-generator
+          path: docs-generator
           persist-credentials: false
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: libtmux/docs
-          ref: 8fda4b89071621b9ed2c4722a68d61f6ecf9c1c4
-          path: .site
+          ref: 42dd5b71e6eefd785b9bf8ce11d34e8f1a058a22
+          path: docs
           persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26'
+
+      - name: Snapshot source and exporter before native generation
+        working-directory: docs
+        env:
+          LIBTMUX_DOCS_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: node scripts/publication-provenance.mjs snapshot "$RUNNER_TEMP/build-inputs.json" "$PWD"
 
       - uses: ruby/setup-ruby@762794c140bbeda0f1224786aa33b4b46783a6c1 # v1.326.0
         with:
           ruby-version: '4.0.7'
-          bundler-cache: true
+          working-directory: port
+          bundler-cache: false
+
+      - name: Install the selected Ruby bundle
+        working-directory: port
+        env:
+          BUNDLE_FROZEN: 'true'
+        run: bundle install
+
+      - name: Install tmux for native MCP discovery
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y -qq tmux
 
       - name: Export the selected Ruby source
+        working-directory: port
         run: |
-          bundle exec ruby .docs-generator/scripts/export-docs \
-            --source "$GITHUB_WORKSPACE" \
-            --output "$GITHUB_WORKSPACE/docs/_build"
+          bundle exec ruby "$GITHUB_WORKSPACE/docs-generator/scripts/export-docs" \
+            --source "$GITHUB_WORKSPACE/port" \
+            --output "$GITHUB_WORKSPACE/port/docs/_build"
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
-          package_json_file: .site/package.json
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '26'
-          cache: pnpm
-          cache-dependency-path: .site/pnpm-lock.yaml
+          package_json_file: docs/package.json
       - run: pnpm install --frozen-lockfile
-        working-directory: .site
+        working-directory: docs
 
       - name: Build the selected Ruby documentation tree
-        working-directory: .site
+        working-directory: docs
         env:
           LIBTMUX_DOCS_PORT: ruby
           LIBTMUX_DOCS_VERSION: ${{ matrix.version }}
@@ -246,13 +273,30 @@ jobs:
           LIBTMUX_DOCS_RESOLVES_TO: ${{ matrix.resolvesTo }}
           LIBTMUX_DOCS_SOURCE_REF: ${{ needs.identity.outputs.source-ref }}
           LIBTMUX_DOCS_SOURCE_SHA: ${{ steps.source.outputs.sha }}
-          LIBTMUX_DOCS_CHECKOUT_RUBY: ${{ github.workspace }}
+          LIBTMUX_DOCS_INPUT_SNAPSHOT: ${{ runner.temp }}/build-inputs.json
         run: ./scripts/build-site.sh --ports ruby --versions "${{ matrix.version }}" --skip-refs --skip-pagefind
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - id: content
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: docs-ruby-${{ matrix.version }}
-          path: .site/_site/en/ruby/${{ matrix.version }}
+          path: docs/_site/en/ruby/${{ matrix.version }}
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: true
+
+      - name: Describe the uploaded artifact
+        working-directory: docs
+        env:
+          ARTIFACT_ID: ${{ steps.content.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.content.outputs.artifact-digest }}
+          ARTIFACT_NAME: docs-ruby-${{ matrix.version }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: node scripts/publication-provenance.mjs descriptor "$RUNNER_TEMP/publication.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docs-ruby-${{ matrix.version }}-publication
+          path: ${{ runner.temp }}/publication.json
           if-no-files-found: error
           retention-days: 1
 
@@ -265,7 +309,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@8fda4b89071621b9ed2c4722a68d61f6ecf9c1c4
+    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@42dd5b71e6eefd785b9bf8ce11d34e8f1a058a22
     with:
       path-prefix: ruby/${{ matrix.version }}
       artifact: docs-ruby-${{ matrix.version }}
