@@ -147,6 +147,19 @@ default tmux server or sweep another port's temporary files.
 Record the actual tmux version when behavior depends on it. A passing subset
 does not establish support for an entire version range.
 
+## Documentation publisher updates
+
+[`renovate.json`](../renovate.json) groups the docs checkout and reusable
+publisher in one update. Enable Renovate for this repository to open those
+pull requests. Both references remain full commit hashes; their `# main`
+comments tell Renovate which branch to check for updates.
+
+Review the selected `libtmux/docs` revision before authorizing it in the
+publisher's IAM trust policy. Automatic merging is disabled. The ordinary
+workflow tests reject different build and publisher pins, and the docs
+workflow validates the generated artifact before publication. A new pin
+cannot publish until its exact workflow revision is approved in IAM.
+
 ## Pull requests
 
 Keep one subject per pull request and one logical change per commit. Review

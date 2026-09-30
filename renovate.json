@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "enabledManagers": ["github-actions", "custom.regex"],
+  "dependencyDashboard": false,
+  "automerge": false,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Keep the docs checkout and reusable publisher on the same commit.",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": [
+        "repository: libtmux/docs\\s+ref: (?<currentDigest>[a-f0-9]{40}) # (?<currentValue>main)"
+      ],
+      "depNameTemplate": "libtmux/docs",
+      "datasourceTemplate": "github-digest",
+      "versioningTemplate": "exact"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": ["libtmux/docs"],
+      "groupName": "docs publisher",
+      "groupSlug": "docs-publisher",
+      "automerge": false
+    }
+  ]
+}
