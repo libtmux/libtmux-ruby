@@ -43,4 +43,49 @@ class DocsExportTest < Minitest::Test
     export = DocumentationExport.new(ROOT)
     assert_equal export.to_json, export.to_json
   end
+
+  def test_api_examples_retain_complete_file_bytes_and_resolve_public_package_targets
+    load File.join(ROOT, "scripts/export-docs") unless defined?(DocumentationExport)
+    payload = DocumentationExport.new(ROOT).payload
+    examples = payload.fetch("examples")
+    programs = examples.fetch("manifest").fetch("programs").select { |entry| entry.key?("api") }
+    files = examples.fetch("files").to_h { |entry| [entry.fetch("path"), entry.fetch("content")] }
+    public = (payload.fetch("namespaces") + payload.fetch("symbols"))
+      .to_h { |entry| [entry.fetch("id"), entry.fetch("package")] }
+    assert_equal 8, programs.length
+    programs.each do |program|
+      code = files.fetch(program.fetch("path"))
+      assert_equal File.read(File.join(ROOT, program.fetch("path"))), code
+      assert_includes code, 'require "libtmux"'
+      refute_includes code, "require_relative"
+      program.fetch("api").fetch("symbols").each do |id|
+        assert_equal program.fetch("gem"), public.fetch(id)
+      end
+    end
+
+    Dir.mktmpdir("libtmux-ruby-api-export-") do |directory|
+      manifest = ExampleManifest.new(ROOT)
+      invalid = Marshal.load(Marshal.dump(manifest.data))
+      invalid.fetch("programs").find { |entry| entry.key?("api") }
+        .fetch("api")["symbols"] = ["LibTmux::Server#does_not_exist"]
+      FileUtils.cp_r(File.join(ROOT, "examples"), directory)
+      invalid.fetch("documents").each do |path|
+        target = File.join(directory, path)
+        FileUtils.mkdir_p(File.dirname(target))
+        FileUtils.cp(File.join(ROOT, path), target)
+      end
+      FileUtils.cp(File.join(ROOT, "docs/reference/contracts.json"),
+        File.join(directory, "docs/reference/contracts.json"))
+      File.write(File.join(directory, "examples", "manifest.json"), JSON.generate(invalid))
+      export = DocumentationExport.new(directory)
+      export.define_singleton_method(:revision) { "a" * 40 }
+      failure = assert_raises(DocumentationExport::Error) { export.payload }
+      assert_match(/unknown API example target/, failure.message)
+      invalid.fetch("programs").find { |entry| entry.key?("api") }
+        .fetch("api")["symbols"] = ["LibTmux::Async::Server"]
+      File.write(File.join(directory, "examples", "manifest.json"), JSON.generate(invalid))
+      failure = assert_raises(DocumentationExport::Error) { export.payload }
+      assert_match(/API example package differs/, failure.message)
+    end
+  end
 end

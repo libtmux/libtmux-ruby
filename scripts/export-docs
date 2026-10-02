@@ -36,13 +36,15 @@ class DocumentationExport
       prepare_yard
       symbols = inventory.records.map { |record| symbol(record, contracts.fetch(record.fetch("owner"))) }
       validate!(symbols)
+      namespaces = namespaces(inventory, symbols)
+      validate_api_examples!(manifest, namespaces + symbols)
       {
         "schema" => 1,
         "port" => "ruby",
         "source" => {"repository" => "libtmux/libtmux-ruby", "revision" => revision},
         "exporter" => {"name" => "scripts/export-docs", "version" => 1},
         "packages" => packages,
-        "namespaces" => namespaces(inventory, symbols),
+        "namespaces" => namespaces,
         "aliases" => aliases,
         "symbols" => symbols,
         "guides" => guides(manifest),
@@ -203,6 +205,19 @@ class DocumentationExport
       "manifest" => manifest.data,
       "files" => paths.sort.map { |path| {"path" => path, "content" => File.read(File.join(root, path))} }
     }
+  end
+
+  def validate_api_examples!(manifest, declarations)
+    packages = declarations.to_h { |entry| [entry.fetch("id"), entry.fetch("package")] }
+    manifest.data.fetch("programs").each do |program|
+      next unless program.key?("api")
+      program.fetch("api").fetch("symbols").each do |id|
+        raise Error, "unknown API example target: #{id}" unless packages.key?(id)
+        unless packages.fetch(id) == program.fetch("gem")
+          raise Error, "API example package differs: #{program.fetch('id')} -> #{id}"
+        end
+      end
+    end
   end
 
   def write_bundle(directory, name, files)
