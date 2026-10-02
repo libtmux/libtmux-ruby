@@ -50,6 +50,113 @@
       "id": "workspace_apply",
       "path": "examples/workspace_apply.rb",
       "gem": "libtmux-workspace"
+    },
+    {
+      "id": "api_server",
+      "path": "examples/api/server.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server",
+          "LibTmux::Server.new"
+        ],
+        "description": "Connect a Server client to an existing endpoint and close it without stopping the daemon. The outer Server.start block owns the private demonstration server.",
+        "output": "connected sessions: 1\nsessions after client close: 1\n"
+      }
+    },
+    {
+      "id": "api_list_sessions",
+      "path": "examples/api/list_sessions.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server#list_sessions"
+        ],
+        "description": "List live session handles from a server containing two sessions.",
+        "output": "sessions: $0, $1\n"
+      }
+    },
+    {
+      "id": "api_list_windows",
+      "path": "examples/api/list_windows.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server#list_windows",
+          "LibTmux::Session#list_windows"
+        ],
+        "description": "List all server windows and the windows belonging to one session.",
+        "output": "server windows: 3\nwork windows: 2\n"
+      }
+    },
+    {
+      "id": "api_list_panes",
+      "path": "examples/api/list_panes.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server#list_panes",
+          "LibTmux::Session#list_panes",
+          "LibTmux::Window#list_panes"
+        ],
+        "description": "List panes across the server, within one session, and within one window.",
+        "output": "server panes: 3\nwork panes: 2\nwindow panes: 2\n"
+      }
+    },
+    {
+      "id": "api_new_session",
+      "path": "examples/api/new_session.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server.start",
+          "LibTmux::Server#new_session"
+        ],
+        "description": "Start a private server and create a session. Request a creation receipt to read the session, window, and pane IDs returned by that creation command.",
+        "output": "session: $0\nwindow: @0\npane: %0\n"
+      }
+    },
+    {
+      "id": "api_new_window",
+      "path": "examples/api/new_window.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Session#new_window"
+        ],
+        "description": "Create a named window in an existing session and read its name from a snapshot.",
+        "output": "window: logs\nsession windows: 2\n"
+      }
+    },
+    {
+      "id": "api_query",
+      "path": "examples/api/query.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server#snapshot",
+          "LibTmux::Server#search_panes",
+          "LibTmux::Selection#where",
+          "LibTmux::Selection#one",
+          "LibTmux::Selection#one_or_nil"
+        ],
+        "description": "Filter a captured snapshot, distinguish a missing session, and acquire a fresh pane selection. one raises unless exactly one record matches; one_or_nil returns nil only for zero matches.",
+        "output": "matching session: work\nmissing session: true\nmatching pane: %0\n"
+      }
+    },
+    {
+      "id": "api_capture",
+      "path": "examples/api/capture.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Pane#send_text",
+          "LibTmux::Pane#send_keys",
+          "LibTmux::Pane#capture"
+        ],
+        "description": "Send a command to a shell, wait for its output notification, then capture the pane. Match a whole output line so the echoed command cannot satisfy the check.",
+        "output": "libtmux capture ready\n"
+      }
     }
   ],
   "support": [

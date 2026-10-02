@@ -20,12 +20,24 @@ class ExampleManifest
     raise Error, "unsupported example manifest" unless data.fetch("version") == 1
     programs = data.fetch("programs")
     duplicates!(programs.map { |entry| entry.fetch("id") }, "program IDs")
+    api_targets = []
     programs.each do |entry|
       raise Error, "unknown package for example: #{entry.fetch('id')}" unless PACKAGES.include?(entry.fetch("gem"))
       unless /\A[a-z][a-z0-9_]*\z/.match?(entry.fetch("id")) && /\Aexamples\/.+\.rb\z/.match?(entry.fetch("path"))
         raise Error, "invalid executable example entry"
       end
+      next unless entry.key?("api")
+      api = entry.fetch("api")
+      unless api.is_a?(Hash) && api.keys.sort == %w[description output symbols] &&
+          api["symbols"].is_a?(Array) && !api["symbols"].empty? &&
+          api["symbols"].all? { |id| id.is_a?(String) && !id.empty? && !id.match?(/\s/) } &&
+          api["description"].is_a?(String) && !api["description"].strip.empty? &&
+          api["output"].is_a?(String) && !api["output"].strip.empty? && api["output"].end_with?("\n")
+        raise Error, "invalid API example metadata: #{entry.fetch('id')}"
+      end
+      api_targets.concat(api.fetch("symbols"))
     end
+    duplicates!(api_targets, "API targets")
     declared = programs.map { |entry| entry.fetch("path") } + data.fetch("support")
     duplicates!(declared, "example paths")
     discovered = Dir.glob("examples/**/*", base: root).select { |path| File.file?(File.join(root, path)) } - ["examples/manifest.json"]

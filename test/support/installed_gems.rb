@@ -38,7 +38,7 @@ module LibTmuxTest
         output, status = Open3.capture2e(environment.merge("LIBTMUX_EXAMPLE_INSTALLED" => "1"),
           Gem.ruby, "-W:no-experimental", File.join(directory, entry.fetch("path")), chdir: directory)
         assert status.success?, "installed example #{entry.fetch('id')} failed: #{output}"
-        assert_equal "PASS #{entry.fetch('id')}\n", output
+        assert_equal entry.dig("api", "output") || "PASS #{entry.fetch('id')}\n", output
       end
     end
 
