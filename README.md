@@ -181,3 +181,16 @@ isolated installation and runs the recipes outside the checkout.
 
 See [Contributing](.github/CONTRIBUTING.md) for setup and checks.
 [MIT license](LICENSE).
+
+## Attribution
+
+Please use the following BibTeX template to cite libtmux-ruby in scientific discourse:
+
+```bibtex
+@misc{libtmux-ruby,
+   author = {Tony Narlock},
+   year = {2026},
+   note = {https://libtmux.org/en/ruby/},
+   title = {libtmux-ruby: Ruby wrapper for tmux}
+}
+```
