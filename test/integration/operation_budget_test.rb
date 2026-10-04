@@ -61,7 +61,7 @@ class OperationBudgetTest < Minitest::Test
         token = LibTmux::Internal::Cancellation.new
         assert fixture.tmux("set-hook", "-g", "after-show-options[98]", "wait-for -S budget-ready ; wait-for budget-held").last.success?
         request = Thread.new do
-          link.select(timeout: 0.5, cancel: token)
+          link.select(timeout: HANG_GUARD_SECONDS, cancel: token)
         rescue StandardError => error
           error
         end

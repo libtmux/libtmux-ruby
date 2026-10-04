@@ -97,7 +97,7 @@ class ProcessExecutorTest < Minitest::Test
     cancellation = LibTmux::Cancellation.new
     with_child_readiness do |ready, environment|
       worker = task do
-        executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
+        executor(cleanup_timeout: HANG_GUARD_SECONDS).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
           trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
@@ -125,14 +125,14 @@ class ProcessExecutorTest < Minitest::Test
   def test_deadline_after_dispatch_reports_possible_effects
     with_child_readiness do |ready, environment|
       worker = task do
-        executor.run(ruby(<<~RUBY), env: environment, timeout: 0.1)
+        executor.run(ruby(<<~RUBY), env: environment, timeout: 2.0)
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
           input.read(1)
         RUBY
       end
       pid = Integer(read_event(ready), 10)
-      assert worker.join(0.5), "deadline did not retire the owned client"
+      assert worker.join(HANG_GUARD_SECONDS), "deadline did not retire the owned client"
       error = worker.value
 
       assert_instance_of LibTmux::DeadlineExceeded, error

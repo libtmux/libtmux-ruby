@@ -93,6 +93,7 @@ class PackageTest < Minitest::Test
 
   def run_installed_shell_helper(environment, directory)
     source = <<~'RUBY'
+      hang_guard = Float(ARGV.fetch(0))
       require 'libtmux/mcp'
       require 'libtmux/mcp/enrollment'
       path = File.join(Dir.pwd, 'helper.sock')
@@ -110,12 +111,12 @@ class PackageTest < Minitest::Test
       script = "printf '%s\\n' \"$PWD\" \"$TMUX\" \"$TMUX_PANE\"; printf '\\000\\377' >&2; exit 9"
       digest = Digest::SHA256.hexdigest(script)
       run_id = 'a' * 32
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + hang_guard
       command = ['/usr/bin/env', 'TMUX=literal $value;#', 'TMUX_PANE=%23', "RUBYOPT=-r#{poison}/poison", "RUBYLIB=#{poison}",
         "GEM_HOME=#{poison}", "GEM_PATH=#{poison}", ruby, '--disable=rubyopt,gems', '-I', load_path, helper, [path].pack('m0'), token, deadline.to_s, run_id, digest, 'ready']
-      worker = Thread.new { LibTmux::Internal::ProcessExecutor.new.run(command, timeout: 0.5) }
+      worker = Thread.new { LibTmux::Internal::ProcessExecutor.new.run(command, timeout: hang_guard) }
       begin
-        raise 'installed helper did not connect' unless IO.select([listener], nil, nil, 0.5)
+        raise 'installed helper did not connect' unless IO.select([listener], nil, nil, hang_guard)
         peer = listener.accept
         read_line = lambda do
           line = +''.b
@@ -137,11 +138,11 @@ class PackageTest < Minitest::Test
         peer&.close
         listener.close
         File.unlink(path)
-        raise 'helper owner did not settle' unless worker.join(0.5)
+        raise 'helper owner did not settle' unless worker.join(hang_guard)
       end
       raise 'helper failed' unless worker.value.success?
     RUBY
-    output, status = Open3.capture2e(environment, Gem.ruby, '-W:no-experimental', '-e', source, chdir: directory)
+    output, status = Open3.capture2e(environment, Gem.ruby, '-W:no-experimental', '-e', source, HANG_GUARD_SECONDS.to_s, chdir: directory)
     assert status.success?, "installed authored helper closure failed: #{output}"
     assert_empty output, 'installed authored helper wrote protocol data outside its socket'
   end

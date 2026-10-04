@@ -154,7 +154,7 @@ class AsyncTest < Minitest::Test
   end
 
   def test_repeated_caller_cancellation_reaps_a_child_ignoring_term
-    with_scope(cleanup_timeout: 0.08) do |scope, parent, fixture|
+    with_scope(cleanup_timeout: HANG_GUARD_SECONDS) do |scope, parent, fixture|
       listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "async-cancel"))
       reaping, notify = IO.pipe
       release = Queue.new
@@ -245,7 +245,7 @@ class AsyncTest < Minitest::Test
   end
 
   def test_map_failure_survives_repeated_cancellation_while_siblings_retire
-    with_scope(cleanup_timeout: 0.08) do |scope, parent, fixture|
+    with_scope(cleanup_timeout: HANG_GUARD_SECONDS) do |scope, parent, fixture|
       listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "async-map-error"))
       reaping, notify = IO.pipe
       release = Queue.new

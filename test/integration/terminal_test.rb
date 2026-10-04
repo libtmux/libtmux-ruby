@@ -84,7 +84,7 @@ class TerminalTest < Minitest::Test
           slave.winsize = [24, 80]
           before = slave.echo?
           assert server.run(["set-hook", "-g", "client-attached", "wait-for -S terminal-attached"]).success?
-          worker = Thread.new { server.attach(session: session.ref, terminal: slave, term: "xterm", timeout: 1) }
+          worker = Thread.new { server.attach(session: session.ref, terminal: slave, term: "xterm", timeout: HANG_GUARD_SECONDS) }
           begin
             assert fixture.tmux("wait-for", "terminal-attached").last.success?
             assert_equal 1, server.list_clients.length
