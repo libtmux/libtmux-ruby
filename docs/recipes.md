@@ -355,17 +355,15 @@ Open3.popen3(
       )
       response.fetch("result")
     end
+  client_capabilities = {}
+  client_info = { name: "recipe", version: "1" }
   request.call(
     1,
     "initialize",
     {
       protocolVersion: "2025-11-25",
-      capabilities: {
-      },
-      clientInfo: {
-        name: "recipe",
-        version: "1"
-      }
+      capabilities: client_capabilities,
+      clientInfo: client_info
     }
   )
   input.write(
@@ -437,8 +435,11 @@ Open3.popen3(
     )
     target = pane.merge("id" => shell_pane.id)
   end
-  script =
-    'printf "%s:%s" "$EXAMPLE_CONTEXT" "$TMUX_PANE"; printf "\\000\\377" >&2; exit 9'
+  script = [
+    'printf "%s:%s" "$EXAMPLE_CONTEXT" "$TMUX_PANE"',
+    'printf "\\000\\377" >&2',
+    "exit 9"
+  ].join("; ")
   run =
     request.call(
       5,
