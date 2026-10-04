@@ -5,6 +5,31 @@ require_relative "../support/tmux_fixture"
 require "libtmux/mcp"
 
 class MCPMutationTest < Minitest::Test
+  # Moves the request clock forward so a long request budget has a known
+  # amount left, without waiting for it or racing tmux startup against it.
+  module AdvancingClock
+    class << self
+      attr_accessor :offset
+    end
+    self.offset = 0
+
+    private
+
+    def clock
+      super + AdvancingClock.offset
+    end
+  end
+  LibTmux::MCP.const_get(:Mutation, false).prepend(AdvancingClock)
+
+  # Real time left for the mutation after the clock advances. tmux is held
+  # on a hook until it passes, so this bounds only that one held command.
+  HELD_SECONDS = 1.0
+  REQUEST_SECONDS = 600
+
+  def teardown
+    AdvancingClock.offset = 0
+  end
+
   MUTATORS = %w[tmux_send tmux_create tmux_close].freeze
 
   def test_opt_in_sdk_mutations_create_exact_entities_and_separate_text_from_keys
@@ -132,13 +157,18 @@ class MCPMutationTest < Minitest::Test
   end
 
   def test_one_deadline_covers_acquisition_and_mutation_and_preserves_unknown_effects
-    with_application(request_timeout: 0.1) do |app, sdk, scope, source, fixture|
+    with_application(request_timeout: REQUEST_SECONDS) do |app, sdk, scope, source, fixture|
       parent = ::Async::Task.current
       session = wire_ref(scope.server.snapshot.sessions.first.ref)
       seen = []
+      advance = :after_acquisition
       scope.server.define_singleton_method(:snapshot) do |**options|
         seen << [:capture, options.fetch(:timeout), options.fetch(:cancel)]
-        super(**options)
+        if advance == :before_acquisition
+          AdvancingClock.offset = REQUEST_SECONDS - HELD_SECONDS
+          options = options.merge(timeout: options.fetch(:timeout) - AdvancingClock.offset)
+        end
+        super(**options).tap { AdvancingClock.offset = REQUEST_SECONDS - HELD_SECONDS if advance == :after_acquisition }
       end
       scope.server.define_singleton_method(:create_window) do |ref, **options|
         seen << [:mutation, options.fetch(:timeout), options.fetch(:cancel)]
@@ -160,6 +190,8 @@ class MCPMutationTest < Minitest::Test
         source.hooks.unset("after-new-window", index: 93)
       end
 
+      AdvancingClock.offset = 0
+      advance = :before_acquisition
       source.options.set("command-alias", "display-message=wait-for -S mcp-acquire-ready ; wait-for mcp-acquire-held ; display-message", index: 93)
       begin
         pending = parent.async { invoke(sdk, "tmux_create", kind: "window", parent: session, name: "never-dispatched", argv: ["cat"]) }
