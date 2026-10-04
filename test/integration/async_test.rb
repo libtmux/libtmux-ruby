@@ -765,7 +765,7 @@ class AsyncTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path) do |source|
         Async do |parent|
-          parent.with_timeout(0.8) do
+          parent.with_timeout(HANG_GUARD_SECONDS) do
             LibTmux::Async.open(parent: parent, server: source, **options) { |scope| yield scope, parent, fixture }
           end
         end.wait
