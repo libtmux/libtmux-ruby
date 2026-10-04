@@ -68,7 +68,7 @@ class OperationBudgetTest < Minitest::Test
         begin
           assert fixture.tmux("wait-for", "budget-ready").last.success?
           token.cancel
-          assert request.join(0.5), "cancellation did not retire the blocked preflight"
+          assert request.join(HANG_GUARD_SECONDS), "cancellation did not retire the blocked preflight"
           assert_instance_of LibTmux::Cancelled, request.value
           assert_equal :possibly_sent, request.value.delivery
           assert_equal "@0\n", session.display('#{window_id}').text
