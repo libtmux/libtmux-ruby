@@ -24,15 +24,23 @@ module Example
     path = pid = nil
     LibTmux::Server.start(executable: executable) do |server|
       path = server.endpoint.socket_path
-      pid = Integer(server.run(["display-message", "-p", '#{pid}']).text, 10)
+      pid = Integer(server.run(%w[display-message -p #{pid}]).text, 10)
       yield server
     end
     check(!File.exist?(File.dirname(path)), "owned directory survived close")
     raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
     if ENV["LIBTMUX_EXAMPLE_INSTALLED"]
-      own = $LOADED_FEATURES.select { |feature| feature.include?("/libtmux/") || feature.end_with?("/libtmux.rb") }
+      own =
+        $LOADED_FEATURES.select do |feature|
+          feature.include?("/libtmux/") || feature.end_with?("/libtmux.rb")
+        end
       installed_home = File.realpath(ENV.fetch("GEM_HOME")) + File::SEPARATOR
-      check(own.all? { |feature| File.realpath(feature).start_with?(installed_home) }, "example loaded repository source")
+      check(
+        own.all? do |feature|
+          File.realpath(feature).start_with?(installed_home)
+        end,
+        "example loaded repository source"
+      )
     end
     puts "PASS #{name}"
   end

@@ -2,9 +2,7 @@
 
 source "https://rubygems.org"
 
-%w[libtmux libtmux-async libtmux-mcp libtmux-workspace].each do |name|
-  gemspec path: "gems/#{name}"
-end
+%w[libtmux libtmux-async libtmux-mcp libtmux-workspace].each { |name| gemspec path: "gems/#{name}" }
 
 group :test do
   gem "fcntl", "~> 1.3"

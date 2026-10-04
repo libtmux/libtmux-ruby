@@ -4,7 +4,9 @@ module LibTmux
   module Async
     class Server < LibTmux::Server
       def initialize(scope, source)
-        raise ArgumentError, "server must be a bound LibTmux::Server" unless source.is_a?(LibTmux::Server)
+        unless source.is_a?(LibTmux::Server)
+          raise ArgumentError, "server must be a bound LibTmux::Server"
+        end
 
         @scope, @source = scope, source
         @mutex = Mutex.new
@@ -15,9 +17,17 @@ module LibTmux
         ensure_owner
         ensure_open
         validate_argv(argv)
-        raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
+        if argv.first.start_with?("-")
+          raise ArgumentError, "raw commands cannot override endpoint flags"
+        end
 
-        @scope.__send__(:execute, @pin.command_prefix + argv, input: input, timeout: timeout, cancel: cancel)
+        @scope.__send__(
+          :execute,
+          @pin.command_prefix + argv,
+          input: input,
+          timeout: timeout,
+          cancel: cancel
+        )
       end
 
       def close
@@ -55,11 +65,17 @@ module LibTmux
       end
 
       def attach(**)
-        raise UnsupportedFeatureError.new("interactive terminal attachment requires the blocking core facade", phase: :admission)
+        raise UnsupportedFeatureError.new(
+                "interactive terminal attachment requires the blocking core facade",
+                phase: :admission
+              )
       end
 
       def self.start(**)
-        raise UnsupportedFeatureError.new("create an owned core server before opening its Async scope", phase: :admission)
+        raise UnsupportedFeatureError.new(
+                "create an owned core server before opening its Async scope",
+                phase: :admission
+              )
       end
 
       private

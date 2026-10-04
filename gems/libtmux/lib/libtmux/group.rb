@@ -9,7 +9,7 @@ module LibTmux
 
     def initialize(result, count)
       @result = result
-      @steps = Array.new(count) { |index| {index: index, outcome: :unknown}.freeze }.freeze
+      @steps = Array.new(count) { |index| { index: index, outcome: :unknown }.freeze }.freeze
       freeze
     end
     private_class_method :new
@@ -40,13 +40,14 @@ module LibTmux
       if commands.length > 128
         raise CapacityError.new("command group exceeds 128 members", phase: :admission)
       end
-      encoded = commands.map do |command|
-        validate_argv(command)
-        if command.first.start_with?("-")
-          raise ArgumentError, "group members cannot override endpoint flags"
+      encoded =
+        commands.map do |command|
+          validate_argv(command)
+          if command.first.start_with?("-")
+            raise ArgumentError, "group members cannot override endpoint flags"
+          end
+          encode_arguments(command)
         end
-        encode_arguments(command)
-      end
       argv = []
       encoded.each_with_index do |command, index|
         argv << ";" unless index.zero?

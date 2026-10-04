@@ -11,7 +11,18 @@ module LibTmux
     class StdioTransport < ::MCP::Transport
       RequestExpired = Class.new(Exception)
       WriteExpired = Class.new(Exception)
-      Ticket = Struct.new(:request, :bytes, :deadline, :task, :active, :cancellation, :callback, :state, keyword_init: true)
+      Ticket =
+        Struct.new(
+          :request,
+          :bytes,
+          :deadline,
+          :task,
+          :active,
+          :cancellation,
+          :callback,
+          :state,
+          keyword_init: true
+        )
       Frame = Struct.new(:bytes, :state, keyword_init: true)
       module CleanupDetails
         attr_reader :mcp_cleanup_errors
@@ -50,27 +61,52 @@ module LibTmux
       end
       private_constant :Session, :ModernSession
 
-      def initialize(server:, parent:, input:, output:, concurrency: 4, max_requests: 32,
-        max_frame_bytes: 1 << 20, max_request_bytes: 1 << 22, max_output_bytes: 1 << 22,
-        request_timeout: 30, write_timeout: 0.5, cleanup_timeout: 0.5)
-        unless parent.is_a?(::Async::Task) && !parent.finished? && parent.root.equal?(Fiber.scheduler)
+      def initialize(
+        server:,
+        parent:,
+        input:,
+        output:,
+        concurrency: 4,
+        max_requests: 32,
+        max_frame_bytes: 1 << 20,
+        max_request_bytes: 1 << 22,
+        max_output_bytes: 1 << 22,
+        request_timeout: 30,
+        write_timeout: 0.5,
+        cleanup_timeout: 0.5
+      )
+        unless parent.is_a?(::Async::Task) && !parent.finished? &&
+                 parent.root.equal?(Fiber.scheduler)
           raise ArgumentError, "parent must be a live task on the current Async scheduler"
         end
         raise ArgumentError, "server must be an MCP SDK Server" unless server.is_a?(::MCP::Server)
         unless [input, output].all? { |io| io.is_a?(IO) && !io.closed? }
           raise ArgumentError, "input and output must be open IO streams"
         end
-        [concurrency, max_requests, max_frame_bytes, max_request_bytes, max_output_bytes].each do |value|
-          raise ArgumentError, "transport limits must be positive Integers" unless value.is_a?(Integer) && value.positive?
+        [
+          concurrency,
+          max_requests,
+          max_frame_bytes,
+          max_request_bytes,
+          max_output_bytes
+        ].each do |value|
+          unless value.is_a?(Integer) && value.positive?
+            raise ArgumentError, "transport limits must be positive Integers"
+          end
         end
         [request_timeout, write_timeout, cleanup_timeout].each do |value|
-          raise ArgumentError, "transport deadlines must be positive and finite" unless value.is_a?(Numeric) && value.finite? && value.positive?
+          unless value.is_a?(Numeric) && value.finite? && value.positive?
+            raise ArgumentError, "transport deadlines must be positive and finite"
+          end
         end
         @parent, @input, @output = parent, input, output
         @thread, @pid, @scheduler = Thread.current, Process.pid, Fiber.scheduler
         @concurrency, @max_requests = concurrency, max_requests
         @max_frame, @max_request, @max_output = max_frame_bytes, max_request_bytes, max_output_bytes
-        @request_timeout, @write_timeout, @cleanup_timeout = request_timeout, write_timeout, cleanup_timeout
+        @request_timeout, @write_timeout, @cleanup_timeout =
+          request_timeout,
+          write_timeout,
+          cleanup_timeout
         @tickets, @waiting, @by_id, @by_task, @frames = [], [], {}, {}, []
         @active = @request_bytes = @output_bytes = 0
         @changed, @writable = ::Async::Notification.new, ::Async::Notification.new
@@ -81,7 +117,9 @@ module LibTmux
 
       def run
         ensure_owner
-        raise ClosedError.new("transport cannot be restarted", phase: :admission) if @runner || @closed
+        if @runner || @closed
+          raise ClosedError.new("transport cannot be restarted", phase: :admission)
+        end
 
         @runner = ::Async::Task.current
         begin
@@ -127,7 +165,9 @@ module LibTmux
 
       def send_response(message)
         ensure_owner
-        raise ClosedError.new("transport output is closed", phase: :write) if @closed || @writer_done
+        if @closed || @writer_done
+          raise ClosedError.new("transport output is closed", phase: :write)
+        end
 
         ticket = @by_task[::Async::Task.current?]
         raise RequestExpired if ticket && !ticket.state[:expired] && clock >= ticket.deadline
@@ -136,7 +176,11 @@ module LibTmux
         raise RequestExpired if ticket && !ticket.state[:expired] && clock >= ticket.deadline
 
         if @output_bytes + bytes.bytesize > @max_output || @frames.length >= @max_requests * 4
-          raise CapacityError.new("MCP output queue limit reached", phase: :write, delivery: :possibly_sent)
+          raise CapacityError.new(
+                  "MCP output queue limit reached",
+                  phase: :write,
+                  delivery: :possibly_sent
+                )
         end
         state = ticket&.state
         return nil if state && state[:cancelled]
@@ -153,12 +197,15 @@ module LibTmux
       def send_notification(method, params = nil, related_request_id: nil, **)
         return false if related_request_id && @by_id[related_request_id]&.state&.fetch(:cancelled)
 
-        send_response({jsonrpc: "2.0", method: method, params: params}.compact)
+        send_response({ jsonrpc: "2.0", method: method, params: params }.compact)
         true
       end
 
       def send_request(*)
-        raise UnsupportedFeatureError.new("server-initiated MCP requests are not supported by this transport", phase: :admission)
+        raise UnsupportedFeatureError.new(
+                "server-initiated MCP requests are not supported by this transport",
+                phase: :admission
+              )
       end
 
       private
@@ -168,21 +215,26 @@ module LibTmux
       end
 
       def ensure_owner
-        unless Process.pid == @pid && Thread.current.equal?(@thread) && Fiber.scheduler.equal?(@scheduler)
-          raise ClosedError.new("MCP transport belongs to another scheduler, thread or process", phase: :admission)
+        unless Process.pid == @pid && Thread.current.equal?(@thread) &&
+                 Fiber.scheduler.equal?(@scheduler)
+          raise ClosedError.new(
+                  "MCP transport belongs to another scheduler, thread or process",
+                  phase: :admission
+                )
         end
       end
 
       def child_task(&block)
-        task = ::Async::Task.new(@parent) do
-          block.call
-        rescue ::Async::Cancel
-          nil
-        rescue Exception => error
-          fail_transport(error)
-        ensure
-          @changed.signal
-        end
+        task =
+          ::Async::Task.new(@parent) do
+            block.call
+          rescue ::Async::Cancel
+            nil
+          rescue Exception => error
+            fail_transport(error)
+          ensure
+            @changed.signal
+          end
         task
       end
 
@@ -197,7 +249,8 @@ module LibTmux
         loop do
           break if @stopping
 
-          chunk = @input.read_nonblock([16_384, @max_frame + 1 - buffer.bytesize].min, exception: false)
+          chunk =
+            @input.read_nonblock([16_384, @max_frame + 1 - buffer.bytesize].min, exception: false)
           if chunk == :wait_readable
             @scheduler.io_wait(@input, IO::READABLE)
             next
@@ -207,12 +260,16 @@ module LibTmux
           buffer << chunk.b
           while (ending = buffer.index("\n"))
             frame = buffer.slice!(0, ending + 1)
-            raise CapacityError.new("MCP input frame limit reached", phase: :read) if frame.bytesize > @max_frame
+            if frame.bytesize > @max_frame
+              raise CapacityError.new("MCP input frame limit reached", phase: :read)
+            end
 
             receive(frame)
             break if @stopping
           end
-          raise CapacityError.new("MCP input frame limit reached", phase: :read) if buffer.bytesize >= @max_frame
+          if buffer.bytesize >= @max_frame
+            raise CapacityError.new("MCP input frame limit reached", phase: :read)
+          end
           ::Async::Task.current.yield
         end
         receive(buffer) unless buffer.empty? || @stopping
@@ -229,7 +286,8 @@ module LibTmux
           send_response(@session.handle(nil))
           return
         end
-        if parsed[:jsonrpc] == "2.0" && !parsed.key?(:id) && parsed[:method] == ::MCP::Methods::NOTIFICATIONS_CANCELLED
+        if parsed[:jsonrpc] == "2.0" && !parsed.key?(:id) &&
+             parsed[:method] == ::MCP::Methods::NOTIFICATIONS_CANCELLED
           @session.handle(parsed)
           id = parsed[:params][:requestId] if parsed[:params].is_a?(Hash)
           ticket = @by_id[id]
@@ -238,14 +296,22 @@ module LibTmux
         end
         id = parsed[:id]
         if id && @by_id.key?(id)
-          send_response(error_response(id, -32600, "Request ID is already in flight"))
+          send_response(error_response(id, -32_600, "Request ID is already in flight"))
           return
         end
         if @tickets.length >= @max_requests || @request_bytes + frame.bytesize > @max_request
-          send_response(error_response(id, -32000, "MCP request capacity reached")) if id
+          send_response(error_response(id, -32_000, "MCP request capacity reached")) if id
           return
         end
-        ticket = Ticket.new(request: parsed, bytes: frame.bytesize, deadline: clock + @request_timeout, state: {cancelled: false})
+        ticket =
+          Ticket.new(
+            request: parsed,
+            bytes: frame.bytesize,
+            deadline: clock + @request_timeout,
+            state: {
+              cancelled: false
+            }
+          )
         ticket.task = ::Async::Task.new(@parent) { dispatch(ticket) }
         @tickets << ticket
         @waiting << ticket
@@ -275,7 +341,10 @@ module LibTmux
           response = request_session(ticket.request).handle(ticket.request)
           raise RequestExpired if clock >= ticket.deadline
           if !@session.era && response.is_a?(Hash) && !response.key?(:error) &&
-              (ticket.request[:method] == ::MCP::Methods::SERVER_DISCOVER || ::MCP::RequestEnvelope.modern?(ticket.request[:params]))
+               (
+                 ticket.request[:method] == ::MCP::Methods::SERVER_DISCOVER ||
+                   ::MCP::RequestEnvelope.modern?(ticket.request[:params])
+               )
             @session.lock_era!(:modern)
           end
           send_response(response) if response && !ticket.state[:cancelled]
@@ -283,7 +352,9 @@ module LibTmux
       rescue RequestExpired
         ticket.state[:expired] = true
         if ticket.request[:id] && !ticket.state[:cancelled] && !@stopping
-          send_response(error_response(ticket.request[:id], -32000, "MCP request deadline elapsed"))
+          send_response(
+            error_response(ticket.request[:id], -32_000, "MCP request deadline elapsed")
+          )
         end
       rescue ::Async::Cancel
         nil
@@ -306,8 +377,14 @@ module LibTmux
       end
 
       def request_session(request)
-        if @session.era == :modern || request[:method] == ::MCP::Methods::SERVER_DISCOVER || ::MCP::RequestEnvelope.modern?(request[:params])
-          ModernSession.new(server: @server, transport: self, connection: @session, era: @session.era)
+        if @session.era == :modern || request[:method] == ::MCP::Methods::SERVER_DISCOVER ||
+             ::MCP::RequestEnvelope.modern?(request[:params])
+          ModernSession.new(
+            server: @server,
+            transport: self,
+            connection: @session,
+            era: @session.era
+          )
         else
           @session
         end
@@ -326,18 +403,28 @@ module LibTmux
         return if was_cancelled && !retry_cancel
 
         ticket.state[:cancelled] = true
-        ticket.cancellation.cancel(reason: "Request stopped") if !was_cancelled && ticket.cancellation && !ticket.cancellation.cancelled?
+        if !was_cancelled && ticket.cancellation && !ticket.cancellation.cancelled?
+          ticket.cancellation.cancel(reason: "Request stopped")
+        end
         ticket.task.cancel if ticket.task && !ticket.task.finished?
       end
 
       def error_response(id, code, message)
-        JsonRpcHandler.error_response(id: id, id_validation_pattern: JsonRpcHandler::DEFAULT_ALLOWED_ID_CHARACTERS,
-          error: {code: code, message: message})
+        JsonRpcHandler.error_response(
+          id: id,
+          id_validation_pattern: JsonRpcHandler::DEFAULT_ALLOWED_ID_CHARACTERS,
+          error: {
+            code: code,
+            message: message
+          }
+        )
       end
 
       def encode(message)
         if message.is_a?(String)
-          raise CapacityError.new("MCP output frame limit reached", phase: :write) if message.bytesize >= @max_output
+          if message.bytesize >= @max_output
+            raise CapacityError.new("MCP output frame limit reached", phase: :write)
+          end
 
           message = JSON.parse(message, max_nesting: 32)
         end
@@ -353,52 +440,70 @@ module LibTmux
 
       def measure(message)
         bytes, nodes = 1, 0 # Include the framing newline before allocating JSON.
-        spend = lambda do |amount|
-          bytes += amount
-          raise CapacityError.new("MCP output frame limit reached", phase: :write) if bytes > @max_output
-        end
-        string = lambda do |value|
-          unless value.valid_encoding? && (value.encoding == Encoding::UTF_8 || value.ascii_only?)
-            raise ProtocolError.new("MCP response text must be UTF-8", phase: :write)
-          end
-          spend.call(2)
-          value.each_byte do |byte|
-            spend.call(case byte
-            when 34, 92, 8, 9, 10, 12, 13 then 2
-            when 0...32 then 6
-            else 1
-            end)
-          end
-        end
-        visit = lambda do |value, depth|
-          nodes += 1
-          if depth > 32 || nodes > 65_536
-            raise CapacityError.new("MCP response structure limit reached", phase: :write)
-          end
-          case value
-          when String then string.call(value)
-          when Symbol then string.call(value.to_s)
-          when Integer then spend.call([1, value.bit_length].max + (value.negative? ? 1 : 0))
-          when nil, true then spend.call(4)
-          when false then spend.call(5)
-          when Float
-            raise ProtocolError.new("MCP response numbers must be finite", phase: :write) unless value.finite?
-            spend.call(32)
-          when Array
-            spend.call(2 + [0, value.length - 1].max)
-            value.each { |item| visit.call(item, depth + 1) }
-          when Hash
-            spend.call(2 + [0, value.length - 1].max + value.length)
-            value.each do |key, item|
-              unless key.is_a?(String) || key.is_a?(Symbol)
-                raise ProtocolError.new("MCP response keys must be text", phase: :write)
-              end
-              visit.call(key, depth + 1)
-              visit.call(item, depth + 1)
+        spend =
+          lambda do |amount|
+            bytes += amount
+            if bytes > @max_output
+              raise CapacityError.new("MCP output frame limit reached", phase: :write)
             end
-          else raise ProtocolError.new("MCP response contains unsupported data", phase: :write)
           end
-        end
+        string =
+          lambda do |value|
+            unless value.valid_encoding? && (value.encoding == Encoding::UTF_8 || value.ascii_only?)
+              raise ProtocolError.new("MCP response text must be UTF-8", phase: :write)
+            end
+            spend.call(2)
+            value.each_byte do |byte|
+              spend.call(
+                case byte
+                when 34, 92, 8, 9, 10, 12, 13
+                  2
+                when 0...32
+                  6
+                else
+                  1
+                end
+              )
+            end
+          end
+        visit =
+          lambda do |value, depth|
+            nodes += 1
+            if depth > 32 || nodes > 65_536
+              raise CapacityError.new("MCP response structure limit reached", phase: :write)
+            end
+            case value
+            when String
+              string.call(value)
+            when Symbol
+              string.call(value.to_s)
+            when Integer
+              spend.call([1, value.bit_length].max + (value.negative? ? 1 : 0))
+            when nil, true
+              spend.call(4)
+            when false
+              spend.call(5)
+            when Float
+              unless value.finite?
+                raise ProtocolError.new("MCP response numbers must be finite", phase: :write)
+              end
+              spend.call(32)
+            when Array
+              spend.call(2 + [0, value.length - 1].max)
+              value.each { |item| visit.call(item, depth + 1) }
+            when Hash
+              spend.call(2 + [0, value.length - 1].max + value.length)
+              value.each do |key, item|
+                unless key.is_a?(String) || key.is_a?(Symbol)
+                  raise ProtocolError.new("MCP response keys must be text", phase: :write)
+                end
+                visit.call(key, depth + 1)
+                visit.call(item, depth + 1)
+              end
+            else
+              raise ProtocolError.new("MCP response contains unsupported data", phase: :write)
+            end
+          end
         visit.call(message, 0)
       end
 
@@ -414,27 +519,39 @@ module LibTmux
             next if frame.state && frame.state[:cancelled]
 
             deadline = clock + @write_timeout
-            ::Async::Task.current.with_timeout(@write_timeout, WriteExpired) do
-              offset = 0
-              while offset < frame.bytes.bytesize
-                raise WriteExpired if clock >= deadline
+            ::Async::Task
+              .current
+              .with_timeout(@write_timeout, WriteExpired) do
+                offset = 0
+                while offset < frame.bytes.bytesize
+                  raise WriteExpired if clock >= deadline
 
-                written = @output.write_nonblock(frame.bytes.byteslice(offset, 16_384), exception: false)
-                if written == :wait_writable
-                  @scheduler.io_wait(@output, IO::WRITABLE)
-                else
-                  offset += written
+                  written =
+                    @output.write_nonblock(frame.bytes.byteslice(offset, 16_384), exception: false)
+                  if written == :wait_writable
+                    @scheduler.io_wait(@output, IO::WRITABLE)
+                  else
+                    offset += written
+                  end
                 end
               end
-            end
           ensure
             @output_bytes -= frame.bytes.bytesize
           end
         end
       rescue WriteExpired
-        raise DeadlineExceeded.new("MCP output consumer exceeded its deadline", phase: :write, delivery: :possibly_sent)
+        raise DeadlineExceeded.new(
+                "MCP output consumer exceeded its deadline",
+                phase: :write,
+                delivery: :possibly_sent
+              )
       rescue IOError, SystemCallError => error
-        raise TransportError.new("MCP output failed (#{error.class})", phase: :write, delivery: :possibly_sent), cause: nil
+        raise TransportError.new(
+                "MCP output failed (#{error.class})",
+                phase: :write,
+                delivery: :possibly_sent
+              ),
+              cause: nil
       end
 
       def retire
@@ -442,7 +559,9 @@ module LibTmux
         errors = []
         @stopping = true
         cleanup_action(deadline, errors) { @reader.cancel if @reader && !@reader.finished? }
-        @tickets.dup.each { |ticket| cleanup_action(deadline, errors) { stop_ticket(ticket, retry_cancel: true) } }
+        @tickets.dup.each do |ticket|
+          cleanup_action(deadline, errors) { stop_ticket(ticket, retry_cancel: true) }
+        end
         @tickets.dup.each do |ticket|
           join_owned(ticket.task, deadline, errors)
           release_ticket(ticket) if ticket.task.finished?
@@ -470,7 +589,10 @@ module LibTmux
           error.__send__(:attach_cleanup_errors, details)
         else
           error.extend(CleanupDetails)
-          error.instance_variable_set(:@mcp_cleanup_errors, ((error.mcp_cleanup_errors || []) + details).freeze)
+          error.instance_variable_set(
+            :@mcp_cleanup_errors,
+            ((error.mcp_cleanup_errors || []) + details).freeze
+          )
         end
       rescue FrozenError, TypeError
         nil
@@ -492,7 +614,9 @@ module LibTmux
         cleanup_action(deadline, errors) { task.wait(timeout: [deadline - clock, 0].max) }
         unless task.finished?
           cleanup_action(deadline, errors) { task.cancel unless task.finished? }
-          cleanup_action(deadline, errors) { task.wait(timeout: [deadline - clock, 0].max) unless task.finished? }
+          cleanup_action(deadline, errors) do
+            task.wait(timeout: [deadline - clock, 0].max) unless task.finished?
+          end
         end
       end
 

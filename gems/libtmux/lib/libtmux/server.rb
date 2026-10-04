@@ -42,7 +42,15 @@ module LibTmux
       result
     end
 
-    def initialize(endpoint: nil, socket_path: nil, socket_name: nil, executable: "tmux", max_requests: 32, max_controls: 4, close_timeout: 0.5)
+    def initialize(
+      endpoint: nil,
+      socket_path: nil,
+      socket_name: nil,
+      executable: "tmux",
+      max_requests: 32,
+      max_controls: 4,
+      close_timeout: 0.5
+    )
       if endpoint && (socket_path || socket_name || executable != "tmux")
         raise ArgumentError, "endpoint cannot be combined with socket or executable options"
       end
@@ -57,7 +65,9 @@ module LibTmux
         raise ArgumentError, "close_timeout must be positive and finite"
       end
 
-      @endpoint = endpoint || Endpoint.new(socket_path: socket_path, socket_name: socket_name, executable: executable)
+      @endpoint =
+        endpoint ||
+          Endpoint.new(socket_path: socket_path, socket_name: socket_name, executable: executable)
       @owner_pid = Process.pid
       @max_requests = max_requests
       @max_controls = max_controls
@@ -76,11 +86,17 @@ module LibTmux
       ensure_owner
       started = monotonic
       validate_argv(argv)
-      raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
+      if argv.first.start_with?("-")
+        raise ArgumentError, "raw commands cannot override endpoint flags"
+      end
       raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
       perform_request(cancel: cancel) do |view|
-        @executor.run(@pin.command_prefix + argv, input: input,
-          timeout: timeout - (monotonic - started), cancel: view)
+        @executor.run(
+          @pin.command_prefix + argv,
+          input: input,
+          timeout: timeout - (monotonic - started),
+          cancel: view
+        )
       end
     end
 
@@ -107,7 +123,11 @@ module LibTmux
           until @requests.empty?
             remaining = deadline - monotonic
             unless remaining.positive?
-              raise DeadlineExceeded.new("server clients have not retired; retry close", phase: :retire, delivery: :possibly_sent)
+              raise DeadlineExceeded.new(
+                      "server clients have not retired; retry close",
+                      phase: :retire,
+                      delivery: :possibly_sent
+                    )
             end
             @idle.wait(@mutex, remaining)
           end
@@ -126,10 +146,17 @@ module LibTmux
     def diagnostics
       ensure_owner
       @mutex.synchronize do
-        {admitted_requests: @requests.length, reserved_process_slots: @requests.length,
-          control_connections: @controls.length, closed: @closed,
-          limits: {max_requests: @max_requests, max_controls: @max_controls,
-            close_timeout: @close_timeout}.freeze}.freeze
+        {
+          admitted_requests: @requests.length,
+          reserved_process_slots: @requests.length,
+          control_connections: @controls.length,
+          closed: @closed,
+          limits: {
+            max_requests: @max_requests,
+            max_controls: @max_controls,
+            close_timeout: @close_timeout
+          }.freeze
+        }.freeze
       end
     end
 
@@ -137,18 +164,44 @@ module LibTmux
       execute_typed(["kill-server"], timeout: timeout, cancel: cancel)
     end
 
-    def new_session(name:, command:, width: nil, height: nil, window_name: nil, cwd: nil, environment: {}, receipt: false, timeout: 5.0, cancel: nil)
+    def new_session(
+      name:,
+      command:,
+      width: nil,
+      height: nil,
+      window_name: nil,
+      cwd: nil,
+      environment: {},
+      receipt: false,
+      timeout: 5.0,
+      cancel: nil
+    )
       budget = operation_budget(timeout, cancel)
-      arguments = ["new-session", "-d", "-P", "-F", creation_format(:session, receipt), "-s", literal_name(name)]
+      arguments = [
+        "new-session",
+        "-d",
+        "-P",
+        "-F",
+        creation_format(:session, receipt),
+        "-s",
+        literal_name(name)
+      ]
       arguments.concat(["-n", literal_name(window_name)]) if window_name
-      {"-x" => width, "-y" => height}.each do |flag, value|
+      { "-x" => width, "-y" => height }.each do |flag, value|
         next if value.nil?
-        raise ArgumentError, "dimensions must be positive integers" unless value.is_a?(Integer) && value.positive?
+        unless value.is_a?(Integer) && value.positive?
+          raise ArgumentError, "dimensions must be positive integers"
+        end
 
         arguments.concat([flag, value.to_s])
       end
       arguments.concat(creation_options(cwd: cwd, environment: environment))
-      create_entity(:session, arguments + ["--"] + pane_command(command), receipt: receipt, **budget.options)
+      create_entity(
+        :session,
+        arguments + ["--"] + pane_command(command),
+        receipt: receipt,
+        **budget.options
+      )
     end
 
     def list_sessions(timeout: 5.0, cancel: nil)
@@ -208,7 +261,12 @@ module LibTmux
                 connection.close(timeout: [@close_timeout, 0.5].min)
                 @mutex.synchronize { @controls.delete(connection) }
               rescue Exception => cleanup
-                failure.__send__(:attach_cleanup_errors, ["control close failed (#{cleanup.class})"]) if failure.is_a?(Error)
+                if failure.is_a?(Error)
+                  failure.__send__(
+                    :attach_cleanup_errors,
+                    ["control close failed (#{cleanup.class})"]
+                  )
+                end
                 failure ||= cleanup
               end
             end
@@ -240,7 +298,9 @@ module LibTmux
 
     class OperationBudget
       def initialize(timeout, cancel, clock)
-        raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
+        unless timeout.is_a?(Numeric) && timeout.finite?
+          raise ArgumentError, "timeout must be finite"
+        end
         if cancel && (!cancel.respond_to?(:reader) || !cancel.respond_to?(:cancelled?))
           raise ArgumentError, "cancel must provide a cancellation reader and state"
         end
@@ -251,14 +311,20 @@ module LibTmux
 
       def options
         delivery = @dispatched ? :possibly_sent : :not_sent
-        raise Cancelled.new("operation was cancelled", phase: :admission, delivery: delivery) if @cancel&.cancelled?
+        if @cancel&.cancelled?
+          raise Cancelled.new("operation was cancelled", phase: :admission, delivery: delivery)
+        end
 
         remaining = @deadline - @clock.call
         unless remaining.positive?
-          raise DeadlineExceeded.new("operation deadline elapsed", phase: :admission, delivery: delivery)
+          raise DeadlineExceeded.new(
+                  "operation deadline elapsed",
+                  phase: :admission,
+                  delivery: delivery
+                )
         end
         @dispatched = true
-        {timeout: remaining, cancel: @cancel}
+        { timeout: remaining, cancel: @cancel }
       end
     end
     private_constant :OperationBudget
@@ -324,18 +390,17 @@ module LibTmux
               @requests[owned] = Thread.current
             end
             if cancel
-              watcher = Thread.new do
-                Thread.current.report_on_exception = false
-                IO.select([cancel.reader, owned.reader]) unless cancel.cancelled?
-                owned.cancel if cancel.cancelled?
-              rescue IOError, SystemCallError
-                owned.cancel
-              end
+              watcher =
+                Thread.new do
+                  Thread.current.report_on_exception = false
+                  IO.select([cancel.reader, owned.reader]) unless cancel.cancelled?
+                  owned.cancel if cancel.cancelled?
+                rescue IOError, SystemCallError
+                  owned.cancel
+                end
             end
             view = CancellationView.new(owned, cancel)
-            Thread.handle_interrupt(Exception => :immediate) do
-              result = yield view
-            end
+            Thread.handle_interrupt(Exception => :immediate) { result = yield view }
           rescue Exception => error
             failure = error
           ensure
@@ -344,8 +409,13 @@ module LibTmux
               if failure.is_a?(Error)
                 failure.__send__(:attach_cleanup_errors, cleanup_errors)
               elsif failure.nil?
-                failure = TransportError.new("server request cleanup failed", phase: :retire,
-                  delivery: result ? :observed : :possibly_sent, cleanup_errors: cleanup_errors)
+                failure =
+                  TransportError.new(
+                    "server request cleanup failed",
+                    phase: :retire,
+                    delivery: result ? :observed : :possibly_sent,
+                    cleanup_errors: cleanup_errors
+                  )
               end
             end
           end
@@ -385,7 +455,8 @@ module LibTmux
     end
 
     def validate_argv(argv)
-      unless argv.is_a?(Array) && !argv.empty? && argv.all? { |value| value.is_a?(String) && !value.include?("\0") }
+      unless argv.is_a?(Array) && !argv.empty? &&
+               argv.all? { |value| value.is_a?(String) && !value.include?("\0") }
         raise ArgumentError, "argv must be a nonempty Array of Strings without NUL"
       end
     end
@@ -422,7 +493,10 @@ module LibTmux
       ensure_owner
       @mutex.synchronize { ensure_open }
       unless ref.is_a?(EntityRef) && ref.kind == kind && ref.binding_key == @pin.key
-        raise TargetNotFoundError.new("target does not belong to this server binding", phase: :admission)
+        raise TargetNotFoundError.new(
+                "target does not belong to this server binding",
+                phase: :admission
+              )
       end
       ref.id
     end
@@ -433,7 +507,7 @@ module LibTmux
     end
 
     def entity_class(kind)
-      {session: Session, window: Window, pane: Pane, window_link: WindowLink}.fetch(kind)
+      { session: Session, window: Window, pane: Pane, window_link: WindowLink }.fetch(kind)
     end
 
     def build_entity(kind, id)
@@ -457,18 +531,37 @@ module LibTmux
       result = execute_typed(arguments, **options)
       kinds = receipt ? (kind == :session ? %i[session window pane] : %i[window pane]) : [kind]
       rows = Internal::Metadata.decode(result.stdout, fields: kinds.length, max_rows: 1)
-      raise ProtocolError.new("tmux did not return the created #{kind} ID", delivery: :observed, phase: :decode) unless rows.length == 1
+      unless rows.length == 1
+        raise ProtocolError.new(
+                "tmux did not return the created #{kind} ID",
+                delivery: :observed,
+                phase: :decode
+              )
+      end
 
       entities = kinds.zip(rows.first).to_h { |child, id| [child, build_entity(child, id)] }
       return entities.fetch(kind) unless receipt
 
-      CreationReceipt.__send__(:new, entity: entities.fetch(kind), window: entities.fetch(:window),
-        pane: entities.fetch(:pane), result: result)
+      CreationReceipt.__send__(
+        :new,
+        entity: entities.fetch(kind),
+        window: entities.fetch(:window),
+        pane: entities.fetch(:pane),
+        result: result
+      )
     end
 
     def list_entities(kind, options, global: false, timeout: 5.0, cancel: nil)
-      result = execute_typed(["list-#{kind}s", *options, "-F", id_format(kind)], timeout: timeout, cancel: cancel)
-      entities = Internal::Metadata.decode(result.stdout, fields: 1).map { |row| build_entity(kind, row.first) }
+      result =
+        execute_typed(
+          ["list-#{kind}s", *options, "-F", id_format(kind)],
+          timeout: timeout,
+          cancel: cancel
+        )
+      entities =
+        Internal::Metadata
+          .decode(result.stdout, fields: 1)
+          .map { |row| build_entity(kind, row.first) }
       entities = entities.uniq.sort_by { |entity| entity.id[1..].to_i } if global
       entities.freeze
     end
@@ -480,7 +573,9 @@ module LibTmux
           raise ArgumentError, "cwd must be a nonempty String without NUL"
         end
         directory = File.expand_path(cwd)
-        raise ArgumentError, "cwd must name an existing accessible directory" unless File.directory?(directory) && File.executable?(directory)
+        unless File.directory?(directory) && File.executable?(directory)
+          raise ArgumentError, "cwd must name an existing accessible directory"
+        end
 
         # tmux expands -c as a format, while -e values are literal.
         arguments.concat(["-c", directory.gsub("#", "##")])
@@ -497,7 +592,18 @@ module LibTmux
       arguments
     end
 
-    def create_window(ref, name:, command:, index: nil, cwd: nil, environment: {}, focus: false, receipt: false, timeout: 5.0, cancel: nil)
+    def create_window(
+      ref,
+      name:,
+      command:,
+      index: nil,
+      cwd: nil,
+      environment: {},
+      focus: false,
+      receipt: false,
+      timeout: 5.0,
+      cancel: nil
+    )
       budget = operation_budget(timeout, cancel)
       unless index.nil? || (index.is_a?(Integer) && index.between?(0, (1 << 31) - 1))
         raise ArgumentError, "index must be a nonnegative 32-bit Integer"
@@ -506,26 +612,61 @@ module LibTmux
 
       destination = target(ref, :session)
       destination += ":#{index}" unless index.nil?
-      arguments = ["new-window", *(focus ? [] : ["-d"]), "-P", "-F", creation_format(:window, receipt), "-t", destination, "-n", literal_name(name)]
+      arguments = [
+        "new-window",
+        *(focus ? [] : ["-d"]),
+        "-P",
+        "-F",
+        creation_format(:window, receipt),
+        "-t",
+        destination,
+        "-n",
+        literal_name(name)
+      ]
       arguments.concat(creation_options(cwd: cwd, environment: environment))
-      create_entity(:window, arguments + ["--"] + pane_command(command), receipt: receipt, **budget.options)
+      create_entity(
+        :window,
+        arguments + ["--"] + pane_command(command),
+        receipt: receipt,
+        **budget.options
+      )
     end
 
-    def split_window(ref, direction:, command:, size: nil, cwd: nil, environment: {}, focus: false, timeout: 5.0, cancel: nil)
+    def split_window(
+      ref,
+      direction:,
+      command:,
+      size: nil,
+      cwd: nil,
+      environment: {},
+      focus: false,
+      timeout: 5.0,
+      cancel: nil
+    )
       budget = operation_budget(timeout, cancel)
-      flag = {horizontal: "-h", vertical: "-v"}.fetch(direction) do
-        raise ArgumentError, "direction must be :horizontal or :vertical"
-      end
+      flag =
+        { horizontal: "-h", vertical: "-v" }.fetch(direction) do
+          raise ArgumentError, "direction must be :horizontal or :vertical"
+        end
       unless size.nil? || (size.is_a?(Integer) && size.between?(1, (1 << 31) - 1)) ||
-          (size.is_a?(String) && size.match?(/\A(?:[1-9][0-9]?|100)%\z/))
+               (size.is_a?(String) && size.match?(/\A(?:[1-9][0-9]?|100)%\z/))
         raise ArgumentError, "size must be positive cells or a percentage from 1% to 100%"
       end
       raise ArgumentError, "focus must be boolean" unless [true, false].include?(focus)
-      unless ref.is_a?(EntityRef) && [:window, :pane].include?(ref.kind)
+      unless ref.is_a?(EntityRef) && %i[window pane].include?(ref.kind)
         raise ArgumentError, "split target must be a window or pane ref"
       end
 
-      arguments = ["split-window", *(focus ? [] : ["-d"]), flag, "-P", "-F", id_format(:pane), "-t", target(ref, ref.kind)]
+      arguments = [
+        "split-window",
+        *(focus ? [] : ["-d"]),
+        flag,
+        "-P",
+        "-F",
+        id_format(:pane),
+        "-t",
+        target(ref, ref.kind)
+      ]
       arguments.concat(["-l", size.to_s]) if size
       arguments.concat(creation_options(cwd: cwd, environment: environment))
       create_entity(:pane, arguments + ["--"] + pane_command(command), **budget.options)

@@ -12,24 +12,26 @@ class IdentityTest < Minitest::Test
       first = Interrupt.new("first binding cancellation")
       later = Interrupt.new("later cleanup cancellation")
       directory = nil
-      interrupted = Class.new(LibTmux::Internal::SocketIdentity) do
-        define_method(:make_route) do |source|
-          super(source)
-          directory = @directory
-          ready << true
-          Thread.handle_interrupt(Exception => :immediate) { release.pop }
+      interrupted =
+        Class.new(LibTmux::Internal::SocketIdentity) do
+          define_method(:make_route) do |source|
+            super(source)
+            directory = @directory
+            ready << true
+            Thread.handle_interrupt(Exception => :immediate) { release.pop }
+          end
+          define_method(:remove_route) do
+            cleanup_ready << true
+            release.pop
+            super()
+          end
         end
-        define_method(:remove_route) do
-          cleanup_ready << true
-          release.pop
-          super()
+      worker =
+        Thread.new do
+          interrupted.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
+        rescue Exception => error
+          error
         end
-      end
-      worker = Thread.new do
-        interrupted.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
-      rescue Exception => error
-        error
-      end
       assert ready.pop(timeout: 0.5), "binding did not reach its cancellation barrier"
       worker.raise(first)
       assert cleanup_ready.pop(timeout: 0.5), "binding did not start cleanup"
@@ -42,28 +44,34 @@ class IdentityTest < Minitest::Test
       release << true if release
       worker&.kill if worker&.alive?
       worker&.join(0.5)
-      File.unlink(File.join(directory, "socket")) if directory && File.socket?(File.join(directory, "socket"))
+      if directory && File.socket?(File.join(directory, "socket"))
+        File.unlink(File.join(directory, "socket"))
+      end
       Dir.rmdir(directory) if directory && Dir.exist?(directory)
     end
   end
 
   def test_a_fork_cannot_use_or_retire_the_parent_binding
     LibTmuxTest::TmuxFixture.open do |fixture|
-      pin = LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
+      pin =
+        LibTmux::Internal::SocketIdentity.new(
+          LibTmux::Endpoint.new(socket_path: fixture.socket_path)
+        )
       reader, writer = IO.pipe
-      child = fork do
-        reader.close
-        begin
-          pin.command_prefix
-          writer.write("bad")
-        rescue LibTmux::ClosedError
-          pin.close
-          writer.write("ok")
-        ensure
-          writer.close
+      child =
+        fork do
+          reader.close
+          begin
+            pin.command_prefix
+            writer.write("bad")
+          rescue LibTmux::ClosedError
+            pin.close
+            writer.write("ok")
+          ensure
+            writer.close
+          end
+          exit! 0
         end
-        exit! 0
-      end
       writer.close
       assert IO.select([reader], nil, nil, 0.5), "forked binding did not settle"
       assert_equal "ok", reader.read(2)
@@ -92,9 +100,10 @@ class IdentityTest < Minitest::Test
           File.unlink(selector)
           File.write(selector, "not a socket")
           assert route(pin, "has-session", "-t", "fixture").last.success?
-          error = assert_raises(LibTmux::TargetNotFoundError) do
-            LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: selector))
-          end
+          error =
+            assert_raises(LibTmux::TargetNotFoundError) do
+              LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: selector))
+            end
           refute_includes error.message, selector
         ensure
           pin.close
@@ -106,17 +115,22 @@ class IdentityTest < Minitest::Test
   def test_constructor_interruption_removes_the_owned_route
     LibTmuxTest::TmuxFixture.open do |fixture|
       directory = nil
-      interrupted = Class.new(LibTmux::Internal::SocketIdentity) do
-        define_method(:make_route) do |source|
-          super(source)
-          directory = @directory
-          raise Interrupt, "cancel binding"
+      interrupted =
+        Class.new(LibTmux::Internal::SocketIdentity) do
+          define_method(:make_route) do |source|
+            super(source)
+            directory = @directory
+            raise Interrupt, "cancel binding"
+          end
         end
+      assert_raises(Interrupt) do
+        interrupted.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
       end
-      assert_raises(Interrupt) { interrupted.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path)) }
       refute Dir.exist?(directory), "interrupted binding leaked its private directory"
     ensure
-      File.unlink(File.join(directory, "socket")) if directory && File.socket?(File.join(directory, "socket"))
+      if directory && File.socket?(File.join(directory, "socket"))
+        File.unlink(File.join(directory, "socket"))
+      end
       Dir.rmdir(directory) if directory && Dir.exist?(directory)
     end
   end
@@ -125,30 +139,36 @@ class IdentityTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       directory = nil
       failure = LibTmux::ProtocolError.new("original binding failure")
-      failing = Class.new(LibTmux::Internal::SocketIdentity) do
-        define_method(:make_route) do |source|
-          super(source)
-          directory = @directory
-          File.write(File.join(directory, "occupied"), "owned fixture")
-          raise failure
+      failing =
+        Class.new(LibTmux::Internal::SocketIdentity) do
+          define_method(:make_route) do |source|
+            super(source)
+            directory = @directory
+            File.write(File.join(directory, "occupied"), "owned fixture")
+            raise failure
+          end
         end
-      end
-      observed = assert_raises(LibTmux::ProtocolError) do
-        failing.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
-      end
+      observed =
+        assert_raises(LibTmux::ProtocolError) do
+          failing.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
+        end
       assert_same failure, observed
       assert_equal 1, observed.cleanup_errors.length
       refute_includes observed.cleanup_errors.first, directory
       refute File.exist?(File.join(directory, "socket"))
     ensure
-      File.unlink(File.join(directory, "occupied")) if directory && File.exist?(File.join(directory, "occupied"))
-      File.unlink(File.join(directory, "socket")) if directory && File.socket?(File.join(directory, "socket"))
+      if directory && File.exist?(File.join(directory, "occupied"))
+        File.unlink(File.join(directory, "occupied"))
+      end
+      if directory && File.socket?(File.join(directory, "socket"))
+        File.unlink(File.join(directory, "socket"))
+      end
       Dir.rmdir(directory) if directory && Dir.exist?(directory)
     end
   end
 
   def route(pin, *args)
-    Open3.capture3({"TMUX" => nil, "TMUX_PANE" => nil}, *pin.command_prefix, *args)
+    Open3.capture3({ "TMUX" => nil, "TMUX_PANE" => nil }, *pin.command_prefix, *args)
   end
 
   def test_selector_replacement_cannot_redirect_a_bound_command
@@ -201,7 +221,8 @@ class IdentityTest < Minitest::Test
       original_path = nil
       LibTmuxTest::TmuxFixture.open do |original|
         original_path = original.socket_path
-        pin = LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: original_path))
+        pin =
+          LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: original_path))
         # Keep the route outside fixture cleanup by selecting a same-filesystem directory.
         refute_equal File.dirname(original_path), File.dirname(pin.command_prefix.last)
       end

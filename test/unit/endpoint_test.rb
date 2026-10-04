@@ -27,7 +27,7 @@ class EndpointTest < Minitest::Test
   end
 
   def test_ambient_selection_is_explicit_and_ignores_client_metadata
-    endpoint = LibTmux::Endpoint.from_env({"TMUX" => "/chosen/socket,1234,0"})
+    endpoint = LibTmux::Endpoint.from_env({ "TMUX" => "/chosen/socket,1234,0" })
     assert_equal "/chosen/socket", endpoint.socket_path
     named = LibTmux::Endpoint.new(socket_name: "named", socket_directory: "/explicit")
     assert_equal "/explicit/tmux-#{Process.uid}/named", named.socket_path

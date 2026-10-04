@@ -8,7 +8,7 @@ require "pathname"
 class ExampleManifest
   Error = Class.new(StandardError)
   PACKAGES = %w[libtmux libtmux-async libtmux-mcp libtmux-workspace].freeze
-  MARKER = /<!-- example: ([a-z0-9_\/-]+) -->\n(.*?)<!-- \/example -->/m
+  MARKER = %r{<!-- example: ([a-z0-9_/-]+) -->\n(.*?)<!-- /example -->}m
   attr_reader :root, :data
 
   def initialize(root)
@@ -22,65 +22,90 @@ class ExampleManifest
     duplicates!(programs.map { |entry| entry.fetch("id") }, "program IDs")
     api_targets = []
     programs.each do |entry|
-      raise Error, "unknown package for example: #{entry.fetch('id')}" unless PACKAGES.include?(entry.fetch("gem"))
-      unless /\A[a-z][a-z0-9_]*\z/.match?(entry.fetch("id")) && /\Aexamples\/.+\.rb\z/.match?(entry.fetch("path"))
+      unless PACKAGES.include?(entry.fetch("gem"))
+        raise Error, "unknown package for example: #{entry.fetch("id")}"
+      end
+      unless /\A[a-z][a-z0-9_]*\z/.match?(entry.fetch("id")) &&
+               %r{\Aexamples/.+\.rb\z}.match?(entry.fetch("path"))
         raise Error, "invalid executable example entry"
       end
       next unless entry.key?("api")
       api = entry.fetch("api")
       unless api.is_a?(Hash) && api.keys.sort == %w[description output symbols] &&
-          api["symbols"].is_a?(Array) && !api["symbols"].empty? &&
-          api["symbols"].all? { |id| id.is_a?(String) && !id.empty? && !id.match?(/\s/) } &&
-          api["description"].is_a?(String) && !api["description"].strip.empty? &&
-          api["output"].is_a?(String) && !api["output"].strip.empty? && api["output"].end_with?("\n")
-        raise Error, "invalid API example metadata: #{entry.fetch('id')}"
+               api["symbols"].is_a?(Array) && !api["symbols"].empty? &&
+               api["symbols"].all? { |id| id.is_a?(String) && !id.empty? && !id.match?(/\s/) } &&
+               api["description"].is_a?(String) && !api["description"].strip.empty? &&
+               api["output"].is_a?(String) && !api["output"].strip.empty? &&
+               api["output"].end_with?("\n")
+        raise Error, "invalid API example metadata: #{entry.fetch("id")}"
       end
       api_targets.concat(api.fetch("symbols"))
     end
     duplicates!(api_targets, "API targets")
     declared = programs.map { |entry| entry.fetch("path") } + data.fetch("support")
     duplicates!(declared, "example paths")
-    discovered = Dir.glob("examples/**/*", base: root).select { |path| File.file?(File.join(root, path)) } - ["examples/manifest.json"]
-    raise Error, "unlisted example files: #{(discovered - declared).join(', ')}" unless (discovered - declared).empty?
-    raise Error, "missing example files: #{(declared - discovered).join(', ')}" unless (declared - discovered).empty?
+    discovered =
+      Dir.glob("examples/**/*", base: root).select { |path| File.file?(File.join(root, path)) } -
+        ["examples/manifest.json"]
+    unless (discovered - declared).empty?
+      raise Error, "unlisted example files: #{(discovered - declared).join(", ")}"
+    end
+    unless (declared - discovered).empty?
+      raise Error, "missing example files: #{(declared - discovered).join(", ")}"
+    end
     declared.each { |path| safe_path(path) }
     snippets = data.fetch("snippets")
     duplicates!(snippets.map { |entry| entry.fetch("id") }, "snippet IDs")
-    expected = snippets.to_h do |entry|
-      raise Error, "snippet source is not a declared example" unless declared.include?(entry.fetch("source"))
-      source = File.read(safe_path(entry.fetch("source")))
-      if entry["region"]
-        region = Regexp.escape(entry.fetch("region"))
-        matches = source.scan(/^\s*# docs:begin #{region}\n(.*?)^\s*# docs:end #{region}\n/m)
-        raise Error, "snippet requires exactly one source region: #{entry.fetch('id')}" unless matches.length == 1
-        source = matches.first.first
-        indentation = source.lines.reject { |line| line.strip.empty? }.map { |line| line[/\A */].size }.min || 0
-        source = source.lines.map { |line| line.sub(/\A {0,#{indentation}}/, "") }.join
+    expected =
+      snippets.to_h do |entry|
+        unless declared.include?(entry.fetch("source"))
+          raise Error, "snippet source is not a declared example"
+        end
+        source = File.read(safe_path(entry.fetch("source")))
+        if entry["region"]
+          region = Regexp.escape(entry.fetch("region"))
+          matches = source.scan(/^\s*# docs:begin #{region}\n(.*?)^\s*# docs:end #{region}\n/m)
+          unless matches.length == 1
+            raise Error, "snippet requires exactly one source region: #{entry.fetch("id")}"
+          end
+          source = matches.first.first
+          indentation =
+            source.lines.reject { |line| line.strip.empty? }.map { |line| line[/\A */].size }.min ||
+              0
+          source = source.lines.map { |line| line.sub(/\A {0,#{indentation}}/, "") }.join
+        end
+        [entry.fetch("id"), "```#{entry.fetch("language")}\n#{source.chomp}\n```\n"]
       end
-      [entry.fetch("id"), "```#{entry.fetch('language')}\n#{source.chomp}\n```\n"]
-    end
-    documents = Dir.glob(["README.md", "CHANGELOG.md", "gems/*/README.md", "docs/**/*.md"], base: root)
-      .reject { |path| path.start_with?("docs/_build/") }.sort
+    documents =
+      Dir
+        .glob(%w[README.md CHANGELOG.md gems/*/README.md docs/**/*.md], base: root)
+        .reject { |path| path.start_with?("docs/_build/") }
+        .sort
     unless documents == data.fetch("documents").sort
       raise Error, "document discovery differs from manifest"
     end
     used = []
     documents.each do |path|
       content = File.read(safe_path(path))
-      rendered = content.gsub(MARKER) do
-        id, original = Regexp.last_match(1), Regexp.last_match(2)
-        replacement = expected.fetch(id) { raise Error, "unknown documented snippet: #{id}" }
-        used << id
-        raise Error, "excerpt differs from source: #{path} #{id}" unless write || original == replacement
-        "<!-- example: #{id} -->\n#{replacement}<!-- /example -->"
-      end
+      rendered =
+        content.gsub(MARKER) do
+          id, original = Regexp.last_match(1), Regexp.last_match(2)
+          replacement = expected.fetch(id) { raise Error, "unknown documented snippet: #{id}" }
+          used << id
+          unless write || original == replacement
+            raise Error, "excerpt differs from source: #{path} #{id}"
+          end
+          "<!-- example: #{id} -->\n#{replacement}<!-- /example -->"
+        end
       remainder = rendered.gsub(MARKER, "")
       if remainder.match?(/^```(?:ruby|yaml|json)\s*$/)
         raise Error, "unregistered source excerpt: #{path}"
       end
       File.write(safe_path(path), rendered) if write && content != rendered
     end
-    raise Error, "undocumented snippets: #{(expected.keys - used).join(', ')}" unless (expected.keys - used).empty?
+    unless (expected.keys - used).empty?
+      raise Error, "undocumented snippets: #{(expected.keys - used).join(", ")}"
+    end
     true
   rescue KeyError, JSON::ParserError => error
     raise Error, "malformed example manifest (#{error.class})"
@@ -101,11 +126,13 @@ class ExampleManifest
 end
 
 if $PROGRAM_NAME == __FILE__
-  abort "usage: scripts/examples [--check|--write]" unless ARGV.empty? || [%w[--check], %w[--write]].include?(ARGV)
+  unless ARGV.empty? || [%w[--check], %w[--write]].include?(ARGV)
+    abort "usage: scripts/examples [--check|--write]"
+  end
   begin
     manifest = ExampleManifest.new(File.expand_path("..", __dir__))
     manifest.check(write: ARGV == ["--write"])
-    puts "Examples: #{manifest.data.fetch('programs').length} programs; source excerpts current"
+    puts "Examples: #{manifest.data.fetch("programs").length} programs; source excerpts current"
   rescue ExampleManifest::Error => error
     abort error.message
   end

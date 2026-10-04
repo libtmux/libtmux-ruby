@@ -67,16 +67,22 @@ afterward.
 ```ruby
 require "libtmux"
 
-snapshot = LibTmux::Server.start do |server|
-  session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
-  window = session.new_window(name: "logs", command: ["/bin/cat"])
-  window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
+snapshot =
+  LibTmux::Server.start do |server|
+    session =
+      server.new_session(
+        name: "work",
+        window_name: "main",
+        command: ["/bin/cat"]
+      )
+    window = session.new_window(name: "logs", command: ["/bin/cat"])
+    window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
-  server.snapshot
-end
+    server.snapshot
+  end
 
 snapshot.windows.each do |window|
-  puts "#{window.name}: #{window.panes.map(&:id).join(', ')}"
+  puts "#{window.name}: #{window.panes.map(&:id).join(", ")}"
 end
 ```
 <!-- /example -->

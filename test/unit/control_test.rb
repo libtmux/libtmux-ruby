@@ -6,7 +6,8 @@ require "libtmux/control"
 class ControlTest < Minitest::Test
   def test_incremental_guard_body_stays_bytes_and_protocol_looking_payload_is_data
     parser = LibTmux::Internal::ControlParser.new(max_line_bytes: 256, max_frame_bytes: 1024)
-    wire = "%begin 7 2 1\n%output %1 fake\n%end 7 99 1\n\xff\n%end 7 2 1\n%output %1 a\\000\\377\\134\n".b
+    wire =
+      "%begin 7 2 1\n%output %1 fake\n%end 7 99 1\n\xff\n%end 7 2 1\n%output %1 a\\000\\377\\134\n".b
     records = []
     wire.each_byte { |byte| parser.feed(byte.chr.b) { |record| records << record } }
     parser.finish
@@ -26,19 +27,23 @@ class ControlTest < Minitest::Test
   def test_extended_output_preserves_unknown_header_fields_and_pause_signals_loss
     parser = LibTmux::Internal::ControlParser.new
     records = []
-    wire = "%extended-output %2 19 future : a\\303\\251\n%pause %2\n%continue %2\n%new-notification opaque\n".b
+    wire =
+      "%extended-output %2 19 future : a\\303\\251\n%pause %2\n%continue %2\n%new-notification opaque\n".b
     parser.feed(wire) { |record| records << record }
     assert_equal "a\xc3\xa9".b, records.first.data
     assert_equal wire.lines.first, records.first.raw
-    assert_equal [:output, :gap, :gap, :notice], records.map(&:kind)
-    assert_equal [:pause, :resume], records[1, 2].map(&:reason)
-    assert_equal ["%2", "%2"], records[1, 2].map(&:pane_id)
+    assert_equal %i[output gap gap notice], records.map(&:kind)
+    assert_equal %i[pause resume], records[1, 2].map(&:reason)
+    assert_equal %w[%2 %2], records[1, 2].map(&:pane_id)
     assert records[1, 2].all? { |event| event.dropped_bytes.nil? && event.lost_sequences.nil? }
 
     stream = LibTmux::ControlSubscription.new(pane_id: "%2")
     unrelated = LibTmux::ControlSubscription.new(pane_id: "%3")
-    records.each { |record| stream.send(:publish, record); unrelated.send(:publish, record) }
-    assert_equal [:output, :gap, :gap], 3.times.map { stream.next(timeout: 0).kind }
+    records.each do |record|
+      stream.send(:publish, record)
+      unrelated.send(:publish, record)
+    end
+    assert_equal %i[output gap gap], 3.times.map { stream.next(timeout: 0).kind }
     assert_raises(LibTmux::DeadlineExceeded) { unrelated.next(timeout: 0) }
   ensure
     stream&.close
@@ -64,7 +69,8 @@ class ControlTest < Minitest::Test
     control.instance_variable_get(:@replies) << request
     parser = LibTmux::Internal::ControlParser.new
     parser.feed("%pause %0\n") { |record| control.send(:receive, record) }
-    reply = LibTmux::GuardedReply.new(request_id: request.id, blocks: [], generation: control.generation)
+    reply =
+      LibTmux::GuardedReply.new(request_id: request.id, blocks: [], generation: control.generation)
     control.send(:complete, request, result: reply)
     gap = control.events.next(timeout: 0)
     assert_equal :pause, gap.reason
@@ -77,16 +83,25 @@ class ControlTest < Minitest::Test
 
   def test_scope_preserves_original_failure_and_attaches_cleanup_diagnostics
     connection = Object.new
-    connection.define_singleton_method(:close) { raise LibTmux::TransportError, "cleanup injection" }
+    connection.define_singleton_method(:close) do
+      raise LibTmux::TransportError, "cleanup injection"
+    end
     factory = Class.new(LibTmux::ControlConnection)
     factory.define_singleton_method(:new) { |**_| connection }
     original = RuntimeError.new("original consumer failure")
     assert_same original, assert_raises(RuntimeError) { factory.open { raise original } }
-    assert_equal ["control cleanup failed (LibTmux::TransportError)"], original.control_cleanup_errors
+    assert_equal ["control cleanup failed (LibTmux::TransportError)"],
+                 original.control_cleanup_errors
   end
 
   def test_malformed_or_unbounded_stream_fails_closed
-    ["%end 1 1 1\n", "%output %1 \\400\n", "%output %1 \\x\n", "%pause invalid\n", "%continue %1 trailing\n"].each do |wire|
+    [
+      "%end 1 1 1\n",
+      "%output %1 \\400\n",
+      "%output %1 \\x\n",
+      "%pause invalid\n",
+      "%continue %1 trailing\n"
+    ].each do |wire|
       parser = LibTmux::Internal::ControlParser.new
       assert_raises(LibTmux::ProtocolError) { parser.feed(wire) {} }
     end
@@ -102,13 +117,31 @@ class ControlTest < Minitest::Test
   def test_reliable_overflow_preserves_prefix_and_tail_reports_gap
     reliable = LibTmux::ControlSubscription.new(max_bytes: 100, max_events: 1)
     tail = LibTmux::ControlSubscription.new(max_bytes: 100, max_events: 1, mode: :tail)
-    events = (1..3).map { |seq| LibTmux::ControlEvent.new(kind: :notice, raw: "x".b, sequence: seq, generation: "g") }
-    events.each { |event| reliable.send(:publish, event); tail.send(:publish, event) }
+    events =
+      (1..3).map do |seq|
+        LibTmux::ControlEvent.new(kind: :notice, raw: "x".b, sequence: seq, generation: "g")
+      end
+    events.each do |event|
+      reliable.send(:publish, event)
+      tail.send(:publish, event)
+    end
     assert_respond_to reliable, :diagnostics
     prefix = reliable.diagnostics
-    assert_equal({queued_events: 1, retained_event_bytes: 1, gap_pending: false,
-      overflowed: true, closed: true, mode: :reliable,
-      limits: {max_bytes: 100, max_events: 1}}, prefix)
+    assert_equal(
+      {
+        queued_events: 1,
+        retained_event_bytes: 1,
+        gap_pending: false,
+        overflowed: true,
+        closed: true,
+        mode: :reliable,
+        limits: {
+          max_bytes: 100,
+          max_events: 1
+        }
+      },
+      prefix
+    )
     assert prefix.frozen?
     assert prefix.fetch(:limits).frozen?
     assert_equal 1, tail.diagnostics.fetch(:queued_events)

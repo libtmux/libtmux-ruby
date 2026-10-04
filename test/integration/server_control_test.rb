@@ -10,17 +10,19 @@ class ServerControlTest < Minitest::Test
       LibTmux::Server.open(socket_path: fixture.socket_path, max_controls: 1) do |server|
         session = server.list_sessions.first
         control = server.open_control(session: session.ref)
-        assert_equal "ready\n", control.exchange("display-message -p ready", timeout: 0.5).blocks.last.body
+        assert_equal "ready\n",
+                     control.exchange("display-message -p ready", timeout: 0.5).blocks.last.body
         assert_equal 1, server.diagnostics.fetch(:control_connections)
         assert_raises(LibTmux::CapacityError) { server.open_control(session: session.ref) }
         assert server.list_clients.any? { |client| client[:pid] == control.pid && client[:control] }
         control.close
         replacement = server.open_control(session: session.ref)
-        request = Thread.new do
-          replacement.exchange("wait-for -S scoped-ready ; wait-for scoped-held", timeout: 0.5)
-        rescue LibTmux::Error => error
-          error
-        end
+        request =
+          Thread.new do
+            replacement.exchange("wait-for -S scoped-ready ; wait-for scoped-held", timeout: 0.5)
+          rescue LibTmux::Error => error
+            error
+          end
         begin
           assert fixture.tmux("wait-for", "scoped-ready").last.success?
           server.close
@@ -41,11 +43,20 @@ class ServerControlTest < Minitest::Test
       LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
         session = server.list_sessions.first
         pid = nil
-        assert_equal :returned, server.open_control(session: session.ref) { |control| pid = control.pid; :returned }
+        assert_equal :returned,
+                     server.open_control(session: session.ref) { |control|
+                       pid = control.pid
+                       :returned
+                     }
         assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
         original = RuntimeError.new("caller failure")
-        assert_same original, assert_raises(RuntimeError) { server.open_control(session: session.ref) { raise original } }
-        assert_raises(LibTmux::TargetNotFoundError) { server.open_control(session: server.list_windows.first.ref) }
+        assert_same original,
+                    assert_raises(RuntimeError) {
+                      server.open_control(session: session.ref) { raise original }
+                    }
+        assert_raises(LibTmux::TargetNotFoundError) do
+          server.open_control(session: server.list_windows.first.ref)
+        end
       end
     end
   end

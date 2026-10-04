@@ -7,7 +7,8 @@ Gem::Specification.new do |spec|
   spec.version = LibTmux::VERSION
   spec.authors = ["libtmux contributors"]
   spec.summary = "Ruby tmux orchestration core"
-  spec.description = "Manage tmux sessions, windows and panes with Ruby handles, immutable snapshots and control connections."
+  spec.description =
+    "Manage tmux sessions, windows and panes with Ruby handles, immutable snapshots and control connections."
   spec.homepage = "https://github.com/libtmux/libtmux-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
@@ -17,8 +18,10 @@ Gem::Specification.new do |spec|
   }
   spec.require_paths = ["lib"]
   spec.files = %w[
-    LICENSE README.md
-    assets/logo.svg assets/logo.png
+    LICENSE
+    README.md
+    assets/logo.svg
+    assets/logo.png
     lib/libtmux.rb
     lib/libtmux/version.rb
     lib/libtmux/errors.rb

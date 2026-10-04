@@ -9,16 +9,20 @@ module LibTmux
     end
 
     def hooks(scope: :session)
-      raise ArgumentError, "hooks use session or window scope" unless [:session, :window].include?(scope)
+      unless %i[session window].include?(scope)
+        raise ArgumentError, "hooks use session or window scope"
+      end
 
       Hooks.__send__(:new, self, scope: scope)
     end
 
     # Formats are intentionally executable tmux formats, not literal text.
     def display(format, target: nil, timeout: 5.0, cancel: nil)
-      return window_link(target).display(format, timeout: timeout, cancel: cancel) if target.is_a?(EntityRef) && target.kind == :window_link
+      if target.is_a?(EntityRef) && target.kind == :window_link
+        return window_link(target).display(format, timeout: timeout, cancel: cancel)
+      end
 
-      args = ["display-message", "-p"]
+      args = %w[display-message -p]
       if target
         id = self.target(target, target.kind)
         args.concat(["-t", id])
@@ -33,10 +37,20 @@ module LibTmux
 
       prefix = "#{id.bytesize}:#{id}"
       unless result.stdout.start_with?(prefix)
-        raise TargetNotFoundError.new("display target no longer exists", phase: :command, delivery: :observed)
+        raise TargetNotFoundError.new(
+                "display target no longer exists",
+                phase: :command,
+                delivery: :observed
+              )
       end
-      CommandResult.new(stdout: result.stdout.byteslice(prefix.bytesize..), stderr: result.stderr,
-        status: result.status, elapsed_seconds: result.elapsed_seconds, pid: result.pid, argv: result.argv)
+      CommandResult.new(
+        stdout: result.stdout.byteslice(prefix.bytesize..),
+        stderr: result.stderr,
+        status: result.status,
+        elapsed_seconds: result.elapsed_seconds,
+        pid: result.pid,
+        argv: result.argv
+      )
     end
 
     def source_file(path, timeout: 5.0, cancel: nil)
@@ -45,14 +59,20 @@ module LibTmux
 
     # Retiring the client cannot remove a dispatched waiter from tmux's queue.
     def wait_for(channel, action: :wait, timeout: 5.0, cancel: nil)
-      flag = {wait: nil, signal: "-S", lock: "-L", unlock: "-U"}.fetch(action) do
-        raise ArgumentError, "action must be :wait, :signal, :lock or :unlock"
-      end
+      flag =
+        { wait: nil, signal: "-S", lock: "-L", unlock: "-U" }.fetch(action) do
+          raise ArgumentError, "action must be :wait, :signal, :lock or :unlock"
+        end
       execute_typed(["wait-for", *[flag].compact, "--", channel], timeout: timeout, cancel: cancel)
     end
 
     def write_buffer(name:, data:, timeout: 5.0, cancel: nil)
-      execute_typed(["load-buffer", "-b", name, "--", "-"], input: data, timeout: timeout, cancel: cancel)
+      execute_typed(
+        ["load-buffer", "-b", name, "--", "-"],
+        input: data,
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def read_buffer(name, timeout: 5.0, cancel: nil)
@@ -64,10 +84,16 @@ module LibTmux
     end
 
     def list_buffers(timeout: 5.0, cancel: nil)
-      result = execute_typed(["list-buffers", "-F", metadata_format(%w[buffer_name buffer_size])], timeout: timeout, cancel: cancel)
-      Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).map do |name, size|
-        {name: name, size: decode_integer(size, "buffer size")}.freeze
-      end.freeze
+      result =
+        execute_typed(
+          ["list-buffers", "-F", metadata_format(%w[buffer_name buffer_size])],
+          timeout: timeout,
+          cancel: cancel
+        )
+      Internal::Metadata
+        .decode(result.stdout, fields: 2, quoted: true)
+        .map { |name, size| { name: name, size: decode_integer(size, "buffer size") }.freeze }
+        .freeze
     end
 
     def list_window_links(timeout: 5.0, cancel: nil)
@@ -87,19 +113,41 @@ module LibTmux
     end
 
     def unset_environment(name, timeout: 5.0, cancel: nil)
-      execute_typed(["set-environment", "-g", "-u", "--", environment_name(name)], timeout: timeout, cancel: cancel)
+      execute_typed(
+        ["set-environment", "-g", "-u", "--", environment_name(name)],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def list_clients(timeout: 5.0, cancel: nil)
       fields = %w[client_name client_pid client_created client_tty session_id client_control_mode]
-      result = execute_typed(["list-clients", "-F", metadata_format(fields)], timeout: timeout, cancel: cancel)
-      Internal::Metadata.decode(result.stdout, fields: fields.length, quoted: true).map do |name, pid, created, tty, session_id, control|
-        unless ["0", "1"].include?(control)
-          raise FieldDecodeError.new("client control mode is malformed", phase: :decode, delivery: :observed)
+      result =
+        execute_typed(
+          ["list-clients", "-F", metadata_format(fields)],
+          timeout: timeout,
+          cancel: cancel
+        )
+      Internal::Metadata
+        .decode(result.stdout, fields: fields.length, quoted: true)
+        .map do |name, pid, created, tty, session_id, control|
+          unless %w[0 1].include?(control)
+            raise FieldDecodeError.new(
+                    "client control mode is malformed",
+                    phase: :decode,
+                    delivery: :observed
+                  )
+          end
+          {
+            name: name,
+            pid: decode_integer(pid, "client PID"),
+            created: decode_integer(created, "client creation time"),
+            tty: tty.empty? ? nil : tty,
+            session_id: session_id.empty? ? nil : session_id,
+            control: control == "1"
+          }.freeze
         end
-        {name: name, pid: decode_integer(pid, "client PID"), created: decode_integer(created, "client creation time"),
-          tty: tty.empty? ? nil : tty, session_id: session_id.empty? ? nil : session_id, control: control == "1"}.freeze
-      end.freeze
+        .freeze
     end
 
     private
@@ -115,37 +163,70 @@ module LibTmux
       failure = tmux_command([names.fetch("display-message"), "-p", "--", marker])
       body = tmux_command([names.fetch(command), *arguments])
       refs.reverse_each do |ref|
-        guard = "\#{&&:\#{==:\#{session_id},#{ref.session_id}},\#{&&:\#{==:\#{window_index},#{ref.index}},\#{==:\#{window_id},#{ref.id}}}}"
-        body = tmux_command([names.fetch("if-shell"), "-F", "-t", "#{ref.session_id}:#{ref.index}", guard, body, failure])
+        guard =
+          "\#{&&:\#{==:\#{session_id},#{ref.session_id}},\#{&&:\#{==:\#{window_index},#{ref.index}},\#{==:\#{window_id},#{ref.id}}}}"
+        body =
+          tmux_command(
+            [
+              names.fetch("if-shell"),
+              "-F",
+              "-t",
+              "#{ref.session_id}:#{ref.index}",
+              guard,
+              body,
+              failure
+            ]
+          )
       end
       # One command string is parsed by tmux; it never passes through a shell.
       result = execute_typed([names.fetch("if-shell"), "-F", "1", body], **budget.options)
       if result.stdout == "#{marker}\n"
-        raise TargetNotFoundError.new("window link was removed or replaced", phase: :command, delivery: :observed)
+        raise TargetNotFoundError.new(
+                "window link was removed or replaced",
+                phase: :command,
+                delivery: :observed
+              )
       end
       result
     end
 
     def builtin_spellings(*commands, budget:)
       inventory = options(scope: :server).list(name: "command-alias", **budget.options)
-      unless !inventory.empty? && inventory.all? { |option| option.name == "command-alias" && option.array? }
-        raise UnsupportedFeatureError.new("tmux command alias inventory is unavailable", phase: :admission)
+      unless !inventory.empty? &&
+               inventory.all? { |option| option.name == "command-alias" && option.array? }
+        raise UnsupportedFeatureError.new(
+                "tmux command alias inventory is unavailable",
+                phase: :admission
+              )
       end
-      aliases = inventory.filter_map do |option|
-        option.raw.split("=", 2).first if option.present?
-      end
-      result = execute_typed(["list-commands", "-F", metadata_format(%w[command_list_name command_list_alias])], **budget.options)
+      aliases = inventory.filter_map { |option| option.raw.split("=", 2).first if option.present? }
+      result =
+        execute_typed(
+          ["list-commands", "-F", metadata_format(%w[command_list_name command_list_alias])],
+          **budget.options
+        )
       catalog = Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).to_h
       commands.uniq.to_h do |name|
-        candidates = [name, catalog[name], *(1...name.length).map { |length| name[0, length] }.reverse].compact
-        spelling = candidates.find do |candidate|
-          next false if aliases.include?(candidate)
+        candidates = [
+          name,
+          catalog[name],
+          *(1...name.length).map { |length| name[0, length] }.reverse
+        ].compact
+        spelling =
+          candidates.find do |candidate|
+            next false if aliases.include?(candidate)
 
-          exact_alias = catalog.find { |_key, value| value == candidate }&.first
-          matching = exact_alias ? [exact_alias] : catalog.keys.select { |key| key.start_with?(candidate) }
-          matching == [name] || candidate == name
+            exact_alias = catalog.find { |_key, value| value == candidate }&.first
+            matching =
+              exact_alias ? [exact_alias] : catalog.keys.select { |key| key.start_with?(candidate) }
+            matching == [name] || candidate == name
+          end
+        unless spelling
+          raise UnsupportedFeatureError.new(
+                  "all builtin spellings of #{name} are aliased",
+                  phase: :admission
+                )
         end
-        raise UnsupportedFeatureError.new("all builtin spellings of #{name} are aliased", phase: :admission) unless spelling
 
         [name, spelling]
       end
@@ -163,15 +244,24 @@ module LibTmux
       ids = expected.map { |window| target(window, :window) }.uniq
       pane_ids = expected_panes.map { |pane| target(pane, :pane) }.uniq
       names = builtin_spellings("if-shell", "display-message", "kill-session", budget: budget)
-      allowed = ids.empty? ? "0" : "\#{m/r:^(#{ids.join('|')})$,\#{window_id}}"
-      allowed_panes = pane_ids.empty? ? "0" : "\#{m/r:^(#{pane_ids.join('|')})$,\#{pane_id}}"
-      guard = "\#{&&:\#{==:\#{session_id},#{id}},\#{==:\#{W:\#{?#{allowed},,w}\#{P:\#{?#{allowed_panes},,p}}},}}"
+      allowed = ids.empty? ? "0" : "\#{m/r:^(#{ids.join("|")})$,\#{window_id}}"
+      allowed_panes = pane_ids.empty? ? "0" : "\#{m/r:^(#{pane_ids.join("|")})$,\#{pane_id}}"
+      guard =
+        "\#{&&:\#{==:\#{session_id},#{id}},\#{==:\#{W:\#{?#{allowed},,w}\#{P:\#{?#{allowed_panes},,p}}},}}"
       marker = "libtmux-membership-#{SecureRandom.hex(16)}"
       failure = tmux_command([names.fetch("display-message"), "-p", "--", marker])
       body = tmux_command([names.fetch("kill-session"), "-t", id])
-      result = execute_typed([names.fetch("if-shell"), "-F", "-t", id, guard, body, failure], **budget.options)
+      result =
+        execute_typed(
+          [names.fetch("if-shell"), "-F", "-t", id, guard, body, failure],
+          **budget.options
+        )
       if result.stdout == "#{marker}\n"
-        raise TargetNotFoundError.new("session contains windows or panes outside the expected ownership sets", phase: :command, delivery: :observed)
+        raise TargetNotFoundError.new(
+                "session contains windows or panes outside the expected ownership sets",
+                phase: :command,
+                delivery: :observed
+              )
       end
       result
     end
@@ -193,23 +283,52 @@ module LibTmux
     end
 
     def require_command_flag(command, flag, budget:)
-      result = execute_typed(["list-commands", "-F", metadata_format(%w[command_list_name command_list_usage]), command], **budget.options)
+      result =
+        execute_typed(
+          [
+            "list-commands",
+            "-F",
+            metadata_format(%w[command_list_name command_list_usage]),
+            command
+          ],
+          **budget.options
+        )
       commands = Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).to_h
-      usage = commands.fetch(command) do
-        raise UnsupportedFeatureError.new("tmux does not advertise #{command}", phase: :admission)
-      end
+      usage =
+        commands.fetch(command) do
+          raise UnsupportedFeatureError.new("tmux does not advertise #{command}", phase: :admission)
+        end
       unless usage.scan(/\[-([A-Za-z]+)(?:\]|\s)/).flatten.any? { |flags| flags.include?(flag) }
-        raise UnsupportedFeatureError.new("tmux does not advertise #{command} -#{flag}", phase: :admission)
+        raise UnsupportedFeatureError.new(
+                "tmux does not advertise #{command} -#{flag}",
+                phase: :admission
+              )
       end
     end
 
     def acquire_links(flags, timeout: 5.0, cancel: nil)
-      result = execute_typed(["list-windows", *flags, "-F", metadata_format(%w[session_id window_index window_id])], timeout: timeout, cancel: cancel)
-      Internal::Metadata.decode(result.stdout, fields: 3, quoted: true).map do |session_id, index, id|
-        ref = EntityRef.__send__(:new, binding_key: @pin.key, kind: :window_link, id: id,
-          session_id: session_id, index: decode_integer(index, "window index"))
-        WindowLink.__send__(:new, self, ref)
-      end.sort_by { |link| [link.ref.session_id[1..].to_i, link.index] }.freeze
+      result =
+        execute_typed(
+          ["list-windows", *flags, "-F", metadata_format(%w[session_id window_index window_id])],
+          timeout: timeout,
+          cancel: cancel
+        )
+      Internal::Metadata
+        .decode(result.stdout, fields: 3, quoted: true)
+        .map do |session_id, index, id|
+          ref =
+            EntityRef.__send__(
+              :new,
+              binding_key: @pin.key,
+              kind: :window_link,
+              id: id,
+              session_id: session_id,
+              index: decode_integer(index, "window index")
+            )
+          WindowLink.__send__(:new, self, ref)
+        end
+        .sort_by { |link| [link.ref.session_id[1..].to_i, link.index] }
+        .freeze
     end
 
     def environment_name(name)
@@ -220,18 +339,36 @@ module LibTmux
     end
 
     def mutate_environment(flags, name, value, hidden:, timeout: 5.0, cancel: nil)
-      execute_typed(["set-environment", *flags, *(hidden ? ["-h"] : []), "--", environment_name(name), value], timeout: timeout, cancel: cancel)
+      execute_typed(
+        ["set-environment", *flags, *(hidden ? ["-h"] : []), "--", environment_name(name), value],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def read_environment(flags, name, hidden:, timeout: 5.0, cancel: nil)
       name = environment_name(name)
-      result = execute_typed(["show-environment", "-s", *flags, *(hidden ? ["-h"] : []), "--", name], timeout: timeout, cancel: cancel)
+      result =
+        execute_typed(
+          ["show-environment", "-s", *flags, *(hidden ? ["-h"] : []), "--", name],
+          timeout: timeout,
+          cancel: cancel
+        )
       return nil if result.stdout == "unset #{name};\n"
       prefix, suffix = "#{name}=\"", "\"; export #{name};\n"
       unless result.stdout.start_with?(prefix) && result.stdout.end_with?(suffix)
-        raise ProtocolError.new("tmux returned an unexpected environment record", phase: :decode, delivery: :observed)
+        raise ProtocolError.new(
+                "tmux returned an unexpected environment record",
+                phase: :decode,
+                delivery: :observed
+              )
       end
-      Internal::Metadata.unquote(result.stdout.byteslice(prefix.bytesize, result.stdout.bytesize - prefix.bytesize - suffix.bytesize)).freeze
+      Internal::Metadata.unquote(
+        result.stdout.byteslice(
+          prefix.bytesize,
+          result.stdout.bytesize - prefix.bytesize - suffix.bytesize
+        )
+      ).freeze
     end
   end
 
@@ -254,11 +391,23 @@ module LibTmux
     def kill(expected_windows: nil, expected_panes: nil, timeout: 5.0, cancel: nil)
       return super(timeout: timeout, cancel: cancel) if expected_windows.nil? && expected_panes.nil?
 
-      server.__send__(:kill_session_with_windows, ref, expected_windows, expected_panes, timeout: timeout, cancel: cancel)
+      server.__send__(
+        :kill_session_with_windows,
+        ref,
+        expected_windows,
+        expected_panes,
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def rename(name, timeout: 5.0, cancel: nil)
-      server.__send__(:execute_typed, ["rename-session", "-t", target, "--", server.__send__(:literal_name, name)], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :execute_typed,
+        ["rename-session", "-t", target, "--", server.__send__(:literal_name, name)],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def list_window_links(timeout: 5.0, cancel: nil)
@@ -266,66 +415,130 @@ module LibTmux
     end
 
     def link_window(window, index:, timeout: 5.0, cancel: nil)
-      raise ArgumentError, "index must be a nonnegative Integer" unless index.is_a?(Integer) && index >= 0
+      unless index.is_a?(Integer) && index >= 0
+        raise ArgumentError, "index must be a nonnegative Integer"
+      end
 
       source = server.__send__(:target, window, :window)
-      server.__send__(:execute_typed, ["link-window", "-d", "-s", source, "-t", "#{target}:#{index}"], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :execute_typed,
+        ["link-window", "-d", "-s", source, "-t", "#{target}:#{index}"],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def set_environment(name, value, hidden: false, timeout: 5.0, cancel: nil)
-      server.__send__(:mutate_environment, ["-t", target], name, value, hidden: hidden, timeout: timeout, cancel: cancel)
+      server.__send__(
+        :mutate_environment,
+        ["-t", target],
+        name,
+        value,
+        hidden: hidden,
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def environment(name, hidden: false, timeout: 5.0, cancel: nil)
-      server.__send__(:read_environment, ["-t", target], name, hidden: hidden, timeout: timeout, cancel: cancel)
+      server.__send__(
+        :read_environment,
+        ["-t", target],
+        name,
+        hidden: hidden,
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def unset_environment(name, timeout: 5.0, cancel: nil)
-      server.__send__(:execute_typed, ["set-environment", "-t", target, "-u", "--", server.__send__(:environment_name, name)], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :execute_typed,
+        ["set-environment", "-t", target, "-u", "--", server.__send__(:environment_name, name)],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
   end
 
   class Window
     def rename(name, timeout: 5.0, cancel: nil)
-      server.__send__(:execute_typed, ["rename-window", "-t", target, "--", server.__send__(:literal_name, name)], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :execute_typed,
+        ["rename-window", "-t", target, "--", server.__send__(:literal_name, name)],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def respawn(command:, kill: false, cwd: nil, environment: {}, timeout: 5.0, cancel: nil)
       budget = server.__send__(:operation_budget, timeout, cancel)
       args = ["respawn-window", "-t", target, *(kill ? ["-k"] : [])]
       args.concat(server.__send__(:creation_options, cwd: cwd, environment: environment))
-      server.__send__(:execute_typed, [*args, "--", *server.__send__(:pane_command, command)], **budget.options)
+      server.__send__(
+        :execute_typed,
+        [*args, "--", *server.__send__(:pane_command, command)],
+        **budget.options
+      )
     end
 
     def resize(width: nil, height: nil, timeout: 5.0, cancel: nil)
-      dimensions = {"-x" => width, "-y" => height}.flat_map do |flag, value|
-        next [] if value.nil?
-        raise ArgumentError, "dimensions must be positive Integers" unless value.is_a?(Integer) && value.positive?
+      dimensions =
+        { "-x" => width, "-y" => height }.flat_map do |flag, value|
+          next [] if value.nil?
+          unless value.is_a?(Integer) && value.positive?
+            raise ArgumentError, "dimensions must be positive Integers"
+          end
 
-        [flag, value.to_s]
-      end
+          [flag, value.to_s]
+        end
       raise ArgumentError, "provide width or height" if dimensions.empty?
 
-      server.__send__(:execute_typed, ["resize-window", "-t", target, *dimensions], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :execute_typed,
+        ["resize-window", "-t", target, *dimensions],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
   end
 
   class Pane
     def select(timeout: 5.0, cancel: nil)
-      server.__send__(:execute_typed, ["select-pane", "-t", target], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :execute_typed,
+        ["select-pane", "-t", target],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
-    def resize(width: nil, height: nil, direction: nil, amount: 1, zoom: false, timeout: 5.0, cancel: nil)
+    def resize(
+      width: nil,
+      height: nil,
+      direction: nil,
+      amount: 1,
+      zoom: false,
+      timeout: 5.0,
+      cancel: nil
+    )
       args = ["resize-pane", "-t", target]
-      {"-x" => width, "-y" => height}.each do |flag, value|
+      { "-x" => width, "-y" => height }.each do |flag, value|
         next if value.nil?
-        raise ArgumentError, "dimensions must be positive Integers" unless value.is_a?(Integer) && value.positive?
+        unless value.is_a?(Integer) && value.positive?
+          raise ArgumentError, "dimensions must be positive Integers"
+        end
 
         args.concat([flag, value.to_s])
       end
       if direction
-        flag = {left: "-L", right: "-R", up: "-U", down: "-D"}.fetch(direction) { raise ArgumentError, "invalid resize direction" }
-        raise ArgumentError, "amount must be a positive Integer" unless amount.is_a?(Integer) && amount.positive?
+        flag =
+          { left: "-L", right: "-R", up: "-U", down: "-D" }.fetch(direction) do
+            raise ArgumentError, "invalid resize direction"
+          end
+        unless amount.is_a?(Integer) && amount.positive?
+          raise ArgumentError, "amount must be a positive Integer"
+        end
 
         args.concat([flag, amount.to_s])
       end
@@ -334,28 +547,68 @@ module LibTmux
     end
 
     def swap(other, timeout: 5.0, cancel: nil)
-      server.__send__(:execute_typed, ["swap-pane", "-d", "-s", target, "-t", server.__send__(:target, other, :pane)], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :execute_typed,
+        ["swap-pane", "-d", "-s", target, "-t", server.__send__(:target, other, :pane)],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def join(other, direction:, before: false, timeout: 5.0, cancel: nil)
-      reposition("join-pane", other, direction: direction, before: before, timeout: timeout, cancel: cancel)
+      reposition(
+        "join-pane",
+        other,
+        direction: direction,
+        before: before,
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def move(other, direction:, before: false, timeout: 5.0, cancel: nil)
-      reposition("move-pane", other, direction: direction, before: before, timeout: timeout, cancel: cancel)
+      reposition(
+        "move-pane",
+        other,
+        direction: direction,
+        before: before,
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def break_out(session:, name:, timeout: 5.0, cancel: nil)
       destination = server.__send__(:target, session, :session)
-      server.__send__(:create_entity, :window, ["break-pane", "-d", "-P", "-F", server.__send__(:id_format, :window),
-        "-s", target, "-t", "#{destination}:", "-n", server.__send__(:literal_name, name)], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :create_entity,
+        :window,
+        [
+          "break-pane",
+          "-d",
+          "-P",
+          "-F",
+          server.__send__(:id_format, :window),
+          "-s",
+          target,
+          "-t",
+          "#{destination}:",
+          "-n",
+          server.__send__(:literal_name, name)
+        ],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     def respawn(command:, kill: false, cwd: nil, environment: {}, timeout: 5.0, cancel: nil)
       budget = server.__send__(:operation_budget, timeout, cancel)
       args = ["respawn-pane", "-t", target, *(kill ? ["-k"] : [])]
       args.concat(server.__send__(:creation_options, cwd: cwd, environment: environment))
-      server.__send__(:execute_typed, [*args, "--", *server.__send__(:pane_command, command)], **budget.options)
+      server.__send__(
+        :execute_typed,
+        [*args, "--", *server.__send__(:pane_command, command)],
+        **budget.options
+      )
     end
 
     def paste(buffer:, delete: false, bracketed: false, separator: nil, timeout: 5.0, cancel: nil)
@@ -368,7 +621,14 @@ module LibTmux
 
     # The shell command and its format expansion are explicitly requested here.
     # only_if_closed follows tmux -o: an existing pipe is closed, not retained.
-    def pipe(shell_command: nil, input: false, output: true, only_if_closed: false, timeout: 5.0, cancel: nil)
+    def pipe(
+      shell_command: nil,
+      input: false,
+      output: true,
+      only_if_closed: false,
+      timeout: 5.0,
+      cancel: nil
+    )
       if shell_command && !input && !output
         raise ArgumentError, "a pipe command requires input or output"
       end
@@ -380,10 +640,25 @@ module LibTmux
       server.__send__(:execute_typed, args, timeout: timeout, cancel: cancel)
     end
 
-    def copy_mode(scroll_up: false, exit_on_bottom: false, mouse_drag: false, cancel_mode: false, page_down: false, source: nil, timeout: 5.0, cancel: nil)
+    def copy_mode(
+      scroll_up: false,
+      exit_on_bottom: false,
+      mouse_drag: false,
+      cancel_mode: false,
+      page_down: false,
+      source: nil,
+      timeout: 5.0,
+      cancel: nil
+    )
       budget = server.__send__(:operation_budget, timeout, cancel)
       args = ["copy-mode", "-t", target]
-      {"u" => scroll_up, "e" => exit_on_bottom, "M" => mouse_drag, "q" => cancel_mode, "d" => page_down}.each do |flag, enabled|
+      {
+        "u" => scroll_up,
+        "e" => exit_on_bottom,
+        "M" => mouse_drag,
+        "q" => cancel_mode,
+        "d" => page_down
+      }.each do |flag, enabled|
         next unless enabled
 
         server.__send__(:require_command_flag, "copy-mode", flag, budget: budget)
@@ -397,13 +672,21 @@ module LibTmux
     end
 
     def copy_command(command, *arguments, timeout: 5.0, cancel: nil)
-      server.__send__(:execute_typed, ["send-keys", "-X", "-t", target, "--", command, *arguments], timeout: timeout, cancel: cancel)
+      server.__send__(
+        :execute_typed,
+        ["send-keys", "-X", "-t", target, "--", command, *arguments],
+        timeout: timeout,
+        cancel: cancel
+      )
     end
 
     private
 
     def reposition(command, other, direction:, before:, timeout:, cancel:)
-      flag = {horizontal: "-h", vertical: "-v"}.fetch(direction) { raise ArgumentError, "invalid split direction" }
+      flag =
+        { horizontal: "-h", vertical: "-v" }.fetch(direction) do
+          raise ArgumentError, "invalid split direction"
+        end
       args = [command, "-d", flag, "-s", target, "-t", server.__send__(:target, other, :pane)]
       args << "-b" if before
       server.__send__(:execute_typed, args, timeout: timeout, cancel: cancel)
