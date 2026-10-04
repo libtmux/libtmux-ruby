@@ -17,3 +17,7 @@ end
 gem "rake", "~> 13.3"
 gem "rbs", "~> 3.10"
 gem "yard", "~> 0.9"
+
+group :development do
+  gem "syntax_tree", "~> 6.3"
+end
