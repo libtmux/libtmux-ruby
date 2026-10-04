@@ -6,6 +6,17 @@ require "libtmux/process"
 require_relative "../support/tmux_fixture"
 
 class TmuxFixtureTest < Minitest::Test
+  def test_socket_path_beyond_the_darwin_limit_is_refused_by_name
+    Dir.mktmpdir("libtmux-ruby-") do |base|
+      long = File.join(base, "d" * (104 - base.bytesize - "/libtmux-ruby-".bytesize - 8))
+      Dir.mkdir(long)
+      error = with_tmpdir(long) { assert_raises(LibTmuxTest::TmuxFixture::Error) { LibTmuxTest::TmuxFixture.new } }
+      assert_match(/sun_path limit/, error.message)
+      assert_empty Dir.children(long)
+      with_tmpdir(base) { LibTmuxTest::TmuxFixture.new.close }
+    end
+  end
+
   def test_explicit_executable_selects_both_owned_daemon_and_client
     executable = ENV.fetch("LIBTMUX_TEST_TMUX") do
       ENV.fetch("PATH").split(File::PATH_SEPARATOR).map { |part| File.join(part, "tmux") }
@@ -299,5 +310,13 @@ class TmuxFixtureTest < Minitest::Test
     output, error, status = fixture.tmux("display-message", "-p", '#{pid}')
     assert status.success?, error
     Integer(output, 10)
+  end
+
+  def with_tmpdir(directory)
+    previous = ENV["TMPDIR"]
+    ENV["TMPDIR"] = directory
+    yield
+  ensure
+    ENV["TMPDIR"] = previous
   end
 end

@@ -53,7 +53,9 @@ module LibTmuxTest
 
     CLEAN_ENV = {"TMUX" => nil, "TMUX_PANE" => nil}.freeze
     DEADLINE_SECONDS = HANG_GUARD_SECONDS
-    private_constant :CLEAN_ENV, :DEADLINE_SECONDS
+    # Darwin's sockaddr_un.sun_path limit, terminator included.
+    SOCKET_PATH_LIMIT = 104
+    private_constant :CLEAN_ENV, :DEADLINE_SECONDS, :SOCKET_PATH_LIMIT
 
     attr_reader :socket_path, :cleanup_errors, :executable
 
@@ -89,6 +91,10 @@ module LibTmuxTest
       @process_wait = LibTmux::Internal::ProcessWait.new
       @directory = Dir.mktmpdir("libtmux-ruby-")
       @socket_path = File.join(@directory, "socket")
+      if @socket_path.bytesize >= SOCKET_PATH_LIMIT
+        FileUtils.remove_entry(@directory)
+        raise Error, "fixture socket path exceeds the #{SOCKET_PATH_LIMIT - 1}-byte sun_path limit; set TMPDIR to a shorter directory"
+      end
       @clients = {}
       @clients_mutex = Mutex.new
       @retirement_mutex = Mutex.new
