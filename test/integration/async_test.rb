@@ -729,7 +729,11 @@ class AsyncTest < Minitest::Test
       assert_includes [:pause, :pause_requested], pause.reason
       assert_nil pause.dropped_bytes
       scope.server.run(["send-keys", "-t", "%0", "-l", "async-missed\n"])
-      loop { break if witness.next(timeout: HANG_GUARD_SECONDS).data&.include?("async-missed") }
+      # The pane runs cat, so the line arrives twice: the tty echo, then cat's output.
+      witnessed = +"".b
+      while witnessed.scan("async-missed").length < 2
+        witnessed << witness.next(timeout: HANG_GUARD_SECONDS).data.to_s
+      end
       control.resume_output(pane_id: "%0", timeout: HANG_GUARD_SECONDS)
       resume = stream.next(timeout: HANG_GUARD_SECONDS)
       assert_includes [:resume, :resume_requested], resume.reason
