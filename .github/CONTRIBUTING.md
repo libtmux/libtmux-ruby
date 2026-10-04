@@ -144,6 +144,9 @@ with `-S` or `-L`, clear inherited `TMUX` and `TMUX_PANE` for child commands,
 and clean up only the server and files created by that run. Never use the
 default tmux server or sweep another port's temporary files.
 
+Tests must also pass on macOS; [MACOS_CI.md](MACOS_CI.md) lists what that
+requires.
+
 Record the actual tmux version when behavior depends on it. A passing subset
 does not establish support for an entire version range.
 
