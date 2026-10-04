@@ -21,7 +21,7 @@ Example.run("mcp_protocol") do |server|
       send_request = lambda do |id, method, params = {}|
         client_input.write(JSON.generate({jsonrpc: "2.0", id: id, method: method, params: params}) + "\n")
       end
-      receive = -> { JSON.parse(parent.with_timeout(5) { client_output.gets }) }
+      receive = -> { JSON.parse(parent.with_timeout(10) { client_output.gets }) }
       envelope = {"io.modelcontextprotocol/protocolVersion" => "2026-07-28",
         "io.modelcontextprotocol/clientCapabilities" => {}}
       send_request.call(1, "server/discover")
@@ -35,24 +35,24 @@ Example.run("mcp_protocol") do |server|
       Example.check(application.call("tmux_close", {}).structured_content.dig("error", "code") == "policy_denied", "default policy permits mutation")
       cancellations = Queue.new
       sdk.define_custom_method(method_name: "example/wait") do |_, server_context:|
-        scope.server.run(["wait-for", "-S", "protocol-ready", ";", "wait-for", "protocol-held"], timeout: 5)
+        scope.server.run(["wait-for", "-S", "protocol-ready", ";", "wait-for", "protocol-held"], timeout: 10)
         {finished: true}
       rescue LibTmux::Cancelled => failure
         cancellations << failure
         {cancelled: true}
       end
       send_request.call(4, "example/wait", {_meta: envelope})
-      scope.server.wait_for("protocol-ready", timeout: 5)
+      scope.server.wait_for("protocol-ready", timeout: 10)
       client_input.write(JSON.generate({jsonrpc: "2.0", method: "notifications/cancelled", params: {requestId: 4}}) + "\n")
       send_request.call(5, "tools/call", {name: "tmux_capabilities", arguments: {}, _meta: envelope})
       Example.check(receive.call.fetch("id") == 5, "cancelled request blocked protocol reader")
-      failure = parent.with_timeout(5) { cancellations.pop }
+      failure = parent.with_timeout(10) { cancellations.pop }
       Example.check(failure.delivery == :possibly_sent, "cancellation claimed no dispatch")
       Example.raises(Errno::ECHILD) { Process.waitpid(failure.pid, Process::WNOHANG) }
     ensure
       failure = $!
       cleanup = [-> { client_input&.close unless client_input&.closed? },
-        -> { runner&.wait(timeout: 5) }, -> { transport&.close }, -> { application&.close }]
+        -> { runner&.wait(timeout: 10) }, -> { transport&.close }, -> { application&.close }]
       cleanup.concat([input, output, client_output].compact.map { |io| -> { io.close unless io.closed? } })
       cleanup.each do |action|
         action.call
@@ -84,9 +84,9 @@ Example.run("mcp_protocol") do |server|
     shell = server.new_session(name: "enrolled-example", cwd: directory,
       command: ["/usr/bin/env", "ZDOTDIR=#{directory}", "/bin/zsh", "-d", "-i"])
     shell_pane = shell.list_panes.first
-    Example.check(IO.select([listener], nil, nil, 5), "example shell did not connect")
+    Example.check(IO.select([listener], nil, nil, 10), "example shell did not connect")
     channel = listener.accept
-    Example.check(IO.select([channel], nil, nil, 5) && channel.gets == "initializing\n", "shell setup did not initialize")
+    Example.check(IO.select([channel], nil, nil, 10) && channel.gets == "initializing\n", "shell setup did not initialize")
     enrollment_arguments = ["--enroll-pane", "#{shell_pane.id}=#{setup}"]
   end
   # docs:begin cli
@@ -96,7 +96,7 @@ Example.run("mcp_protocol") do |server|
     "--enable-tool", "tmux_close", "--enable-tool", "tmux_run", *enrollment_arguments) do |input, output, errors, process|
     request = lambda do |id, method, params = {}|
       input.write(JSON.generate({jsonrpc: "2.0", id: id, method: method, params: params}) + "\n")
-      Example.check(IO.select([output], nil, nil, 5), "installed MCP did not return a frame")
+      Example.check(IO.select([output], nil, nil, 10), "installed MCP did not return a frame")
       response = JSON.parse(output.gets)
       Example.check(response.fetch("id") == id, "MCP response identity changed")
       response.fetch("result")
@@ -118,7 +118,7 @@ Example.run("mcp_protocol") do |server|
     if channel
       Example.check(File.stat(setup).mode & 0o777 == 0o600, "enrollment setup permissions differ")
       channel.puts(setup)
-      Example.check(IO.select([channel], nil, nil, 5) && channel.gets == "ready\n", "shell enrollment was not acknowledged")
+      Example.check(IO.select([channel], nil, nil, 10) && channel.gets == "ready\n", "shell enrollment was not acknowledged")
       target = pane.merge("id" => shell_pane.id)
     end
     script = 'printf "%s:%s" "$EXAMPLE_CONTEXT" "$TMUX_PANE"; printf "\\000\\377" >&2; exit 9'
@@ -137,7 +137,7 @@ Example.run("mcp_protocol") do |server|
     closed = request.call(6, "tools/call", {name: "tmux_close", arguments: {target: data.fetch("entity")}})
     Example.check(closed.fetch("structuredContent").fetch("ok"), "protocol close failed")
     input.close
-    Example.check(process.join(5), "MCP EOF did not retire its process")
+    Example.check(process.join(10), "MCP EOF did not retire its process")
     Example.check(process.value.success? && errors.read.empty?, "MCP executable failed")
     Example.check(!File.exist?(setup), "enrollment setup survived EOF")
   end

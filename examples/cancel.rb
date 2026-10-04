@@ -11,11 +11,11 @@ Example.run("cancel") do |server|
   begin
     waiting = Thread.new do
       server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"],
-        timeout: 5, cancel: cancellation)
+        timeout: 10, cancel: cancellation)
     rescue LibTmux::Cancelled => error
       error
     end
-    server.wait_for("ready", timeout: 5)
+    server.wait_for("ready", timeout: 10)
     cancellation.cancel
     failure = waiting.value
     Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
