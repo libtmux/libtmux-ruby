@@ -140,10 +140,10 @@ class MCPCaptureTest < Minitest::Test
   def with_output(scope, pane, session: scope.server.list_sessions.first, expected: nil)
     scope.server.open_control(session: session.ref) do |control|
       events = control.subscribe(pane_id: pane.id)
-      control.exchange("display-message -p ready", timeout: 0.5)
+      control.exchange("display-message -p ready", timeout: HANG_GUARD_SECONDS)
       yield
       received = +"".b
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + HANG_GUARD_SECONDS
       loop do
         event = events.next(timeout: deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC))
         next unless event.kind == :output

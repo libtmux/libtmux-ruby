@@ -9,11 +9,11 @@ Example.run("async_cancel") do |server|
   Async do |parent|
     LibTmux::Async.open(parent: parent, server: server) do |scope|
       waiting = parent.async do
-        scope.server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"], timeout: 0.5)
+        scope.server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"], timeout: 5)
       rescue LibTmux::Cancelled => error
         error
       end
-      scope.server.wait_for("ready", timeout: 0.5)
+      scope.server.wait_for("ready", timeout: 5)
       Example.check(scope.diagnostics.fetch(:active_process_slots) == 1, "waiting client lost its slot")
       captures = scope.map(scope.server.list_panes.map(&:ref), concurrency: 2) do |ref|
         scope.server.pane(ref).capture

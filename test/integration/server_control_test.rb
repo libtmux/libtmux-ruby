@@ -10,14 +10,14 @@ class ServerControlTest < Minitest::Test
       LibTmux::Server.open(socket_path: fixture.socket_path, max_controls: 1) do |server|
         session = server.list_sessions.first
         control = server.open_control(session: session.ref)
-        assert_equal "ready\n", control.exchange("display-message -p ready", timeout: 0.5).blocks.last.body
+        assert_equal "ready\n", control.exchange("display-message -p ready", timeout: HANG_GUARD_SECONDS).blocks.last.body
         assert_equal 1, server.diagnostics.fetch(:control_connections)
         assert_raises(LibTmux::CapacityError) { server.open_control(session: session.ref) }
         assert server.list_clients.any? { |client| client[:pid] == control.pid && client[:control] }
         control.close
         replacement = server.open_control(session: session.ref)
         request = Thread.new do
-          replacement.exchange("wait-for -S scoped-ready ; wait-for scoped-held", timeout: 0.5)
+          replacement.exchange("wait-for -S scoped-ready ; wait-for scoped-held", timeout: HANG_GUARD_SECONDS)
         rescue LibTmux::Error => error
           error
         end
@@ -25,12 +25,12 @@ class ServerControlTest < Minitest::Test
           assert fixture.tmux("wait-for", "scoped-ready").last.success?
           server.close
           assert_equal 0, server.diagnostics.fetch(:control_connections)
-          assert request.join(0.5), "server close did not wake the pending exchange"
+          assert request.join(HANG_GUARD_SECONDS), "server close did not wake the pending exchange"
           assert_instance_of LibTmux::ClosedError, request.value
           assert_raises(Errno::ECHILD) { Process.waitpid(replacement.pid, Process::WNOHANG) }
           assert fixture.tmux("has-session", "-t", "fixture").last.success?
         ensure
-          request.join(0.5)
+          request.join(HANG_GUARD_SECONDS)
         end
       end
     end

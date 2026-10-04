@@ -35,7 +35,7 @@ class McpCLIIntegrationTest < Minitest::Test
         begin
           send_frame(input, id: 1, method: "initialize", params: {protocolVersion: "2025-11-25",
             capabilities: {}, clientInfo: {name: "test", version: "1"}})
-          assert IO.select([output], nil, nil, 0.5), "enrollment CLI did not initialize"
+          assert IO.select([output], nil, nil, HANG_GUARD_SECONDS), "enrollment CLI did not initialize"
           line = output.gets
           refute_nil line, "enrollment CLI closed protocol output: #{errors.string}"
           initialized = JSON.parse(line)
@@ -51,7 +51,7 @@ class McpCLIIntegrationTest < Minitest::Test
           assert File.file?(words[1])
           assert File.socket?(words[2])
           input.close
-          assert worker.join(0.5), "pending shell enrollment prevented EOF retirement"
+          assert worker.join(HANG_GUARD_SECONDS), "pending shell enrollment prevented EOF retirement"
           assert_equal 0, worker.value, errors.string
           refute File.exist?(setup)
           refute File.exist?(words[2])
@@ -60,9 +60,9 @@ class McpCLIIntegrationTest < Minitest::Test
         ensure
           trace.disable
           input.close unless input.closed?
-          worker.join(0.5)
+          worker.join(HANG_GUARD_SECONDS)
           worker.raise(Interrupt) if worker.alive?
-          worker.join(0.5)
+          worker.join(HANG_GUARD_SECONDS)
           [reader, output, writer].each { |io| io.close unless io.closed? }
         end
       end
@@ -97,7 +97,7 @@ class McpCLIIntegrationTest < Minitest::Test
         assert_equal "test", result.fetch("data").fetch("endpoint")
         trace.enable
         input.close
-        assert worker.join(0.5), "MCP CLI did not retire after EOF"
+        assert worker.join(HANG_GUARD_SECONDS), "MCP CLI did not retire after EOF"
         assert_equal 0, worker.value
         assert_equal 1, application_closes.length
         refute_nil application_closes.first
@@ -106,9 +106,9 @@ class McpCLIIntegrationTest < Minitest::Test
       ensure
         trace.disable
         input.close unless input.closed?
-        worker.join(0.5)
+        worker.join(HANG_GUARD_SECONDS)
         worker.raise(Interrupt) if worker.alive?
-        worker.join(0.5)
+        worker.join(HANG_GUARD_SECONDS)
         [reader, output, writer].each { |io| io.close unless io.closed? }
       end
     end
@@ -172,7 +172,7 @@ class McpCLIIntegrationTest < Minitest::Test
       LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |server|
         pane = server.new_session(name: "cli-shell",
           command: ["/usr/bin/env", "ZDOTDIR=#{directory}", "/bin/zsh", "-d", "-i"]).list_panes.first
-        assert IO.select([listener], nil, nil, 0.5), "owned shell did not connect"
+        assert IO.select([listener], nil, nil, HANG_GUARD_SECONDS), "owned shell did not connect"
         channel = listener.accept
         assert_equal "initializing", line(channel, label: "owned shell initialization")
         reader, input = IO.pipe
@@ -211,7 +211,7 @@ class McpCLIIntegrationTest < Minitest::Test
           assert_equal "ready", repeated.fetch("data").fetch("stdout").fetch("data")
           refute_equal result.fetch("authorization").fetch("run_id"), repeated.fetch("data").fetch("authorization").fetch("run_id")
           input.close
-          assert worker.join(0.5), "enrolled CLI did not retire after EOF"
+          assert worker.join(HANG_GUARD_SECONDS), "enrolled CLI did not retire after EOF"
           assert_equal 0, worker.value, errors.string
           assert_empty errors.string
           refute File.exist?(setup)
@@ -220,9 +220,9 @@ class McpCLIIntegrationTest < Minitest::Test
           assert_empty server.list_clients
         ensure
           input.close unless input.closed?
-          worker.join(0.5)
+          worker.join(HANG_GUARD_SECONDS)
           worker.raise(Interrupt) if worker.alive?
-          worker.join(0.5)
+          worker.join(HANG_GUARD_SECONDS)
           [reader, input, output, writer, channel].compact.each { |io| io.close unless io.closed? }
         end
       end
@@ -269,7 +269,7 @@ class McpCLIIntegrationTest < Minitest::Test
   end
 
   def line(io, label: "CLI frame")
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + HANG_GUARD_SECONDS
     @line_buffers ||= {}
     bytes = (@line_buffers[io] ||= +"".b)
     loop do

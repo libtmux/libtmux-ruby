@@ -31,7 +31,7 @@ class MCPMutationTest < Minitest::Test
       assert_equal "dispatch_only", sent.fetch("data").fetch("completion")
       refute File.exist?(result_file)
       assert invoke(sdk, "tmux_send", target: pane, input: {type: "keys", keys: ["Enter"]}).fetch("ok")
-      scope.server.wait_for("mcp-received", timeout: 0.5)
+      scope.server.wait_for("mcp-received", timeout: HANG_GUARD_SECONDS)
       assert_equal [text + "\n", File.realpath(File.dirname(fixture.socket_path)), "env;literal", "argv;literal"], Marshal.load(File.binread(result_file))
 
       split = invoke(sdk, "tmux_create", kind: "pane", parent: pane, direction: "vertical", size: "25%", argv: ["cat"])
@@ -147,8 +147,8 @@ class MCPMutationTest < Minitest::Test
       source.hooks.set("after-new-window", command: "wait-for -S mcp-created ; wait-for mcp-create-held", index: 93)
       begin
         pending = parent.async { invoke(sdk, "tmux_create", kind: "window", parent: session, name: "partial-effect", argv: ["cat"]) }
-        scope.server.wait_for("mcp-created", timeout: 0.5)
-        failure = pending.wait(timeout: 0.5)
+        scope.server.wait_for("mcp-created", timeout: HANG_GUARD_SECONDS)
+        failure = pending.wait(timeout: HANG_GUARD_SECONDS)
         assert_equal "deadline", failure.dig("error", "code")
         assert_equal "possibly_sent", failure.dig("error", "delivery")
         assert_equal({"state" => "unknown", "created" => []}, failure.dig("error", "effects"))
@@ -156,20 +156,20 @@ class MCPMutationTest < Minitest::Test
         assert_same seen.fetch(0).fetch(2), seen.fetch(1).fetch(2)
         assert scope.server.run(["list-windows", "-a", "-F", '#{window_name}']).text.lines.any? { |line| line.chomp == "partial-effect" }
       ensure
-        scope.server.wait_for("mcp-create-held", action: :signal, timeout: 0.5)
+        scope.server.wait_for("mcp-create-held", action: :signal, timeout: HANG_GUARD_SECONDS)
         source.hooks.unset("after-new-window", index: 93)
       end
 
       source.options.set("command-alias", "display-message=wait-for -S mcp-acquire-ready ; wait-for mcp-acquire-held ; display-message", index: 93)
       begin
         pending = parent.async { invoke(sdk, "tmux_create", kind: "window", parent: session, name: "never-dispatched", argv: ["cat"]) }
-        scope.server.wait_for("mcp-acquire-ready", timeout: 0.5)
-        failure = pending.wait(timeout: 0.5)
+        scope.server.wait_for("mcp-acquire-ready", timeout: HANG_GUARD_SECONDS)
+        failure = pending.wait(timeout: HANG_GUARD_SECONDS)
         assert_equal "deadline", failure.dig("error", "code")
         assert_equal "not_sent", failure.dig("error", "delivery")
         assert_equal({"state" => "none", "created" => []}, failure.dig("error", "effects"))
       ensure
-        scope.server.wait_for("mcp-acquire-held", action: :signal, timeout: 0.5)
+        scope.server.wait_for("mcp-acquire-held", action: :signal, timeout: HANG_GUARD_SECONDS)
         source.options.unset("command-alias", index: 93)
       end
       refute scope.server.run(["list-windows", "-a", "-F", '#{window_name}']).text.lines.any? { |line| line.chomp == "never-dispatched" }

@@ -25,7 +25,7 @@ class ControlIntegrationTest < Minitest::Test
     with_control do |fixture, _, control|
       fixture.tmux("set-option", "-s", "command-alias[99]", "probe=display-message -p alias")
       fixture.tmux("set-hook", "-g", "command-error", "display-message -p error-hook")
-      reply = control.exchange("probe ; kill-session -t does-not-exist ; display-message -p never", timeout: 0.5)
+      reply = control.exchange("probe ; kill-session -t does-not-exist ; display-message -p never", timeout: HANG_GUARD_SECONDS)
       assert_instance_of LibTmux::GuardedReply, reply
       assert_equal :boundary_window, reply.attribution
       refute_respond_to reply, :success?
@@ -33,9 +33,9 @@ class ControlIntegrationTest < Minitest::Test
       assert_includes body, "alias\n"
       refute_includes body, "never\n"
       assert reply.blocks.any? { |block| block.terminator == :error }
-      fake = control.exchange("display-message -p 'parse error: unknown command: libtmux_boundary_guess'", timeout: 0.5)
+      fake = control.exchange("display-message -p 'parse error: unknown command: libtmux_boundary_guess'", timeout: HANG_GUARD_SECONDS)
       assert_includes fake.blocks.map(&:body).join, "libtmux_boundary_guess"
-      assert_equal "ok\n", control.exchange("display-message -p ok", timeout: 0.5).blocks.last.body
+      assert_equal "ok\n", control.exchange("display-message -p ok", timeout: HANG_GUARD_SECONDS).blocks.last.body
     end
   end
 
@@ -44,14 +44,14 @@ class ControlIntegrationTest < Minitest::Test
       LibTmux::ControlConnection.open(binding: pin, session_id: "$0") do |observer|
         stream = control.subscribe(pane_id: "%0")
         witness = observer.subscribe(pane_id: "%0")
-        observer.exchange("display-message -p observer-ready", timeout: 0.5)
+        observer.exchange("display-message -p observer-ready", timeout: HANG_GUARD_SECONDS)
         fixture.tmux("send-keys", "-t", "%0", "-l", "prefix-marker\n")
-        loop { break if witness.next(timeout: 0.5).data&.include?("prefix-marker") }
+        loop { break if witness.next(timeout: HANG_GUARD_SECONDS).data&.include?("prefix-marker") }
 
-        assert_instance_of LibTmux::GuardedReply, control.pause_output(pane_id: "%0", timeout: 0.5)
+        assert_instance_of LibTmux::GuardedReply, control.pause_output(pane_id: "%0", timeout: HANG_GUARD_SECONDS)
         prefix = []
         loop do
-          event = stream.next(timeout: 0.5)
+          event = stream.next(timeout: HANG_GUARD_SECONDS)
           prefix << event
           break if event.kind == :gap
         end
@@ -60,17 +60,17 @@ class ControlIntegrationTest < Minitest::Test
         assert_nil prefix.last.dropped_bytes
 
         fixture.tmux("send-keys", "-t", "%0", "-l", "missed-marker\n")
-        loop { break if witness.next(timeout: 0.5).data&.include?("missed-marker") }
-        reply = control.resume_output(pane_id: "%0", timeout: 0.5)
+        loop { break if witness.next(timeout: HANG_GUARD_SECONDS).data&.include?("missed-marker") }
+        reply = control.resume_output(pane_id: "%0", timeout: HANG_GUARD_SECONDS)
         refute_respond_to reply, :success?
-        resumed = stream.next(timeout: 0.5)
+        resumed = stream.next(timeout: HANG_GUARD_SECONDS)
         assert_includes [:resume, :resume_requested], resumed.reason
         assert_equal "%0", resumed.pane_id
         assert_nil resumed.dropped_bytes
         fixture.tmux("send-keys", "-t", "%0", "-l", "resumed-marker\n")
         output = +"".b
         loop do
-          event = stream.next(timeout: 0.5)
+          event = stream.next(timeout: HANG_GUARD_SECONDS)
           assert_equal :output, event.kind
           output << event.data
           break if output.include?("resumed-marker")
@@ -90,7 +90,7 @@ class ControlIntegrationTest < Minitest::Test
       assert_raises(ArgumentError) do
         LibTmux::ControlConnection.new(binding: pin, session_id: "$0", reconnect: control)
       end
-      control.exchange("new-window -d -n once", timeout: 0.5)
+      control.exchange("new-window -d -n once", timeout: HANG_GUARD_SECONDS)
       old_generation, old_pid = control.generation, control.pid
       control.close
       assert_raises(Errno::ECHILD) { Process.waitpid(old_pid, Process::WNOHANG) }
@@ -98,7 +98,7 @@ class ControlIntegrationTest < Minitest::Test
         refute_equal old_generation, fresh.generation
         assert_equal old_generation, fresh.previous_generation
         [fresh.events, fresh.subscribe(pane_id: "%0")].each do |stream|
-          gap = stream.next(timeout: 0.5)
+          gap = stream.next(timeout: HANG_GUARD_SECONDS)
           assert_equal :gap, gap.kind
           assert_equal :reconnect, gap.reason
           assert_equal old_generation, gap.previous_generation
@@ -107,7 +107,7 @@ class ControlIntegrationTest < Minitest::Test
           assert_nil gap.dropped_bytes
           assert_nil gap.lost_sequences
         end
-        reply = fresh.exchange(%q{list-windows -F '#{window_name}'}, timeout: 0.5)
+        reply = fresh.exchange(%q{list-windows -F '#{window_name}'}, timeout: HANG_GUARD_SECONDS)
         assert_equal 1, reply.blocks.flat_map { |block| block.body.lines }.count("once\n")
       end
       other = LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
@@ -132,20 +132,20 @@ class ControlIntegrationTest < Minitest::Test
       fixture.tmux("set-option", "-s", "command-alias[99]",
         "refresh-client=wait-for -S flow-started ; wait-for flow-held ; refresh")
       task = Thread.new do
-        control.pause_output(pane_id: "%0", cancel: token, timeout: 0.5)
+        control.pause_output(pane_id: "%0", cancel: token, timeout: HANG_GUARD_SECONDS)
       rescue LibTmux::Cancelled => failure
         failure
       end
       fixture.tmux("wait-for", "flow-started")
       token.cancel
       assert_equal :possibly_sent, task.value.delivery
-      gap = stream.next(timeout: 0.5)
+      gap = stream.next(timeout: HANG_GUARD_SECONDS)
       assert_equal :pause_requested, gap.reason
       assert_nil gap.dropped_bytes
       control.close
       assert_raises(Errno::ECHILD) { Process.waitpid(control.pid, Process::WNOHANG) }
     ensure
-      task&.join(0.5)
+      task&.join(HANG_GUARD_SECONDS)
       token&.close
       stream&.close
     end
@@ -154,14 +154,14 @@ class ControlIntegrationTest < Minitest::Test
   def test_wait_holds_boundary_until_an_independent_client_releases_it
     with_control do |fixture, _, control|
       thread = Thread.new do
-        control.exchange("wait-for -S control-started ; wait-for control-release ; display-message -p released", timeout: 0.5)
+        control.exchange("wait-for -S control-started ; wait-for control-release ; display-message -p released", timeout: HANG_GUARD_SECONDS)
       end
       fixture.tmux("wait-for", "control-started")
       assert thread.alive?, "WAIT must keep the request boundary pending after its successful guard"
       fixture.tmux("wait-for", "-S", "control-release")
       assert_includes thread.value.blocks.map(&:body).join, "released\n"
     ensure
-      thread&.join(0.5)
+      thread&.join(HANG_GUARD_SECONDS)
     end
   end
 
@@ -169,7 +169,7 @@ class ControlIntegrationTest < Minitest::Test
     with_control do |fixture, pin, control|
       pid = control.pid
       pin.close
-      assert_equal "retained\n", control.exchange("display-message -p retained", timeout: 0.5).blocks.last.body
+      assert_equal "retained\n", control.exchange("display-message -p retained", timeout: HANG_GUARD_SECONDS).blocks.last.body
       control.close
       assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
       assert fixture.tmux("has-session", "-t", "fixture").last.success?
@@ -194,11 +194,11 @@ class ControlIntegrationTest < Minitest::Test
         result
       end
       first = Thread.new do
-        control.exchange("pipeline-probe", timeout: 0.5)
+        control.exchange("pipeline-probe", timeout: HANG_GUARD_SECONDS)
       end
       fixture.tmux("wait-for", "pipeline-ready")
-      second = Thread.new { control.exchange("display-message -p pipeline-second", timeout: 0.5) }
-      assert IO.select([reader], nil, nil, 0.2), "second request bytes waited for the first reply"
+      second = Thread.new { control.exchange("display-message -p pipeline-second", timeout: HANG_GUARD_SECONDS) }
+      assert IO.select([reader], nil, nil, HANG_GUARD_SECONDS), "second request bytes waited for the first reply"
       assert first.alive?, "the first reply must remain pending at the wire witness"
       assert second.alive?, "tmux must retain the second request behind WAIT"
       assert_respond_to control, :diagnostics
@@ -220,7 +220,7 @@ class ControlIntegrationTest < Minitest::Test
       assert_empty control.instance_variable_get(:@requests)
     ensure
       fixture.tmux("wait-for", "-S", "pipeline-held") if first&.alive?
-      [first, second].compact.each { |thread| thread.join(0.5) }
+      [first, second].compact.each { |thread| thread.join(HANG_GUARD_SECONDS) }
       input&.singleton_class&.remove_method(:write_nonblock)
       [reader, writer].compact.each(&:close)
     end
@@ -230,9 +230,9 @@ class ControlIntegrationTest < Minitest::Test
     with_control do |fixture, _, control|
       events = control.subscribe(max_events: 1, max_bytes: 1024)
       3.times { |index| fixture.tmux("rename-window", "-t", "@0", "window#{index}") }
-      assert_equal "alive\n", control.exchange("display-message -p alive", timeout: 0.5).blocks.last.body
-      assert_instance_of LibTmux::ControlEvent, events.next(timeout: 0.5)
-      assert_raises(LibTmux::SubscriptionOverflow) { events.next(timeout: 0.5) }
+      assert_equal "alive\n", control.exchange("display-message -p alive", timeout: HANG_GUARD_SECONDS).blocks.last.body
+      assert_instance_of LibTmux::ControlEvent, events.next(timeout: HANG_GUARD_SECONDS)
+      assert_raises(LibTmux::SubscriptionOverflow) { events.next(timeout: HANG_GUARD_SECONDS) }
     end
   end
 
@@ -250,7 +250,7 @@ class ControlIntegrationTest < Minitest::Test
       end)
       token = LibTmux::Internal::Cancellation.new
       thread = Thread.new do
-        control.exchange("display-message -p cancelled-prefix ; wait-for -S cancellation-started ; wait-for blocked", timeout: 0.5, cancel: token)
+        control.exchange("display-message -p cancelled-prefix ; wait-for -S cancellation-started ; wait-for blocked", timeout: HANG_GUARD_SECONDS, cancel: token)
       rescue LibTmux::Cancelled => error
         error
       end
@@ -273,7 +273,7 @@ class ControlIntegrationTest < Minitest::Test
     ensure
       release << true
       token&.close
-      thread&.join(0.5)
+      thread&.join(HANG_GUARD_SECONDS)
     end
   end
 
@@ -290,16 +290,16 @@ class ControlIntegrationTest < Minitest::Test
       error = assert_raises(LibTmux::Cancelled) { control.exchange("display-message -p never", cancel: token) }
       assert_equal :not_sent, error.delivery
       thread = Thread.new do
-        control.exchange("wait-for -S capacity-started ; wait-for capacity-release", timeout: 0.5)
+        control.exchange("wait-for -S capacity-started ; wait-for capacity-release", timeout: HANG_GUARD_SECONDS)
       end
       fixture.tmux("wait-for", "capacity-started")
       assert_raises(LibTmux::CapacityError) { control.exchange("display-message -p excess") }
       fixture.tmux("wait-for", "-S", "capacity-release")
       assert_instance_of LibTmux::GuardedReply, thread.value
-      assert_equal "still-open\n", control.exchange("display-message -p still-open", timeout: 0.5).blocks.last.body
+      assert_equal "still-open\n", control.exchange("display-message -p still-open", timeout: HANG_GUARD_SECONDS).blocks.last.body
     ensure
       token&.close
-      thread&.join(0.5)
+      thread&.join(HANG_GUARD_SECONDS)
     end
   end
 
@@ -317,7 +317,7 @@ class ControlIntegrationTest < Minitest::Test
       end)
       first = Interrupt.new("first cancellation")
       thread = Thread.new do
-        control.exchange("wait-for -S interrupt-started ; wait-for interrupt-blocked", timeout: 0.5)
+        control.exchange("wait-for -S interrupt-started ; wait-for interrupt-blocked", timeout: HANG_GUARD_SECONDS)
       rescue Exception => failure
         failure
       end
@@ -331,15 +331,15 @@ class ControlIntegrationTest < Minitest::Test
       assert_raises(Errno::ECHILD) { Process.waitpid(control.pid, Process::WNOHANG) }
     ensure
       cleanup_release << true
-      thread&.join(0.5)
+      thread&.join(HANG_GUARD_SECONDS)
     end
   end
 
   def test_detach_closes_pending_request_without_waiting_for_deadline
     with_control do |_, _, control|
-      control.exchange("detach-client", timeout: 0.5)
-      loop { break if control.events.next(timeout: 0.5).raw.start_with?("%exit") }
-      assert_raises(LibTmux::ClosedError) { control.exchange("display-message -p detached", timeout: 0.5) }
+      control.exchange("detach-client", timeout: HANG_GUARD_SECONDS)
+      loop { break if control.events.next(timeout: HANG_GUARD_SECONDS).raw.start_with?("%exit") }
+      assert_raises(LibTmux::ClosedError) { control.exchange("display-message -p detached", timeout: HANG_GUARD_SECONDS) }
       control.close
       assert_raises(Errno::ECHILD) { Process.waitpid(control.pid, Process::WNOHANG) }
     end
@@ -382,10 +382,10 @@ class ControlIntegrationTest < Minitest::Test
         exit! 0
       end
       writer.close
-      assert IO.select([reader], nil, nil, 0.5), "fork check must report through its pipe"
+      assert IO.select([reader], nil, nil, HANG_GUARD_SECONDS), "fork check must report through its pipe"
       assert_equal "closed", reader.read
       Process.wait(child)
-      assert_equal "parent\n", control.exchange("display-message -p parent", timeout: 0.5).blocks.last.body
+      assert_equal "parent\n", control.exchange("display-message -p parent", timeout: HANG_GUARD_SECONDS).blocks.last.body
     ensure
       [reader, writer].compact.each { |io| io.close unless io.closed? }
       Process.wait(child) rescue Errno::ECHILD
@@ -420,7 +420,7 @@ class ControlIntegrationTest < Minitest::Test
       end
       control = LibTmux::ControlConnection.open(binding: pin, session_id: "$0")
       wait_class.define_singleton_method(:new, original_new)
-      assert_equal "ready\n", control.events.next(timeout: 0.5).raw
+      assert_equal "ready\n", control.events.next(timeout: HANG_GUARD_SECONDS).raw
       ENV["RUBYOPT"] = original_rubyopt
       if late
         observer = control.instance_variable_get(:@child)
@@ -442,7 +442,7 @@ class ControlIntegrationTest < Minitest::Test
       gate << true if gate
       if control
         control.send(:signal, "KILL")
-        control.instance_variable_get(:@worker)&.join(0.5)
+        control.instance_variable_get(:@worker)&.join(HANG_GUARD_SECONDS)
       end
       pin&.close
     end
@@ -460,22 +460,22 @@ class ControlIntegrationTest < Minitest::Test
           super(request, type, message)
         end
       end)
-      thread = Thread.new { control.exchange("display-message -p completed", timeout: 0.5) }
+      thread = Thread.new { control.exchange("display-message -p completed", timeout: HANG_GUARD_SECONDS) }
       cleanup_entered.pop
       assert_respond_to control, :diagnostics
       retained = control.diagnostics
       assert_equal [1, 0, 0], retained.values_at(:admitted_requests, :incomplete_requests, :awaiting_reply)
       assert_operator retained.fetch(:retained_reply_bytes), :>=, "completed\n".bytesize
-      assert_raises(LibTmux::CapacityError) { control.exchange("display-message -p excess", timeout: 0.5) }
+      assert_raises(LibTmux::CapacityError) { control.exchange("display-message -p excess", timeout: HANG_GUARD_SECONDS) }
       cleanup_release << true
       reply = thread.value
       assert_equal "completed\n", reply.blocks.last.body
       assert_equal reply.blocks.sum(&:bytesize), retained.fetch(:retained_reply_bytes)
       assert_equal [0, 0], control.diagnostics.values_at(:reserved_wire_bytes, :retained_reply_bytes)
-      assert_equal "next\n", control.exchange("display-message -p next", timeout: 0.5).blocks.last.body
+      assert_equal "next\n", control.exchange("display-message -p next", timeout: HANG_GUARD_SECONDS).blocks.last.body
     ensure
       cleanup_release << true
-      thread&.join(0.5)
+      thread&.join(HANG_GUARD_SECONDS)
     end
   end
 end

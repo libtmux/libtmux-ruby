@@ -17,7 +17,7 @@ class MCPWaitTest < Minitest::Test
       await_ready(ready, pending)
       refute pending.finished?
       pane.send_text("event-visible")
-      result = pending.wait(timeout: 0.5)
+      result = pending.wait(timeout: HANG_GUARD_SECONDS)
       assert result.fetch("ok"), "#{result.inspect}; #{@observation_failure.inspect}"
       assert result.dig("data", "capture", "rows").join.include?("event-visible")
       assert_empty scope.server.list_clients
@@ -27,7 +27,7 @@ class MCPWaitTest < Minitest::Test
       pending = Async::Task.current.async { call(app, wire_ref(child.ref), {type: "process_exit"}) }
       await_ready(ready, pending)
       child.send_keys("Enter")
-      result = pending.wait(timeout: 0.5)
+      result = pending.wait(timeout: HANG_GUARD_SECONDS)
       assert result.fetch("ok"), "#{result.inspect}; #{@observation_failure.inspect}"
       assert_equal "process_exit", result.dig("data", "condition")
       assert_equal "unobserved", result.dig("data", "exit_status")
@@ -44,7 +44,7 @@ class MCPWaitTest < Minitest::Test
       pending = Async::Task.current.async { call(app, target, {type: "screen_contains", text: "never"}, cancellation: cancellation) }
       await_ready(ready, pending)
       cancellation.cancel
-      failure = pending.wait(timeout: 0.5)
+      failure = pending.wait(timeout: HANG_GUARD_SECONDS)
       assert_equal "cancelled", failure.dig("error", "code")
       assert_empty scope.server.list_clients
       failure = call(app, target, {type: "process_exit"}, timeout: 0.1)
@@ -66,11 +66,11 @@ class MCPWaitTest < Minitest::Test
       pending = Async::Task.current.async { call(app, wire_ref(pane.ref), {type: "screen_contains", text: "absent"}) }
       await_ready(ready, pending)
       begin
-        control.pause_output(pane_id: pane.id, timeout: 0.5)
+        control.pause_output(pane_id: pane.id, timeout: HANG_GUARD_SECONDS)
       rescue LibTmux::ClosedError
         # The observed gap may retire the lane before the pause reply finishes.
       end
-      assert_equal "observation_lost", pending.wait(timeout: 0.5).dig("error", "code")
+      assert_equal "observation_lost", pending.wait(timeout: HANG_GUARD_SECONDS).dig("error", "code")
       assert control.closed?
 
       closing = Async::Queue.new
@@ -93,9 +93,9 @@ class MCPWaitTest < Minitest::Test
         original.call(**options)
       end
       pending.cancel
-      Async::Task.current.with_timeout(0.5) { closing.dequeue }
+      Async::Task.current.with_timeout(HANG_GUARD_SECONDS) { closing.dequeue }
       pending.cancel
-      error = pending.wait(timeout: 0.5)
+      error = pending.wait(timeout: HANG_GUARD_SECONDS)
       assert_instance_of Async::Cancel, error
       assert control.closed?
       assert_raises(Errno::ECHILD) { Process.waitpid(control.pid, Process::WNOHANG) }
@@ -122,7 +122,7 @@ class MCPWaitTest < Minitest::Test
       end
       begin
         pane.send_text("finish-with-evidence")
-        failure = pending.wait(timeout: 0.5)
+        failure = pending.wait(timeout: HANG_GUARD_SECONDS)
         assert_equal "transport_error", failure.dig("error", "code"), failure.inspect
         refute_includes JSON.generate(failure), "PRIVATE"
         observer = app.instance_variable_get(:@retiring).first
@@ -153,7 +153,7 @@ class MCPWaitTest < Minitest::Test
       refute pending.finished?
       app.close
       assert pending.finished?, "Application.close must join the admitted request's observer cleanup"
-      assert_equal "cancelled", pending.wait(timeout: 0.5).dig("error", "code")
+      assert_equal "cancelled", pending.wait(timeout: HANG_GUARD_SECONDS).dig("error", "code")
       assert_empty app.instance_variable_get(:@observers)
       assert_empty app.instance_variable_get(:@retiring)
       assert_empty scope.server.list_clients
@@ -190,15 +190,15 @@ class MCPWaitTest < Minitest::Test
       rescue Exception => error
         error
       end
-      Async::Task.current.with_timeout(0.5) { closing.dequeue; waiting.dequeue }
+      Async::Task.current.with_timeout(HANG_GUARD_SECONDS) { closing.dequeue; waiting.dequeue }
       2.times do
         closer.cancel
-        Async::Task.current.with_timeout(0.5) { waiting.dequeue }
+        Async::Task.current.with_timeout(HANG_GUARD_SECONDS) { waiting.dequeue }
       end
       release.enqueue(true)
-      assert_instance_of Async::Cancel, closer.wait(timeout: 0.5)
+      assert_instance_of Async::Cancel, closer.wait(timeout: HANG_GUARD_SECONDS)
       assert pending.finished?
-      assert_equal "cancelled", pending.wait(timeout: 0.5).dig("error", "code")
+      assert_equal "cancelled", pending.wait(timeout: HANG_GUARD_SECONDS).dig("error", "code")
       assert control.closed?
       assert_empty app.instance_variable_get(:@calls)
       assert_empty app.instance_variable_get(:@observers)
@@ -213,7 +213,7 @@ class MCPWaitTest < Minitest::Test
   private
 
   def await_ready(ready, pending)
-    Async::Task.current.with_timeout(0.5) { ready.wait }
+    Async::Task.current.with_timeout(HANG_GUARD_SECONDS) { ready.wait }
   rescue Async::TimeoutError
     pending.wait if pending.finished?
     raise

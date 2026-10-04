@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../test_helper"
 require "fileutils"
 require "fiddle"
 require "fcntl"
@@ -37,7 +38,7 @@ module LibTmuxTest
 
       def value
         finish_signalling
-        raise Error, "owned tmux process did not finish reaping" unless join(0.5)
+        raise Error, "owned tmux process did not finish reaping" unless join(HANG_GUARD_SECONDS)
 
         if observation_error && !@error_reported
           @error_reported = true
@@ -51,7 +52,7 @@ module LibTmuxTest
     private_constant :CleanupDetails, :OwnedChild
 
     CLEAN_ENV = {"TMUX" => nil, "TMUX_PANE" => nil}.freeze
-    DEADLINE_SECONDS = 0.5
+    DEADLINE_SECONDS = HANG_GUARD_SECONDS
     private_constant :CLEAN_ENV, :DEADLINE_SECONDS
 
     attr_reader :socket_path, :cleanup_errors, :executable
@@ -228,7 +229,7 @@ module LibTmuxTest
           ensure
             observer.finish_signalling
           end
-          raise Error, "failed spawn observer did not finish" unless observer.join(0.5)
+          raise Error, "failed spawn observer did not finish" unless observer.join(HANG_GUARD_SECONDS)
 
           observer.value if observer.pid
         ensure
@@ -282,7 +283,7 @@ module LibTmuxTest
           ensure
             waiter.finish_signalling
           end
-          raise Error, "owned tmux process did not exit" unless waiter.join(0.5)
+          raise Error, "owned tmux process did not exit" unless waiter.join(HANG_GUARD_SECONDS)
           waiter.value
         ensure
           waiter.close

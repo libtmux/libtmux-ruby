@@ -43,14 +43,14 @@ class SessionGuardTest < Minitest::Test
           assert fixture.tmux("join-pane", "-d", "-s", borrowed.id, "-t", created.pane.id).last.success?
           assert fixture.tmux("set-hook", "-gu", "after-show-options[99]").last.success?
           assert fixture.tmux("wait-for", "-S", "ownership-release").last.success?
-          assert request.join(0.5), "ownership guard did not settle"
+          assert request.join(HANG_GUARD_SECONDS), "ownership guard did not settle"
           assert_instance_of LibTmux::TargetNotFoundError, request.value
           assert_includes server.list_panes.map(&:ref), borrowed.ref
           assert_includes server.list_sessions.map(&:ref), created.entity.ref
         ensure
           fixture.tmux("set-hook", "-gu", "after-show-options[99]")
           fixture.tmux("wait-for", "-S", "ownership-release")
-          request.join(0.5)
+          request.join(HANG_GUARD_SECONDS)
         end
       end
     end

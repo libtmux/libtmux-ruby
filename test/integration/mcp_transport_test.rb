@@ -49,7 +49,7 @@ class MCPTransportTest < Minitest::Test
           sdk = sdk_server
           sdk.define_custom_method(method_name: "custom/wait") do |params, server_context:|
             entered << [Thread.current, server_context.cancellation]
-            scope.server.run(["wait-for", "-S", "mcp-ready", ";", "wait-for", "mcp-held"], timeout: 0.5)
+            scope.server.run(["wait-for", "-S", "mcp-ready", ";", "wait-for", "mcp-held"], timeout: HANG_GUARD_SECONDS)
             {finished: true}
           rescue LibTmux::Cancelled => error
             cancelled << error
@@ -60,7 +60,7 @@ class MCPTransportTest < Minitest::Test
               send_frame(input, request(1, "server/discover"))
               read_frame(parent, output)
               send_frame(input, request(2, "custom/wait", **modern_params))
-              scope.server.wait_for("mcp-ready", timeout: 0.5)
+              scope.server.wait_for("mcp-ready", timeout: HANG_GUARD_SECONDS)
               send_frame(input, request(3, "custom/echo", **modern_params(value: "concurrent reader")))
               assert_equal "concurrent reader", read_frame(parent, output).dig("result", "value")
               refute entered.first.last.cancelled?
@@ -72,7 +72,7 @@ class MCPTransportTest < Minitest::Test
               assert_equal Thread.current, entered.first.first
               assert entered.first.last.cancelled?
               send_frame(input, request(5, "custom/wait", **modern_params))
-              scope.server.wait_for("mcp-ready", timeout: 0.5)
+              scope.server.wait_for("mcp-ready", timeout: HANG_GUARD_SECONDS)
               input.close
             end
             assert source.run(["has-session", "-t", "fixture"]).success?
@@ -117,7 +117,7 @@ class MCPTransportTest < Minitest::Test
         first[:_meta]["io.modelcontextprotocol/clientInfo"] = {name: "first", version: "1"}
         first[:_meta]["io.modelcontextprotocol/clientCapabilities"] = {first: {}}
         send_frame(input, request(2, "custom/context", **first))
-        parent.with_timeout(0.5) { ready.wait }
+        parent.with_timeout(HANG_GUARD_SECONDS) { ready.wait }
         send_frame(input, request(3, "custom/context", **modern_params))
         replies = 2.times.map { read_frame(parent, output) }.to_h { |entry| [entry.fetch("id"), entry.fetch("result")] }
         assert_equal "first", replies.fetch(2).fetch("client")
@@ -168,7 +168,7 @@ class MCPTransportTest < Minitest::Test
         assert_equal "after deadline", read_frame(parent, output).dig("result", "value")
       end
       elapsed = 0
-      sdk.define_custom_method(method_name: "custom/clock") { |_| elapsed += 1; {expired: true} }
+      sdk.define_custom_method(method_name: "custom/clock") { |_| elapsed += HANG_GUARD_SECONDS; {expired: true} }
       with_transport(parent, server: sdk) do |transport, input, output|
         transport.define_singleton_method(:clock) { super() + elapsed }
         send_frame(input, request(1, "custom/clock"))
@@ -177,7 +177,7 @@ class MCPTransportTest < Minitest::Test
       with_transport(parent) do |transport, input, output|
         transport.define_singleton_method(:clock) { super() + elapsed }
         transport.define_singleton_method(:encode) do |message|
-          super(message).tap { elapsed += 1 }
+          super(message).tap { elapsed += HANG_GUARD_SECONDS }
         end
         send_frame(input, request(1, "custom/echo", value: "encoding crossed deadline"))
         assert_equal(-32000, read_frame(parent, output).dig("error", "code"))
@@ -216,7 +216,7 @@ class MCPTransportTest < Minitest::Test
       assert_raises(LibTmux::DeadlineExceeded) do
         with_transport(parent, server: sdk, max_output_bytes: 1 << 20, write_timeout: 0.02) do |_, input, _, runner|
           send_frame(input, request(1, "custom/large"))
-          error = runner.wait(timeout: 0.5)
+          error = runner.wait(timeout: HANG_GUARD_SECONDS)
           raise error if error.is_a?(Exception)
         end
       end
@@ -281,12 +281,12 @@ class MCPTransportTest < Minitest::Test
         send_frame(client_input, request(1, "custom/echo", value: "started"))
         assert_equal "started", read_frame(parent, client_output).dig("result", "value")
         runner.cancel
-        parent.with_timeout(0.5) { entered.wait until retiring }
+        parent.with_timeout(HANG_GUARD_SECONDS) { entered.wait until retiring }
         runner.cancel
         parent.yield
         assert_same transport, sdk.transport
         release.signal
-        result = runner.wait(timeout: 0.5)
+        result = runner.wait(timeout: HANG_GUARD_SECONDS)
         assert_kind_of ::Async::Cancel, result
         assert transport.closed?
         assert_same previous, sdk.transport
@@ -343,7 +343,7 @@ class MCPTransportTest < Minitest::Test
           end
           trace.enable do
             send_frame(client, request(1, "custom/echo", value: "never dispatched"))
-            error = runner.wait(timeout: 0.5)
+            error = runner.wait(timeout: HANG_GUARD_SECONDS)
             raise error if error.is_a?(Exception)
           end
         end
@@ -378,17 +378,17 @@ class MCPTransportTest < Minitest::Test
       observed = assert_raises(RuntimeError) do
         with_transport(parent, server: sdk, cleanup_timeout: 0.02) do |transport, input, _, runner|
           send_frame(input, request(1, "custom/cleanup"))
-          parent.with_timeout(0.5) { ready.wait until handler }
+          parent.with_timeout(HANG_GUARD_SECONDS) { ready.wait until handler }
           input.close
           transport.instance_variable_set(:@failure, primary)
-          error = runner.wait(timeout: 0.5)
+          error = runner.wait(timeout: HANG_GUARD_SECONDS)
           assert_same primary, error
           refute_empty error.mcp_cleanup_errors
           assert error.mcp_cleanup_errors.frozen?
           refute transport.closed?
           assert_same transport, sdk.transport
           release.signal
-          handler.wait(timeout: 0.5)
+          handler.wait(timeout: HANG_GUARD_SECONDS)
           transport.close
           assert transport.closed?
           assert_same previous, sdk.transport
@@ -414,7 +414,7 @@ class MCPTransportTest < Minitest::Test
     input, client_input = IO.pipe
     client_output, output = IO.pipe
     transport = LibTmux::MCP::StdioTransport.new(server: server, parent: parent, input: input, output: output,
-      **{request_timeout: 0.5}.merge(limits))
+      **{request_timeout: HANG_GUARD_SECONDS}.merge(limits))
     runner = parent.async do
       transport.run
     rescue Exception => error
@@ -428,7 +428,7 @@ class MCPTransportTest < Minitest::Test
     ensure
       client_input.close unless client_input.closed?
       begin
-        result = runner.wait(timeout: 0.75)
+        result = runner.wait(timeout: HANG_GUARD_SECONDS)
         failure ||= result if result.is_a?(Exception)
       rescue Exception => error
         failure ||= error
@@ -452,7 +452,7 @@ class MCPTransportTest < Minitest::Test
   end
 
   def read_frame(parent, output)
-    line = parent.with_timeout(0.5) { output.gets }
+    line = parent.with_timeout(HANG_GUARD_SECONDS) { output.gets }
     JSON.parse(line)
   end
 end

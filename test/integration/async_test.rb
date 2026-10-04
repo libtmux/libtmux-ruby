@@ -14,7 +14,7 @@ class AsyncTest < Minitest::Test
       LibTmux::Server.open(socket_path: fixture.socket_path) do |source|
         ref = source.list_panes.first.ref
         Async do |parent|
-          parent.with_timeout(0.5) do
+          parent.with_timeout(HANG_GUARD_SECONDS) do
             LibTmux::Async.open(parent: parent, server: source) do |scope|
               assert_equal ref, scope.server.pane(ref).ref
               waiting = parent.async do
@@ -57,7 +57,7 @@ class AsyncTest < Minitest::Test
         exit(data == "\\0\\xFF".b * 131072 ? 17 : 99)
       RUBY
       trace.enable
-      result = scope.__send__(:execute, ruby(code), input: input, timeout: 0.5)
+      result = scope.__send__(:execute, ruby(code), input: input, timeout: HANG_GUARD_SECONDS)
       trace.disable
       assert_equal 17, result.status.exitstatus
       assert_equal "\xFF".b * 131_072, result.stdout
@@ -202,7 +202,7 @@ class AsyncTest < Minitest::Test
     ensure
       trace&.disable
       release << true if release
-      observer&.join(0.5)
+      observer&.join(HANG_GUARD_SECONDS)
       reaping&.close
       notify&.close
       peer&.close
@@ -293,7 +293,7 @@ class AsyncTest < Minitest::Test
     ensure
       trace&.disable
       release << true if release
-      observer&.join(0.5)
+      observer&.join(HANG_GUARD_SECONDS)
       reaping&.close
       notify&.close
       peer&.close
@@ -366,7 +366,7 @@ class AsyncTest < Minitest::Test
     ensure
       trace&.disable
       released << true if released
-      observer&.join(0.5)
+      observer&.join(HANG_GUARD_SECONDS)
       cancel&.close
     end
   end
@@ -490,17 +490,17 @@ class AsyncTest < Minitest::Test
           result
         end
         first = parent.async do
-          control.exchange("wait-for -S pipeline-ready ; wait-for pipeline-held ; display-message -p pipeline-first", timeout: 0.5, cancel: token)
+          control.exchange("wait-for -S pipeline-ready ; wait-for pipeline-held ; display-message -p pipeline-first", timeout: HANG_GUARD_SECONDS, cancel: token)
         rescue LibTmux::Error => error
           error
         end
         assert scope.server.run(["wait-for", "pipeline-ready"]).success?
         second = parent.async do
-          control.exchange("display-message -p pipeline-second", timeout: 0.5)
+          control.exchange("display-message -p pipeline-second", timeout: HANG_GUARD_SECONDS)
         rescue LibTmux::Error => error
           error
         end
-        assert Fiber.scheduler.io_wait(reader, IO::READABLE, 0.2), "second request bytes waited for the first reply"
+        assert Fiber.scheduler.io_wait(reader, IO::READABLE, HANG_GUARD_SECONDS), "second request bytes waited for the first reply"
         refute first.finished?
         refute second.finished?
         assert_respond_to control, :diagnostics
@@ -547,12 +547,12 @@ class AsyncTest < Minitest::Test
         assert reliable.diagnostics.fetch(:overflowed)
         assert tail.diagnostics.fetch(:gap_pending)
         assert_equal 3, control.diagnostics.fetch(:subscription_count)
-        assert_instance_of LibTmux::ControlEvent, reliable.next(timeout: 0.5)
-        assert_raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 0.5) }
-        gap = tail.next(timeout: 0.5)
+        assert_instance_of LibTmux::ControlEvent, reliable.next(timeout: HANG_GUARD_SECONDS)
+        assert_raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: HANG_GUARD_SECONDS) }
+        gap = tail.next(timeout: HANG_GUARD_SECONDS)
         assert_equal :gap, gap.kind
         assert_operator gap.dropped_bytes, :>, 0
-        assert_instance_of LibTmux::ControlEvent, tail.next(timeout: 0.5)
+        assert_instance_of LibTmux::ControlEvent, tail.next(timeout: HANG_GUARD_SECONDS)
         failure = Thread.new { control.exchange("display-message -p wrong") rescue $! }.value
         assert_instance_of LibTmux::ClosedError, failure
         assert_instance_of LibTmux::ClosedError, Thread.new { control.diagnostics rescue $! }.value
@@ -723,20 +723,20 @@ class AsyncTest < Minitest::Test
       observer = scope.server.open_control(session: session)
       stream = control.subscribe(pane_id: "%0")
       witness = observer.subscribe(pane_id: "%0")
-      observer.exchange("display-message -p observer-ready", timeout: 0.5)
-      assert_instance_of LibTmux::GuardedReply, control.pause_output(pane_id: "%0", timeout: 0.5)
-      pause = stream.next(timeout: 0.5)
+      observer.exchange("display-message -p observer-ready", timeout: HANG_GUARD_SECONDS)
+      assert_instance_of LibTmux::GuardedReply, control.pause_output(pane_id: "%0", timeout: HANG_GUARD_SECONDS)
+      pause = stream.next(timeout: HANG_GUARD_SECONDS)
       assert_includes [:pause, :pause_requested], pause.reason
       assert_nil pause.dropped_bytes
       scope.server.run(["send-keys", "-t", "%0", "-l", "async-missed\n"])
-      loop { break if witness.next(timeout: 0.5).data&.include?("async-missed") }
-      control.resume_output(pane_id: "%0", timeout: 0.5)
-      resume = stream.next(timeout: 0.5)
+      loop { break if witness.next(timeout: HANG_GUARD_SECONDS).data&.include?("async-missed") }
+      control.resume_output(pane_id: "%0", timeout: HANG_GUARD_SECONDS)
+      resume = stream.next(timeout: HANG_GUARD_SECONDS)
       assert_includes [:resume, :resume_requested], resume.reason
       scope.server.run(["send-keys", "-t", "%0", "-l", "async-resumed\n"])
       observed = +"".b
       loop do
-        event = stream.next(timeout: 0.5)
+        event = stream.next(timeout: HANG_GUARD_SECONDS)
         assert_equal :output, event.kind
         observed << event.data
         break if observed.include?("async-resumed")
@@ -744,13 +744,13 @@ class AsyncTest < Minitest::Test
       refute_includes observed, "async-missed"
       control.close
       fresh = scope.server.open_control(session: session, reconnect: control)
-      gap = fresh.events.next(timeout: 0.5)
+      gap = fresh.events.next(timeout: HANG_GUARD_SECONDS)
       assert_equal :reconnect, gap.reason
       assert_equal control.generation, gap.previous_generation
       refute_equal control.generation, gap.generation
       assert_equal fresh.generation, fresh.events.generation
       assert_nil gap.dropped_bytes
-      fresh.exchange("display-message -p renewed", timeout: 0.5)
+      fresh.exchange("display-message -p renewed", timeout: HANG_GUARD_SECONDS)
       fresh.close
       observer.close
       [control, fresh, observer].each do |connection|

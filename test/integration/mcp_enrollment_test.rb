@@ -15,10 +15,10 @@ class MCPEnrollmentTest < Minitest::Test
     assert LibTmux::MCP.const_defined?(:EnrollmentRegistry, false), 'explicit shell enrollment is not implemented'
     with_shell do |registry, pane, channel, scope, source|
       digest = Digest::SHA256.hexdigest('exit 7')
-      prepared = registry.prepare(pane.ref, script_digest: digest, timeout: 0.5)
+      prepared = registry.prepare(pane.ref, script_digest: digest, timeout: HANG_GUARD_SECONDS)
       refute prepared.authorized?
       assert_equal pane.id, prepared.reference.id
-      grant = prepared.authorize(timeout: 0.5)
+      grant = prepared.authorize(timeout: HANG_GUARD_SECONDS)
       assert_equal 'authorized', grant.fetch('state')
       assert_equal digest, grant.fetch('script_digest')
       assert_equal pane.ref.binding_key, grant.fetch('server_generation')
@@ -28,7 +28,7 @@ class MCPEnrollmentTest < Minitest::Test
       nonce = prepared.instance_variable_get(:@authorization)
       assert_raises(LibTmux::DeadlineExceeded) { scope.server.run(['wait-for', nonce], timeout: 0.03) }
       scope.server.run(['wait-for', '-S', nonce])
-      assert_raises(LibTmux::ClosedError) { prepared.authorize(timeout: 0.5) }
+      assert_raises(LibTmux::ClosedError) { prepared.authorize(timeout: HANG_GUARD_SECONDS) }
       prepared.close
       registry.close
       assert source.run(['has-session', '-t', 'enrolled']).success?
@@ -40,15 +40,15 @@ class MCPEnrollmentTest < Minitest::Test
     with_shell do |registry, pane, _channel, _scope, _source|
       pane.send_text('unfinished-input')
       failure = assert_raises(LibTmux::UnsupportedFeatureError) do
-        registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: 0.5)
+        registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: HANG_GUARD_SECONDS)
       end
       assert_equal :not_sent, failure.delivery
       assert_includes pane.capture.text, 'unfinished-input'
       pane.send_keys('C-u')
-      prepared = registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: 0.5)
+      prepared = registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: HANG_GUARD_SECONDS)
       token = LibTmux::Internal::Cancellation.new
       token.cancel
-      failure = assert_raises(LibTmux::Cancelled) { prepared.authorize(timeout: 0.5, cancel: token) }
+      failure = assert_raises(LibTmux::Cancelled) { prepared.authorize(timeout: HANG_GUARD_SECONDS, cancel: token) }
       assert_equal :not_sent, failure.delivery
       refute prepared.authorized?
       prepared.close
@@ -59,16 +59,16 @@ class MCPEnrollmentTest < Minitest::Test
 
   def test_respawn_before_grant_refuses_and_respawn_after_grant_keeps_the_original_recipient
     with_shell do |registry, pane, _channel, scope, _source|
-      prepared = registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: 0.5)
+      prepared = registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: HANG_GUARD_SECONDS)
       pane.respawn(command: ['cat'], kill: true)
-      failure = assert_raises(LibTmux::TargetNotFoundError) { prepared.authorize(timeout: 0.5) }
+      failure = assert_raises(LibTmux::TargetNotFoundError) { prepared.authorize(timeout: HANG_GUARD_SECONDS) }
       assert_equal :not_sent, failure.delivery
       refute prepared.authorized?
       prepared.close
       assert scope.server.snapshot.panes.find { |record| record.id == pane.id }
     end
     with_shell do |registry, pane, _channel, scope, _source|
-      prepared = registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: 0.5)
+      prepared = registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: HANG_GUARD_SECONDS)
       old_pid = scope.server.snapshot.panes.find { |record| record.id == pane.id }.pid
       original = registry.method(:guard)
       registry.define_singleton_method(:guard) do |reference, identity, budget, nonce = nil|
@@ -76,7 +76,7 @@ class MCPEnrollmentTest < Minitest::Test
         pane.respawn(command: ['cat'], kill: true) if nonce
         result
       end
-      receipt = prepared.authorize(timeout: 0.5)
+      receipt = prepared.authorize(timeout: HANG_GUARD_SECONDS)
       replacement = scope.server.snapshot.panes.find { |record| record.id == pane.id }
       refute_equal old_pid, replacement.pid
       assert_equal prepared.process_generation, receipt.fetch('process_generation')
@@ -88,7 +88,7 @@ class MCPEnrollmentTest < Minitest::Test
 
   def test_cancellation_after_the_committed_grant_keeps_its_exact_effect_receipt
     with_shell do |registry, pane, _channel, _scope, _source|
-      prepared = registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: 0.5)
+      prepared = registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: HANG_GUARD_SECONDS)
       token = LibTmux::Internal::Cancellation.new
       original = registry.method(:guard)
       registry.define_singleton_method(:guard) do |reference, identity, budget, nonce = nil|
@@ -96,7 +96,7 @@ class MCPEnrollmentTest < Minitest::Test
         token.cancel if nonce
         result
       end
-      failure = assert_raises(LibTmux::Cancelled) { prepared.authorize(timeout: 0.5, cancel: token) }
+      failure = assert_raises(LibTmux::Cancelled) { prepared.authorize(timeout: HANG_GUARD_SECONDS, cancel: token) }
       assert_equal :possibly_sent, failure.delivery
       assert_equal 'authorized', prepared.receipt.fetch('state')
       assert_equal prepared.process_generation, prepared.receipt.fetch('process_generation')
@@ -118,14 +118,14 @@ class MCPEnrollmentTest < Minitest::Test
         original.call(listener, budget)
       end
       pending = Async::Task.current.async do
-        registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: 0.5)
+        registry.prepare(pane.ref, script_digest: Digest::SHA256.hexdigest('exit 0'), timeout: HANG_GUARD_SECONDS)
       rescue Exception => error
         error
       end
-      Async::Task.current.with_timeout(0.5) { started.dequeue }
+      Async::Task.current.with_timeout(HANG_GUARD_SECONDS) { started.dequeue }
       registry.close
       assert pending.finished?, 'registry close must retire its active preparation'
-      assert_instance_of LibTmux::Cancelled, pending.wait(timeout: 0.5)
+      assert_instance_of LibTmux::Cancelled, pending.wait(timeout: HANG_GUARD_SECONDS)
       pane.send_keys('Enter')
       assert_equal 'busy-ended', read_line(channel)
       assert_equal 'ready', read_line(channel)
@@ -150,7 +150,7 @@ class MCPEnrollmentTest < Minitest::Test
         end
         original_close.call
       end
-      assert_raises(IOError) { registry.accept(invitation, timeout: 0.5) }
+      assert_raises(IOError) { registry.accept(invitation, timeout: HANG_GUARD_SECONDS) }
       registry.close
       assert accepted.closed?, 'accepted protocol channel must remain owned when invitation retirement fails'
       assert identity.io.closed?, 'the transferred native identity lease must remain owned'
@@ -164,8 +164,8 @@ class MCPEnrollmentTest < Minitest::Test
 
   def test_pending_enrollment_rejects_duplicate_reference_before_capture
     acceptor = lambda do |registry, invitation|
-      assert_raises(LibTmux::CapacityError) { registry.invite(invitation.reference, timeout: 0.5) }
-      registry.accept(invitation, timeout: 0.5)
+      assert_raises(LibTmux::CapacityError) { registry.invite(invitation.reference, timeout: HANG_GUARD_SECONDS) }
+      registry.accept(invitation, timeout: HANG_GUARD_SECONDS)
     end
     with_shell(acceptor: acceptor) { }
   end
@@ -174,7 +174,7 @@ class MCPEnrollmentTest < Minitest::Test
     with_shell(space_paths: true) do |registry, pane, _channel, _scope, _source, directory|
       assert_respond_to registry, :run, 'authored execution has not been implemented'
       script = %(printf '%s\n' "$PWD" "$LIBTMUX_RUN_TEST_VALUE" "$TMUX_PANE"; printf 'AUTHORIZED fake marker\n'; printf '\\000\\377\\n' >&2; exit 7)
-      result = registry.run(pane.ref, script: script, timeout: 0.5, stdout_limit: 8192, stderr_limit: 8192)
+      result = registry.run(pane.ref, script: script, timeout: HANG_GUARD_SECONDS, stdout_limit: 8192, stderr_limit: 8192)
       assert_equal "#{directory}\nliteral-value\n#{pane.id}\nAUTHORIZED fake marker\n".b, result.stdout
       assert_equal "\x00\xff\n".b, result.stderr
       assert_equal 7, result.exit_status
@@ -187,7 +187,7 @@ class MCPEnrollmentTest < Minitest::Test
   def test_authored_output_overflow_and_cancel_do_not_invent_completion_or_allow_parallel_runs
     with_shell do |registry, pane, _channel, _scope, _source, directory|
       failure = assert_raises(LibTmux::CapacityError) do
-        registry.run(pane.ref, script: "printf 123456789", timeout: 0.5, stdout_limit: 8)
+        registry.run(pane.ref, script: "printf 123456789", timeout: HANG_GUARD_SECONDS, stdout_limit: 8)
       end
       assert_equal :possibly_sent, failure.delivery
       assert_equal 'authorized', failure.run_receipt.fetch('state')
@@ -198,18 +198,18 @@ class MCPEnrollmentTest < Minitest::Test
         script = "exec #{[Gem.ruby, '--disable=rubyopt,gems', '-rsocket', '-e', code, path].map { |value| "'#{value.gsub("'", %q('\''))}'" }.join(' ')}"
         token = LibTmux::Internal::Cancellation.new
         pending = Async::Task.current.async do
-          registry.run(pane.ref, script: script, timeout: 0.5, cancel: token)
+          registry.run(pane.ref, script: script, timeout: HANG_GUARD_SECONDS, cancel: token)
         rescue Exception => error
           error
         end
         child = listener.accept
         pid = Integer(read_line(child))
         failure = assert_raises(LibTmux::CapacityError) do
-          registry.run(pane.ref, script: 'exit 0', timeout: 0.5)
+          registry.run(pane.ref, script: 'exit 0', timeout: HANG_GUARD_SECONDS)
         end
         assert_equal :not_sent, failure.delivery
         token.cancel
-        failure = pending.wait(timeout: 0.5)
+        failure = pending.wait(timeout: HANG_GUARD_SECONDS)
         assert_instance_of LibTmux::Cancelled, failure
         assert_equal :possibly_sent, failure.delivery
         assert_equal 'authorized', failure.run_receipt.fetch('state')
@@ -246,11 +246,11 @@ class MCPEnrollmentTest < Minitest::Test
         prepared
       end
       pending = Async::Task.current.async do
-        registry.run(pane.ref, script: 'exit 0', timeout: 0.5)
+        registry.run(pane.ref, script: 'exit 0', timeout: HANG_GUARD_SECONDS)
       rescue Exception => error
         error
       end
-      Async::Task.current.with_timeout(0.5) { entered.dequeue }
+      Async::Task.current.with_timeout(HANG_GUARD_SECONDS) { entered.dequeue }
       changed = registry.instance_variable_get(:@changed)
       original_wait = changed.method(:wait)
       changed.define_singleton_method(:wait) do
@@ -262,24 +262,24 @@ class MCPEnrollmentTest < Minitest::Test
       rescue Exception => error
         error
       end
-      Async::Task.current.with_timeout(0.5) { waiting.dequeue }
+      Async::Task.current.with_timeout(HANG_GUARD_SECONDS) { waiting.dequeue }
       assert_equal 1, closes, 'registry close must not race the active run cleanup'
       refute closing.finished?, 'registry close must await the run cleanup owner'
       2.times do
         closing.cancel
-        Async::Task.current.with_timeout(0.5) { waiting.dequeue }
+        Async::Task.current.with_timeout(HANG_GUARD_SECONDS) { waiting.dequeue }
       end
       refute closing.finished?, 'repeated cancellation must not abandon admitted cleanup'
       release.enqueue(true)
-      assert_instance_of Async::Cancel, pending.wait(timeout: 0.5)
-      assert_instance_of Async::Cancel, closing.wait(timeout: 0.5)
+      assert_instance_of Async::Cancel, pending.wait(timeout: HANG_GUARD_SECONDS)
+      assert_instance_of Async::Cancel, closing.wait(timeout: HANG_GUARD_SECONDS)
       assert_empty registry.instance_variable_get(:@runs)
       assert_empty registry.instance_variable_get(:@prepared)
       registry.close
     ensure
       release&.enqueue(true)
-      pending&.wait(timeout: 0.5)
-      closing&.wait(timeout: 0.5)
+      pending&.wait(timeout: HANG_GUARD_SECONDS)
+      closing&.wait(timeout: HANG_GUARD_SECONDS)
     end
   end
 
@@ -303,7 +303,7 @@ class MCPEnrollmentTest < Minitest::Test
     require 'libtmux/mcp'
     with_shell(app_tools: ['tmux_run']) do |application, pane, _channel, scope, _source|
       readonly = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: 'readonly')
-      assert_raises(LibTmux::UnsupportedFeatureError) { readonly.invite_shell(pane.ref, timeout: 0.5) }
+      assert_raises(LibTmux::UnsupportedFeatureError) { readonly.invite_shell(pane.ref, timeout: HANG_GUARD_SECONDS) }
       denied = readonly.call('tmux_run', {}).structured_content
       assert_equal 'policy_denied', denied.fetch('error').fetch('code')
       sdk = application.sdk_server
@@ -455,7 +455,7 @@ class MCPEnrollmentTest < Minitest::Test
 
   def read_line(io)
     result = +''
-    Async::Task.current.with_timeout(0.5) do
+    Async::Task.current.with_timeout(HANG_GUARD_SECONDS) do
       until result.end_with?("\n")
         value = io.read_nonblock(1, exception: false)
         if value == :wait_readable
@@ -507,7 +507,7 @@ class MCPEnrollmentTest < Minitest::Test
                 begin
                   ENV['TMPDIR'] = directory if space_paths
                   registry = if app_tools
-                    LibTmux::MCP::Application.new(server: scope.server, endpoint_name: 'enrolled', enabled_tools: app_tools, request_timeout: 0.5)
+                    LibTmux::MCP::Application.new(server: scope.server, endpoint_name: 'enrolled', enabled_tools: app_tools, request_timeout: HANG_GUARD_SECONDS)
                   else
                     LibTmux::MCP.const_get(:EnrollmentRegistry).new(server: scope.server, parent: task)
                   end
@@ -518,7 +518,7 @@ class MCPEnrollmentTest < Minitest::Test
                   pane = scope.server.list_panes.first
                   before = Dir.children(directory)
                   failure = assert_raises(LibTmux::UnsupportedFeatureError) do
-                    app_tools ? registry.invite_shell(pane.ref, timeout: 0.5) : registry.invite(pane.ref, timeout: 0.5)
+                    app_tools ? registry.invite_shell(pane.ref, timeout: HANG_GUARD_SECONDS) : registry.invite(pane.ref, timeout: HANG_GUARD_SECONDS)
                   end
                   assert_equal :not_sent, failure.delivery
                   assert_equal before, Dir.children(directory), 'refused enrollment created setup files'
@@ -528,12 +528,12 @@ class MCPEnrollmentTest < Minitest::Test
                 pane = scope.server.new_session(name: 'enrolled', command: ['/usr/bin/env', "ZDOTDIR=#{directory}", '/bin/zsh', '-d', '-i']).list_panes.first
                 channel = listener.accept
                 assert_equal 'initializing', read_line(channel)
-                invitation = app_tools ? registry.invite_shell(pane.ref, timeout: 0.5) : registry.invite(pane.ref, timeout: 0.5)
+                invitation = app_tools ? registry.invite_shell(pane.ref, timeout: HANG_GUARD_SECONDS) : registry.invite(pane.ref, timeout: HANG_GUARD_SECONDS)
                 channel.puts invitation.shell_arguments
                 enrollment = if app_tools
-                  registry.accept_shell(invitation, timeout: 0.5)
+                  registry.accept_shell(invitation, timeout: HANG_GUARD_SECONDS)
                 else
-                  acceptor ? acceptor.call(registry, invitation) : registry.accept(invitation, timeout: 0.5)
+                  acceptor ? acceptor.call(registry, invitation) : registry.accept(invitation, timeout: HANG_GUARD_SECONDS)
                 end
                 assert_equal pane.id, (app_tools ? enrollment : enrollment.reference).id if enrollment
                 assert_equal(enrollment ? 'ready' : 'refused', read_line(channel))

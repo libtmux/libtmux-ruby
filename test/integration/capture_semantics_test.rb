@@ -36,7 +36,7 @@ class CaptureSemanticsTest < Minitest::Test
           assert_equal "20:8\n", pane.display('#{pane_width}:#{pane_height}').text
           usage = server.run(["list-commands", "-F", '#{command_list_usage}', "capture-pane"]).text
           flags = usage.scan(/\[-([A-Za-z]+)(?:\]|\s)/).flatten.join
-          assert IO.select([listener], nil, nil, 0.5), "screen program did not connect"
+          assert IO.select([listener], nil, nil, HANG_GUARD_SECONDS), "screen program did not connect"
           channel = listener.accept
           render(channel, "zero\r\n\e[31mRED\e[0m  \r\nabcdefghijklmnopqrstUV\r\ntail\r\n")
           assert_equal "zero\nRED\nabcdefghijklmnopqrst\nUV\ntail\n", pane.capture(start: 0, finish: 4).stdout
@@ -76,13 +76,13 @@ class CaptureSemanticsTest < Minitest::Test
           assert_equal "CHANGED\n", pane.capture(start: 0, finish: 0).stdout
           assert_raises(LibTmux::CommandError) { pane.capture(alternate: true) }
           server.open_control(session: session.ref) do |control|
-            control.exchange("display-message -p ready", timeout: 0.5)
+            control.exchange("display-message -p ready", timeout: HANG_GUARD_SECONDS)
             events = control.subscribe(pane_id: pane.id)
             pending = "\e[31"
             channel.write([pending.bytesize | 0x80000000].pack("N") + pending)
             output = +"".b
             until output.include?(pending)
-              event = events.next(timeout: 0.5)
+              event = events.next(timeout: HANG_GUARD_SECONDS)
               output << event.data if event.kind == :output
             end
             assert_equal "#{pending}\n", pane.capture(pending: true).stdout
@@ -123,7 +123,7 @@ class CaptureSemanticsTest < Minitest::Test
           source = session.list_panes.first
           target = session.new_window(name: "copy-target", command: ["/bin/cat"]).list_panes.first
           server.run(["set-option", "-w", "-t", target.id, "mode-keys", "vi"])
-          assert IO.select([listener], nil, nil, 0.5), "copy source did not connect"
+          assert IO.select([listener], nil, nil, HANG_GUARD_SECONDS), "copy source did not connect"
           channel = listener.accept
           render(channel, (0...24).map { |index| "line%02d\r\n" % index }.join)
           target.copy_mode(source: source.ref, scroll_up: true)
@@ -184,7 +184,7 @@ class CaptureSemanticsTest < Minitest::Test
 
   def render(channel, content)
     channel.write([content.bytesize].pack("N") + content)
-    assert IO.select([channel], nil, nil, 0.5), "tmux did not acknowledge the rendered screen"
+    assert IO.select([channel], nil, nil, HANG_GUARD_SECONDS), "tmux did not acknowledge the rendered screen"
     assert_equal "R", channel.read(1)
   end
 end

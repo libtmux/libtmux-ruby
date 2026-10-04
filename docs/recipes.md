@@ -51,12 +51,12 @@ second = pane.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 receipt.window.select_layout("tiled")
 Example.check(receipt.window.list_panes.map(&:id).sort == [pane.id, second.id].sort, "assigned pane IDs differ")
 server.open_control(session: receipt.entity.ref) do |control|
-  control.exchange("display-message -p ready", timeout: 0.5)
+  control.exchange("display-message -p ready", timeout: 5)
   output = control.subscribe(pane_id: pane.id, max_bytes: 8192, max_events: 32)
   literal = "literal; #{'#{pane_id}'} $HOME"
   pane.send_text(literal)
   bytes = "".b
-  bytes << output.next(timeout: 0.5).data until bytes.include?(literal)
+  bytes << output.next(timeout: 5).data until bytes.include?(literal)
   Example.check(pane.capture.stdout.include?(literal), "capture lost literal input")
 end
 payload = "NUL\0\xff\n".b
@@ -98,11 +98,11 @@ waiting = nil
 begin
   waiting = Thread.new do
     server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"],
-      timeout: 0.5, cancel: cancellation)
+      timeout: 5, cancel: cancellation)
   rescue LibTmux::Cancelled => error
     error
   end
-  server.wait_for("ready", timeout: 0.5)
+  server.wait_for("ready", timeout: 5)
   cancellation.cancel
   failure = waiting.value
   Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
@@ -130,11 +130,11 @@ while another tmux client waits; cancellation retires that client's process.
 Async do |parent|
   LibTmux::Async.open(parent: parent, server: server) do |scope|
     waiting = parent.async do
-      scope.server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"], timeout: 0.5)
+      scope.server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"], timeout: 5)
     rescue LibTmux::Cancelled => error
       error
     end
-    scope.server.wait_for("ready", timeout: 0.5)
+    scope.server.wait_for("ready", timeout: 5)
     Example.check(scope.diagnostics.fetch(:active_process_slots) == 1, "waiting client lost its slot")
     captures = scope.map(scope.server.list_panes.map(&:ref), concurrency: 2) do |ref|
       scope.server.pane(ref).capture
@@ -160,18 +160,18 @@ continue to drain.
 <!-- example: control_overflow/main -->
 ```ruby
 server.open_control(session: session.ref) do |control|
-  control.exchange("display-message -p ready", timeout: 0.5)
+  control.exchange("display-message -p ready", timeout: 5)
   reliable = control.subscribe(max_events: 1, max_bytes: 1024)
   tail = control.subscribe(mode: :tail, max_events: 1, max_bytes: 1024)
   3.times { |index| window.rename("event#{index}") }
-  reply = control.exchange("display-message -p alive", timeout: 0.5)
+  reply = control.exchange("display-message -p alive", timeout: 5)
   Example.check(reply.blocks.last.body == "alive\n", "slow reader blocked commands")
   Example.check(reply.attribution == :boundary_window, "reply overclaims attribution")
   Example.check(reliable.diagnostics.fetch(:overflowed), "overflow is missing from diagnostics")
   Example.check(control.diagnostics.fetch(:retained_reply_bytes).zero?, "consumed reply remains retained")
-  reliable.next(timeout: 0.5)
-  Example.raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 0.5) }
-  gap = tail.next(timeout: 0.5)
+  reliable.next(timeout: 5)
+  Example.raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 5) }
+  gap = tail.next(timeout: 5)
   Example.check(gap.kind == :gap && gap.dropped_bytes.positive?, "tail hid lost bytes")
 end
 ```
@@ -231,7 +231,7 @@ Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endp
   "--enable-tool", "tmux_close", "--enable-tool", "tmux_run", *enrollment_arguments) do |input, output, errors, process|
   request = lambda do |id, method, params = {}|
     input.write(JSON.generate({jsonrpc: "2.0", id: id, method: method, params: params}) + "\n")
-    Example.check(IO.select([output], nil, nil, id == 1 ? 1.0 : 0.5), "installed MCP did not return a frame")
+    Example.check(IO.select([output], nil, nil, 5), "installed MCP did not return a frame")
     response = JSON.parse(output.gets)
     Example.check(response.fetch("id") == id, "MCP response identity changed")
     response.fetch("result")
@@ -253,7 +253,7 @@ Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endp
   if channel
     Example.check(File.stat(setup).mode & 0o777 == 0o600, "enrollment setup permissions differ")
     channel.puts(setup)
-    Example.check(IO.select([channel], nil, nil, 0.5) && channel.gets == "ready\n", "shell enrollment was not acknowledged")
+    Example.check(IO.select([channel], nil, nil, 5) && channel.gets == "ready\n", "shell enrollment was not acknowledged")
     target = pane.merge("id" => shell_pane.id)
   end
   script = 'printf "%s:%s" "$EXAMPLE_CONTEXT" "$TMUX_PANE"; printf "\\000\\377" >&2; exit 9'
@@ -272,7 +272,7 @@ Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endp
   closed = request.call(6, "tools/call", {name: "tmux_close", arguments: {target: data.fetch("entity")}})
   Example.check(closed.fetch("structuredContent").fetch("ok"), "protocol close failed")
   input.close
-  Example.check(process.join(0.5), "MCP EOF did not retire its process")
+  Example.check(process.join(5), "MCP EOF did not retire its process")
   Example.check(process.value.success? && errors.read.empty?, "MCP executable failed")
   Example.check(!File.exist?(setup), "enrollment setup survived EOF")
 end
