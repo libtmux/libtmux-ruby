@@ -45,11 +45,12 @@ class SelectionTest < Minitest::Test
     error = RuntimeError.new("block failure")
     assert_same error, assert_raises(RuntimeError) { selection.find_all { raise error } }
     visited = []
-    result = selection.select do |value|
-      visited << value
-      next false if value.nil?
-      true
-    end
+    result =
+      selection.select do |value|
+        visited << value
+        next false if value.nil?
+        true
+      end
     assert_equal [false, nil, 0, ""], visited
     assert_equal [false, 0, ""], result.to_a
   end

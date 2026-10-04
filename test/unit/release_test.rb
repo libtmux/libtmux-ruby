@@ -15,18 +15,21 @@ module ReleaseHTTP
     original = Net::HTTP.method(:start)
     connection = Object.new
     connection.define_singleton_method(:get) do |path|
-      code, body = if responses.respond_to?(:call)
-        responses.call(path)
-      else
-        responses.fetch(path.sub(/[?&]release_check=[^&]+/, ""))
-      end
+      code, body =
+        if responses.respond_to?(:call)
+          responses.call(path)
+        else
+          responses.fetch(path.sub(/[?&]release_check=[^&]+/, ""))
+        end
       response = Net::HTTPResponse::CODE_TO_OBJ.fetch(code).new("1.1", code, "fixture")
       response.body = body
       response.instance_variable_set(:@read, true)
       response
     end
     Net::HTTP.define_singleton_method(:start) do |host, port, **options, &block|
-      raise "unexpected registry origin" unless host == "rubygems.org" && port == 443 && options[:use_ssl]
+      unless host == "rubygems.org" && port == 443 && options[:use_ssl]
+        raise "unexpected registry origin"
+      end
       block.call(connection)
     end
     yield GemRelease.const_get(:RubyGemsRegistry).new
@@ -84,10 +87,15 @@ class ReleaseTest < Minitest::Test
     @tag = "v#{VERSION}"
     @registry = Registry.new
     @release = GemRelease.new(@root, registry: @registry)
-    @env = {"GITHUB_ACTIONS" => "true", "GITHUB_EVENT_NAME" => "push",
-      "GITHUB_REPOSITORY" => "libtmux/libtmux-ruby", "GITHUB_REF" => "refs/tags/#{@tag}",
+    @env = {
+      "GITHUB_ACTIONS" => "true",
+      "GITHUB_EVENT_NAME" => "push",
+      "GITHUB_REPOSITORY" => "libtmux/libtmux-ruby",
+      "GITHUB_REF" => "refs/tags/#{@tag}",
       "GITHUB_SHA" => @commit,
-      "GITHUB_WORKFLOW_REF" => "libtmux/libtmux-ruby/.github/workflows/release.yml@refs/tags/#{@tag}"}
+      "GITHUB_WORKFLOW_REF" =>
+        "libtmux/libtmux-ruby/.github/workflows/release.yml@refs/tags/#{@tag}"
+    }
   end
 
   def build_source_fixture
@@ -95,7 +103,10 @@ class ReleaseTest < Minitest::Test
     NAMES.each do |name|
       directory = File.join(@root, "gems", name)
       FileUtils.mkdir_p(File.join(directory, "lib"))
-      File.write(File.join(directory, "lib", "version.rb"), "module #{constant(name)}; VERSION = '#{VERSION}'; end\n")
+      File.write(
+        File.join(directory, "lib", "version.rb"),
+        "module #{constant(name)}; VERSION = '#{VERSION}'; end\n"
+      )
       siblings = name == "libtmux" ? [] : ["libtmux"]
       siblings << "libtmux-async" if name == "libtmux-mcp"
       File.write(File.join(directory, "#{name}.gemspec"), <<~RUBY)
@@ -116,7 +127,15 @@ class ReleaseTest < Minitest::Test
     end
     git("init", "-q")
     git("add", ".")
-    git("-c", "user.name=Release Test", "-c", "user.email=release@example.invalid", "commit", "-qm", "fixture")
+    git(
+      "-c",
+      "user.name=Release Test",
+      "-c",
+      "user.email=release@example.invalid",
+      "commit",
+      "-qm",
+      "fixture"
+    )
   end
 
   def teardown
@@ -185,35 +204,54 @@ class ReleaseTest < Minitest::Test
     File.write(path, original + "# tampered\n")
     spec = Gem::Package.new(artifact).spec
     capture_io do
-      Dir.chdir(File.dirname(File.dirname(path))) { Gem::Package.build(spec, false, true, artifact) }
+      Dir.chdir(File.dirname(File.dirname(path))) do
+        Gem::Package.build(spec, false, true, artifact)
+      end
     end
     File.binwrite(path, original)
     change_manifest { |m| m["artifacts"][0]["sha256"] = Digest::SHA256.file(artifact).hexdigest }
     assert_raises(GemRelease::Error) { @release.verify(tag: @tag, commit: @commit) }
 
-    {autorequire: "injected", rdoc_options: ["--title", "injected"],
-      extra_rdoc_files: ["lib/version.rb"], test_files: ["lib/version.rb"],
-      specification_version: 3}.each do |field, value|
+    {
+      autorequire: "injected",
+      rdoc_options: %w[--title injected],
+      extra_rdoc_files: ["lib/version.rb"],
+      test_files: ["lib/version.rb"],
+      specification_version: 3
+    }.each do |field, value|
       File.binwrite(artifact, original_archive)
       spec = Gem::Package.new(artifact).spec
       spec.public_send("#{field}=", value)
       capture_io do
-        Dir.chdir(File.join(@root, "gems/libtmux")) { Gem::Package.build(spec, true, false, artifact) }
+        Dir.chdir(File.join(@root, "gems/libtmux")) do
+          Gem::Package.build(spec, true, false, artifact)
+        end
       end
       assert Gem::Package.new(artifact).verify
       change_manifest { |m| m["artifacts"][0]["sha256"] = Digest::SHA256.file(artifact).hexdigest }
-      error = assert_raises(GemRelease::Error, field.to_s) { @release.verify(tag: @tag, commit: @commit) }
+      error =
+        assert_raises(GemRelease::Error, field.to_s) { @release.verify(tag: @tag, commit: @commit) }
       assert_match(/specification differs/, error.message)
     end
   end
 
   def test_yanked_later_version_prevents_every_upload_through_real_registry_adapter
     prepare
-    responses = NAMES.each_with_object({}) do |name, result|
-      result["/api/v2/rubygems/#{name}/versions/#{VERSION}.json?platform=ruby"] = ["404", "This version could not be found."]
-      result["/api/v1/downloads/#{name}-#{VERSION}.json"] = ["404", "This rubygem could not be found."]
-    end
-    responses["/api/v1/downloads/libtmux-workspace-#{VERSION}.json"] = ["200", '{"total_downloads":0,"version_downloads":0}']
+    responses =
+      NAMES.each_with_object({}) do |name, result|
+        result["/api/v2/rubygems/#{name}/versions/#{VERSION}.json?platform=ruby"] = [
+          "404",
+          "This version could not be found."
+        ]
+        result["/api/v1/downloads/#{name}-#{VERSION}.json"] = [
+          "404",
+          "This rubygem could not be found."
+        ]
+      end
+    responses["/api/v1/downloads/libtmux-workspace-#{VERSION}.json"] = %w[
+      200
+      {"total_downloads":0,"version_downloads":0}
+    ]
     pushes = []
     with_http(responses) do |registry|
       registry.define_singleton_method(:push) do |path, env:|
@@ -221,7 +259,8 @@ class ReleaseTest < Minitest::Test
         raise GemRelease::Error, "upload reached before preflight"
       end
       release = GemRelease.new(@root, registry: registry)
-      error = assert_raises(GemRelease::Error) { release.publish(tag: @tag, commit: @commit, env: @env) }
+      error =
+        assert_raises(GemRelease::Error) { release.publish(tag: @tag, commit: @commit, env: @env) }
       assert_empty pushes
       assert_match(/yanked|unavailable/, error.message)
     end
@@ -290,9 +329,9 @@ class ReleaseTest < Minitest::Test
   def test_source_versions_reload_after_an_external_bump
     prepare
     FileUtils.mv(release_dir, File.join(@root, "pkg/retained"))
-    Dir[File.join(@root, "gems/**/*")].select { |path| File.file?(path) }.each do |path|
-      File.write(path, File.read(path).gsub(VERSION, "0.1.0.alpha.2"))
-    end
+    Dir[File.join(@root, "gems/**/*")]
+      .select { |path| File.file?(path) }
+      .each { |path| File.write(path, File.read(path).gsub(VERSION, "0.1.0.alpha.2")) }
     commit_changes
     @tag = "v0.1.0.alpha.2"
     assert_equal "0.1.0.alpha.2", prepare.fetch("version")
@@ -303,7 +342,8 @@ class ReleaseTest < Minitest::Test
   def constant(name) = name.split("-").map(&:capitalize).join
   def release_dir = File.join(@root, "pkg/release")
   def artifact = File.join(release_dir, "libtmux-#{VERSION}.gem")
-  def retained_bytes = Dir.children(release_dir).to_h { |name| [name, File.binread(File.join(release_dir, name))] }
+  def retained_bytes =
+    Dir.children(release_dir).to_h { |name| [name, File.binread(File.join(release_dir, name))] }
   def publish(env: @env) = @release.publish(tag: @tag, commit: @commit, env: env)
 
   def prepare
@@ -321,7 +361,15 @@ class ReleaseTest < Minitest::Test
 
   def commit_changes
     git("add", ".")
-    git("-c", "user.name=Release Test", "-c", "user.email=release@example.invalid", "commit", "-qm", "change")
+    git(
+      "-c",
+      "user.name=Release Test",
+      "-c",
+      "user.email=release@example.invalid",
+      "commit",
+      "-qm",
+      "change"
+    )
     @commit = git("rev-parse", "HEAD").strip
   end
 
@@ -341,15 +389,29 @@ class ReleaseRegistryTest < Minitest::Test
   def test_registry_checks_see_uploads_and_yanks_despite_cached_responses
     version = nil
     cache = {}
-    metadata = {"name" => "libtmux", "version" => "0.1.0.alpha.1",
-      "platform" => "ruby", "yanked" => false, "sha" => "a" * 64}
-    origin = lambda do |path|
-      cache[path] ||= if URI(path).path == "/api/v2/rubygems/libtmux/versions/0.1.0.alpha.1.json"
-        version == :published ? ["200", JSON.generate(metadata)] : ["404", "This version could not be found."]
-      else
-        version ? ["200", '{"total_downloads":0,"version_downloads":0}'] : ["404", "This rubygem could not be found."]
+    metadata = {
+      "name" => "libtmux",
+      "version" => "0.1.0.alpha.1",
+      "platform" => "ruby",
+      "yanked" => false,
+      "sha" => "a" * 64
+    }
+    origin =
+      lambda do |path|
+        cache[path] ||= if URI(path).path == "/api/v2/rubygems/libtmux/versions/0.1.0.alpha.1.json"
+          if version == :published
+            ["200", JSON.generate(metadata)]
+          else
+            ["404", "This version could not be found."]
+          end
+        else
+          if version
+            %w[200 {"total_downloads":0,"version_downloads":0}]
+          else
+            ["404", "This rubygem could not be found."]
+          end
+        end
       end
-    end
     with_http(origin) do |registry|
       assert_nil registry.version_sha("libtmux", "0.1.0.alpha.1")
       version = :published
@@ -361,44 +423,67 @@ class ReleaseRegistryTest < Minitest::Test
 
   def test_push_options_are_accepted_by_the_installed_rubygems_cli
     registry = GemRelease.const_get(:RubyGemsRegistry).new
-    assert_nil registry.push("--help", env: {"GEM_HOST_API_KEY" => "unused-test-key"})
+    assert_nil registry.push("--help", env: { "GEM_HOST_API_KEY" => "unused-test-key" })
   end
 
   def test_push_failure_preserves_cli_diagnostics_without_the_credential
     registry = GemRelease.const_get(:RubyGemsRegistry).new
     key = "private-test-credential"
     Dir.mktmpdir("libtmux-ruby-upload-") do |directory|
-      error = assert_raises(GemRelease::Error) do
-        registry.push(File.join(directory, "missing-#{key}.gem"), env: {"GEM_HOST_API_KEY" => key})
-      end
+      error =
+        assert_raises(GemRelease::Error) do
+          registry.push(
+            File.join(directory, "missing-#{key}.gem"),
+            env: {
+              "GEM_HOST_API_KEY" => key
+            }
+          )
+        end
       assert_includes error.message, "missing-[REDACTED].gem"
       refute_includes error.message, key
     end
   end
 
   def test_absence_requires_yanked_aware_lookup_and_errors_fail_closed
-    with_http(VERSION_PATH => ["404", "This version could not be found."],
-      DOWNLOADS_PATH => ["404", "This rubygem could not be found."]) do |registry|
-      assert_nil registry.version_sha("libtmux", "0.1.0.alpha.1")
-    end
+    with_http(
+      VERSION_PATH => ["404", "This version could not be found."],
+      DOWNLOADS_PATH => ["404", "This rubygem could not be found."]
+    ) { |registry| assert_nil registry.version_sha("libtmux", "0.1.0.alpha.1") }
     %w[301 401 403 429 500 503].each do |code|
       [VERSION_PATH, DOWNLOADS_PATH].each do |path|
-        responses = {VERSION_PATH => ["404", "This version could not be found."], path => [code, "failure"]}
+        responses = {
+          VERSION_PATH => ["404", "This version could not be found."],
+          path => [code, "failure"]
+        }
         with_http(responses) do |registry|
-          assert_raises(GemRelease::Error, "#{path}: #{code}") { registry.version_sha("libtmux", "0.1.0.alpha.1") }
+          assert_raises(GemRelease::Error, "#{path}: #{code}") do
+            registry.version_sha("libtmux", "0.1.0.alpha.1")
+          end
         end
       end
     end
   end
 
   def test_existing_version_requires_valid_identity_and_digest
-    valid = {"name" => "libtmux", "version" => "0.1.0.alpha.1", "platform" => "ruby", "yanked" => false, "sha" => "a" * 64}
+    valid = {
+      "name" => "libtmux",
+      "version" => "0.1.0.alpha.1",
+      "platform" => "ruby",
+      "yanked" => false,
+      "sha" => "a" * 64
+    }
     with_http(VERSION_PATH => ["200", JSON.generate(valid)]) do |registry|
       assert_equal "a" * 64, registry.version_sha("libtmux", "0.1.0.alpha.1")
     end
-    invalid = ["{", "[]", JSON.generate(valid.merge("name" => "other")),
-      JSON.generate(valid.merge("version" => "0.1.0.alpha.2")), JSON.generate(valid.merge("platform" => "java")),
-      JSON.generate(valid.merge("yanked" => true)), JSON.generate(valid.merge("sha" => "invalid"))]
+    invalid = [
+      "{",
+      "[]",
+      JSON.generate(valid.merge("name" => "other")),
+      JSON.generate(valid.merge("version" => "0.1.0.alpha.2")),
+      JSON.generate(valid.merge("platform" => "java")),
+      JSON.generate(valid.merge("yanked" => true)),
+      JSON.generate(valid.merge("sha" => "invalid"))
+    ]
     invalid.each do |body|
       with_http(VERSION_PATH => ["200", body]) do |registry|
         assert_raises(GemRelease::Error) { registry.version_sha("libtmux", "0.1.0.alpha.1") }

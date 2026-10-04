@@ -4,9 +4,13 @@ require "libtmux"
 
 begin
   LibTmux::Server.start do |server|
-    created = server.new_session(
-      name: "work", window_name: "main", command: ["/bin/cat"], receipt: true
-    )
+    created =
+      server.new_session(
+        name: "work",
+        window_name: "main",
+        command: ["/bin/cat"],
+        receipt: true
+      )
     puts "session: #{created.entity.id}"
     puts "window: #{created.window.id}"
     puts "pane: #{created.pane.id}"

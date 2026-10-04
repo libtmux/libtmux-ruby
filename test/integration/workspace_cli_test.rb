@@ -13,24 +13,38 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
         token = LibTmux::Internal::Cancellation.new
         PTY.open do |_master, terminal|
           terminal.winsize = [24, 80]
-          assert fixture.tmux("set-hook", "-g", "client-attached", "wait-for -S cli-switch-attached").last.success?
+          assert fixture
+                   .tmux("set-hook", "-g", "client-attached", "wait-for -S cli-switch-attached")
+                   .last
+                   .success?
           session = server.list_sessions.first
-          worker = Thread.new do
-            server.attach(session: session.ref, terminal: terminal, term: "xterm", cancel: token)
-          rescue LibTmux::Cancelled
-            nil
-          end
+          worker =
+            Thread.new do
+              server.attach(session: session.ref, terminal: terminal, term: "xterm", cancel: token)
+            rescue LibTmux::Cancelled
+              nil
+            end
           begin
             assert fixture.tmux("wait-for", "cli-switch-attached").last.success?
             selector = server.list_clients.fetch(0).fetch(:name)
-            status, value, diagnostics = cli(fixture, ["load", write_config(fixture, "switched"), "--switch", selector])
+            status, value, diagnostics =
+              cli(fixture, ["load", write_config(fixture, "switched"), "--switch", selector])
             assert_equal 0, status
             assert value.fetch("success")
             assert_empty diagnostics
             selected_id = value.fetch("created_refs").fetch("session").fetch("id")
             assert_equal selected_id, server.list_clients.fetch(0).fetch(:session_id)
             assert worker.alive?, "switch must not own or retire the selected client"
-            status, value, = cli(fixture, ["load", write_config(fixture, "missing-client"), "--switch", "private-missing-client"])
+            status, value, =
+              cli(
+                fixture,
+                [
+                  "load",
+                  write_config(fixture, "missing-client"),
+                  "--switch",
+                  "private-missing-client"
+                ]
+              )
             assert_equal 3, status
             assert_equal "execution", value.fetch("error").fetch("kind")
             assert_equal 3, value.fetch("result").fetch("created_refs").length
@@ -40,7 +54,8 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
             refute_includes JSON.generate(value), "private-missing-client"
             before = server.list_sessions.map(&:id)
             [["--switch"], ["--switch", ""], ["--attach", "--switch", selector]].each do |flags|
-              status, value, = cli(fixture, ["load", write_config(fixture, "invalid-switch"), *flags])
+              status, value, =
+                cli(fixture, ["load", write_config(fixture, "invalid-switch"), *flags])
               assert_equal 2, status
               refute value.key?("result")
               assert_equal before, server.list_sessions.map(&:id)
@@ -61,7 +76,7 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       file = write_config(fixture, "cli")
       valid = File.read(file)
-      invalid = JSON.parse(valid).merge("window_options" => {"pane-base-index" => 65536})
+      invalid = JSON.parse(valid).merge("window_options" => { "pane-base-index" => 65_536 })
       File.write(file, JSON.generate(invalid))
       status, value, diagnostics = cli(fixture, ["load", file])
       assert_equal 2, status
@@ -103,12 +118,13 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
       ensure
         LibTmux::Options.define_method(:set, original)
       end
-      trace = TracePoint.new(:return) do |point|
-        next unless point.self.is_a?(LibTmux::Server) && point.method_id == :new_session
+      trace =
+        TracePoint.new(:return) do |point|
+          next unless point.self.is_a?(LibTmux::Server) && point.method_id == :new_session
 
-        trace.disable
-        Thread.current.raise(Interrupt.new("private-interruption"))
-      end
+          trace.disable
+          Thread.current.raise(Interrupt.new("private-interruption"))
+        end
       begin
         trace.enable
         status, value, diagnostics = cli(fixture, ["load", write_config(fixture, "interrupted")])
@@ -140,10 +156,17 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
         end
         config = write_config(fixture, "attached")
         output, diagnostics = StringIO.new, StringIO.new
-        worker = Thread.new do
-          LibTmux::Workspace::CLI.run(["load", config, "--json", "--socket", fixture.socket_path, "--attach"],
-            out: output, err: diagnostics, environment: {"TERM" => "xterm"})
-        end
+        worker =
+          Thread.new do
+            LibTmux::Workspace::CLI.run(
+              ["load", config, "--json", "--socket", fixture.socket_path, "--attach"],
+              out: output,
+              err: diagnostics,
+              environment: {
+                "TERM" => "xterm"
+              }
+            )
+          end
         assert IO.select([master], nil, nil, 0.5), "attached client did not draw its terminal"
         assert master.read_nonblock(65_536).bytesize.positive?
         master.write("\x02d")
@@ -152,7 +175,13 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
         assert_equal true, JSON.parse(output.string).fetch("success")
         assert_empty diagnostics.string
         assert_empty fixture.tmux("list-clients").first
-        assert_equal ["attached", "fixture"], fixture.tmux("list-sessions", "-F", '#{session_name}').first.lines.map(&:chomp).sort
+        assert_equal %w[attached fixture],
+                     fixture
+                       .tmux("list-sessions", "-F", '#{session_name}')
+                       .first
+                       .lines
+                       .map(&:chomp)
+                       .sort
       ensure
         worker.raise(Interrupt) if worker&.alive?
         worker&.join(0.5)
@@ -167,13 +196,23 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
 
   def write_config(fixture, name)
     file = File.join(File.dirname(fixture.socket_path), "#{name}.json")
-    File.write(file, JSON.generate({session_name: name, windows: [{window_name: "one", panes: [{}]}]}))
+    File.write(
+      file,
+      JSON.generate({ session_name: name, windows: [{ window_name: "one", panes: [{}] }] })
+    )
     file
   end
 
   def cli(fixture, arguments)
     output, diagnostics = StringIO.new, StringIO.new
-    status = LibTmux::Workspace::CLI.run([*arguments, "--json", "--socket", fixture.socket_path], out: output, err: diagnostics, environment: {})
+    status =
+      LibTmux::Workspace::CLI.run(
+        [*arguments, "--json", "--socket", fixture.socket_path],
+        out: output,
+        err: diagnostics,
+        environment: {
+        }
+      )
     [status, JSON.parse(output.string), diagnostics.string]
   end
 end

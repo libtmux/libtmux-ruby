@@ -31,9 +31,15 @@ panes = snapshot.panes
 first = panes.one(id: panes.first.id)
 session.new_window(name: "later", command: ["/bin/cat"])
 Example.check(panes.size == 2, "captured membership changed")
-Example.check(panes.where(id: first.id).one.ref == first.ref, "wrong exact match")
+Example.check(
+  panes.where(id: first.id).one.ref == first.ref,
+  "wrong exact match"
+)
 Example.raises(LibTmux::MultipleMatchesError) { panes.one }
-Example.check(panes.one_or_nil(id: "%4294967294").nil?, "missing pane was invented")
+Example.check(
+  panes.one_or_nil(id: "%4294967294").nil?,
+  "missing pane was invented"
+)
 ```
 <!-- /example -->
 
@@ -45,23 +51,35 @@ capture. Binary buffers round-trip without text decoding.
 
 <!-- example: layout_io/main -->
 ```ruby
-receipt = server.new_session(name: "layout", command: ["/bin/cat"], receipt: true)
+receipt =
+  server.new_session(name: "layout", command: ["/bin/cat"], receipt: true)
 pane = receipt.pane
-second = pane.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
+second =
+  pane.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 receipt.window.select_layout("tiled")
-Example.check(receipt.window.list_panes.map(&:id).sort == [pane.id, second.id].sort, "assigned pane IDs differ")
+Example.check(
+  receipt.window.list_panes.map(&:id).sort == [pane.id, second.id].sort,
+  "assigned pane IDs differ"
+)
 server.open_control(session: receipt.entity.ref) do |control|
   control.exchange("display-message -p ready", timeout: 0.5)
-  output = control.subscribe(pane_id: pane.id, max_bytes: 8192, max_events: 32)
+  output =
+    control.subscribe(pane_id: pane.id, max_bytes: 8192, max_events: 32)
   literal = "literal; #{'#{pane_id}'} $HOME"
   pane.send_text(literal)
   bytes = "".b
   bytes << output.next(timeout: 0.5).data until bytes.include?(literal)
-  Example.check(pane.capture.stdout.include?(literal), "capture lost literal input")
+  Example.check(
+    pane.capture.stdout.include?(literal),
+    "capture lost literal input"
+  )
 end
 payload = "NUL\0\xff\n".b
 server.write_buffer(name: "bytes", data: payload)
-Example.check(server.read_buffer("bytes").stdout == payload, "buffer bytes changed")
+Example.check(
+  server.read_buffer("bytes").stdout == payload,
+  "buffer bytes changed"
+)
 ```
 <!-- /example -->
 
@@ -78,10 +96,16 @@ session.link_window(window.ref, index: 4)
 session.link_window(window.ref, index: 9)
 links = session.list_window_links
 Example.check(links.map(&:index) == [0, 4, 9], "link indexes differ")
-Example.check(links.map { |link| link.window.ref }.uniq == [window.ref], "window identity split")
+Example.check(
+  links.map { |link| link.window.ref }.uniq == [window.ref],
+  "window identity split"
+)
 Example.check(links.map(&:ref).uniq.length == 3, "link contexts collapsed")
 links.find { |link| link.index == 9 }.select
-Example.check(session.display('#{window_index}').text == "9\n", "wrong current link")
+Example.check(
+  session.display('#{window_index}').text == "9\n",
+  "wrong current link"
+)
 ```
 <!-- /example -->
 
@@ -96,19 +120,31 @@ joins the caller, checks client reaping and closes the token's owned pipe.
 cancellation = LibTmux::Cancellation.new
 waiting = nil
 begin
-  waiting = Thread.new do
-    server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"],
-      timeout: 0.5, cancel: cancellation)
-  rescue LibTmux::Cancelled => error
-    error
-  end
+  waiting =
+    Thread.new do
+      server.run(
+        %w[wait-for -S ready ; wait-for held],
+        timeout: 0.5,
+        cancel: cancellation
+      )
+    rescue LibTmux::Cancelled => error
+      error
+    end
   server.wait_for("ready", timeout: 0.5)
   cancellation.cancel
   failure = waiting.value
   Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
-  Example.check(failure.delivery == :possibly_sent, "dispatched wait claimed no effects")
-  Example.raises(Errno::ECHILD) { Process.waitpid(failure.pid, Process::WNOHANG) }
-  Example.check(server.diagnostics.fetch(:admitted_requests).zero?, "client remains admitted")
+  Example.check(
+    failure.delivery == :possibly_sent,
+    "dispatched wait claimed no effects"
+  )
+  Example.raises(Errno::ECHILD) do
+    Process.waitpid(failure.pid, Process::WNOHANG)
+  end
+  Example.check(
+    server.diagnostics.fetch(:admitted_requests).zero?,
+    "client remains admitted"
+  )
 ensure
   begin
     cancellation.cancel
@@ -129,23 +165,36 @@ while another tmux client waits; cancellation retires that client's process.
 ```ruby
 Async do |parent|
   LibTmux::Async.open(parent: parent, server: server) do |scope|
-    waiting = parent.async do
-      scope.server.run(["wait-for", "-S", "ready", ";", "wait-for", "held"], timeout: 0.5)
-    rescue LibTmux::Cancelled => error
-      error
-    end
+    waiting =
+      parent.async do
+        scope.server.run(%w[wait-for -S ready ; wait-for held], timeout: 0.5)
+      rescue LibTmux::Cancelled => error
+        error
+      end
     scope.server.wait_for("ready", timeout: 0.5)
-    Example.check(scope.diagnostics.fetch(:active_process_slots) == 1, "waiting client lost its slot")
-    captures = scope.map(scope.server.list_panes.map(&:ref), concurrency: 2) do |ref|
-      scope.server.pane(ref).capture
-    end
+    Example.check(
+      scope.diagnostics.fetch(:active_process_slots) == 1,
+      "waiting client lost its slot"
+    )
+    captures =
+      scope.map(scope.server.list_panes.map(&:ref), concurrency: 2) do |ref|
+        scope.server.pane(ref).capture
+      end
     Example.check(captures.all?(&:success?), "sibling captures stalled")
     waiting.cancel
     failure = waiting.wait
     Example.check(failure.is_a?(LibTmux::Cancelled), "cancellation lost")
-    Example.check(failure.delivery == :possibly_sent, "cancelled dispatch claimed no effects")
-    Example.raises(Errno::ECHILD) { Process.waitpid(failure.pid, Process::WNOHANG) }
-    Example.check(scope.server.diagnostics.fetch(:admitted_requests).zero?, "cancelled client remains admitted")
+    Example.check(
+      failure.delivery == :possibly_sent,
+      "cancelled dispatch claimed no effects"
+    )
+    Example.raises(Errno::ECHILD) do
+      Process.waitpid(failure.pid, Process::WNOHANG)
+    end
+    Example.check(
+      scope.server.diagnostics.fetch(:admitted_requests).zero?,
+      "cancelled client remains admitted"
+    )
   end
 end.wait
 ```
@@ -165,14 +214,31 @@ server.open_control(session: session.ref) do |control|
   tail = control.subscribe(mode: :tail, max_events: 1, max_bytes: 1024)
   3.times { |index| window.rename("event#{index}") }
   reply = control.exchange("display-message -p alive", timeout: 0.5)
-  Example.check(reply.blocks.last.body == "alive\n", "slow reader blocked commands")
-  Example.check(reply.attribution == :boundary_window, "reply overclaims attribution")
-  Example.check(reliable.diagnostics.fetch(:overflowed), "overflow is missing from diagnostics")
-  Example.check(control.diagnostics.fetch(:retained_reply_bytes).zero?, "consumed reply remains retained")
+  Example.check(
+    reply.blocks.last.body == "alive\n",
+    "slow reader blocked commands"
+  )
+  Example.check(
+    reply.attribution == :boundary_window,
+    "reply overclaims attribution"
+  )
+  Example.check(
+    reliable.diagnostics.fetch(:overflowed),
+    "overflow is missing from diagnostics"
+  )
+  Example.check(
+    control.diagnostics.fetch(:retained_reply_bytes).zero?,
+    "consumed reply remains retained"
+  )
   reliable.next(timeout: 0.5)
-  Example.raises(LibTmux::SubscriptionOverflow) { reliable.next(timeout: 0.5) }
+  Example.raises(LibTmux::SubscriptionOverflow) do
+    reliable.next(timeout: 0.5)
+  end
   gap = tail.next(timeout: 0.5)
-  Example.check(gap.kind == :gap && gap.dropped_bytes.positive?, "tail hid lost bytes")
+  Example.check(
+    gap.kind == :gap && gap.dropped_bytes.positive?,
+    "tail hid lost bytes"
+  )
 end
 ```
 <!-- /example -->
@@ -185,15 +251,30 @@ the group result does not invent statuses for its members.
 
 <!-- example: failed_group/main -->
 ```ruby
-group = server.run_group([
-  ["set-option", "-g", "@before", "retained"],
-  ["select-pane", "-t", "%4294967294"],
-  ["set-option", "-g", "@after", "not-executed"]
-])
+group =
+  server.run_group(
+    [
+      %w[set-option -g @before retained],
+      %w[select-pane -t %4294967294],
+      %w[set-option -g @after not-executed]
+    ]
+  )
 Example.check(!group.success?, "failing group succeeded")
-Example.check(group.steps.all? { |step| step.fetch(:outcome) == :unknown }, "invented per-step status")
-Example.check(server.options(scope: :session).get("@before").raw == "retained", "earlier effect rolled back")
-Example.check(server.options(scope: :session).list.none? { |option| option.name == "@after" }, "later step executed")
+Example.check(
+  group.steps.all? { |step| step.fetch(:outcome) == :unknown },
+  "invented per-step status"
+)
+Example.check(
+  server.options(scope: :session).get("@before").raw == "retained",
+  "earlier effect rolled back"
+)
+Example.check(
+  server
+    .options(scope: :session)
+    .list
+    .none? { |option| option.name == "@after" },
+  "later step executed"
+)
 ```
 <!-- /example -->
 
@@ -206,11 +287,21 @@ not part of the advertised tmux tool catalog.
 
 <!-- example: mcp_protocol/main -->
 ```ruby
-application = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "example")
+application =
+  LibTmux::MCP::Application.new(
+    server: scope.server,
+    endpoint_name: "example"
+  )
 sdk = application.sdk_server
 input, client_input = IO.pipe
 client_output, output = IO.pipe
-transport = LibTmux::MCP::StdioTransport.new(server: sdk, parent: parent, input: input, output: output)
+transport =
+  LibTmux::MCP::StdioTransport.new(
+    server: sdk,
+    parent: parent,
+    input: input,
+    output: output
+  )
 runner = parent.async { transport.run }
 ```
 <!-- /example -->
@@ -226,54 +317,191 @@ structured refusal instead; that is not positive enrollment evidence.
 <!-- example: mcp_protocol/cli -->
 ```ruby
 executable = Gem.bin_path("libtmux-mcp", "libtmux-mcp")
-Open3.popen3(Gem.ruby, "-W:no-experimental", executable, "--socket", server.endpoint.socket_path,
-  "--tmux", Example.executable, "--endpoint", "installed", "--enable-tool", "tmux_create", "--enable-tool", "tmux_send",
-  "--enable-tool", "tmux_close", "--enable-tool", "tmux_run", *enrollment_arguments) do |input, output, errors, process|
-  request = lambda do |id, method, params = {}|
-    input.write(JSON.generate({jsonrpc: "2.0", id: id, method: method, params: params}) + "\n")
-    Example.check(IO.select([output], nil, nil, id == 1 ? 1.0 : 0.5), "installed MCP did not return a frame")
-    response = JSON.parse(output.gets)
-    Example.check(response.fetch("id") == id, "MCP response identity changed")
-    response.fetch("result")
-  end
-  request.call(1, "initialize", {protocolVersion: "2025-11-25", capabilities: {},
-    clientInfo: {name: "recipe", version: "1"}})
-  input.write(JSON.generate({jsonrpc: "2.0", method: "notifications/initialized"}) + "\n")
-  names = request.call(2, "tools/list").fetch("tools").map { |tool| tool.fetch("name") }
-  Example.check(names.sort == %w[tmux_capabilities tmux_close tmux_create tmux_run tmux_send tmux_snapshot], "tool policy differs")
-  created = request.call(3, "tools/call", {name: "tmux_create", arguments: {
-    kind: "session", name: "via-protocol", argv: ["/bin/cat"]}}).fetch("structuredContent")
+Open3.popen3(
+  Gem.ruby,
+  "-W:no-experimental",
+  executable,
+  "--socket",
+  server.endpoint.socket_path,
+  "--tmux",
+  Example.executable,
+  "--endpoint",
+  "installed",
+  "--enable-tool",
+  "tmux_create",
+  "--enable-tool",
+  "tmux_send",
+  "--enable-tool",
+  "tmux_close",
+  "--enable-tool",
+  "tmux_run",
+  *enrollment_arguments
+) do |input, output, errors, process|
+  request =
+    lambda do |id, method, params = {}|
+      input.write(
+        JSON.generate(
+          { jsonrpc: "2.0", id: id, method: method, params: params }
+        ) + "\n"
+      )
+      Example.check(
+        IO.select([output], nil, nil, id == 1 ? 1.0 : 0.5),
+        "installed MCP did not return a frame"
+      )
+      response = JSON.parse(output.gets)
+      Example.check(
+        response.fetch("id") == id,
+        "MCP response identity changed"
+      )
+      response.fetch("result")
+    end
+  request.call(
+    1,
+    "initialize",
+    {
+      protocolVersion: "2025-11-25",
+      capabilities: {
+      },
+      clientInfo: {
+        name: "recipe",
+        version: "1"
+      }
+    }
+  )
+  input.write(
+    JSON.generate({ jsonrpc: "2.0", method: "notifications/initialized" }) +
+      "\n"
+  )
+  names =
+    request
+      .call(2, "tools/list")
+      .fetch("tools")
+      .map { |tool| tool.fetch("name") }
+  Example.check(
+    names.sort ==
+      %w[
+        tmux_capabilities
+        tmux_close
+        tmux_create
+        tmux_run
+        tmux_send
+        tmux_snapshot
+      ],
+    "tool policy differs"
+  )
+  created =
+    request.call(
+      3,
+      "tools/call",
+      {
+        name: "tmux_create",
+        arguments: {
+          kind: "session",
+          name: "via-protocol",
+          argv: ["/bin/cat"]
+        }
+      }
+    ).fetch("structuredContent")
   Example.check(created.fetch("ok"), "protocol creation failed")
   data = created.fetch("data")
   pane = data.fetch("created").find { |ref| ref.fetch("kind") == "pane" }
-  sent = request.call(4, "tools/call", {name: "tmux_send", arguments: {
-    target: pane, input: {type: "text", text: "literal;"}}}).fetch("structuredContent")
-  Example.check(sent.fetch("data").fetch("completion") == "dispatch_only", "send claimed shell completion")
+  sent =
+    request.call(
+      4,
+      "tools/call",
+      {
+        name: "tmux_send",
+        arguments: {
+          target: pane,
+          input: {
+            type: "text",
+            text: "literal;"
+          }
+        }
+      }
+    ).fetch("structuredContent")
+  Example.check(
+    sent.fetch("data").fetch("completion") == "dispatch_only",
+    "send claimed shell completion"
+  )
   target = pane
   if channel
-    Example.check(File.stat(setup).mode & 0o777 == 0o600, "enrollment setup permissions differ")
+    Example.check(
+      File.stat(setup).mode & 0o777 == 0o600,
+      "enrollment setup permissions differ"
+    )
     channel.puts(setup)
-    Example.check(IO.select([channel], nil, nil, 0.5) && channel.gets == "ready\n", "shell enrollment was not acknowledged")
+    Example.check(
+      IO.select([channel], nil, nil, 0.5) && channel.gets == "ready\n",
+      "shell enrollment was not acknowledged"
+    )
     target = pane.merge("id" => shell_pane.id)
   end
-  script = 'printf "%s:%s" "$EXAMPLE_CONTEXT" "$TMUX_PANE"; printf "\\000\\377" >&2; exit 9'
-  run = request.call(5, "tools/call", {name: "tmux_run", arguments: {
-    target: target, script: script, stdout_limit: 128, stderr_limit: 2}}).fetch("structuredContent")
+  script =
+    'printf "%s:%s" "$EXAMPLE_CONTEXT" "$TMUX_PANE"; printf "\\000\\377" >&2; exit 9'
+  run =
+    request.call(
+      5,
+      "tools/call",
+      {
+        name: "tmux_run",
+        arguments: {
+          target: target,
+          script: script,
+          stdout_limit: 128,
+          stderr_limit: 2
+        }
+      }
+    ).fetch("structuredContent")
   if channel
     Example.check(run.fetch("ok"), "installed authored run failed")
     result = run.fetch("data")
-    Example.check(result.fetch("stdout").fetch("data") == "installed:#{shell_pane.id}", "authored shell context differs")
-    Example.check(result.fetch("stderr") == {"encoding" => "base64", "data" => "AP8=", "bytes" => 2, "truncated" => false}, "authored bytes differ")
-    Example.check(result.fetch("completion") == {"state" => "exited", "exit_status" => 9, "signal" => nil}, "native completion differs")
-    Example.check(result.fetch("authorization").fetch("state") == "authorized", "authorization receipt missing")
+    Example.check(
+      result.fetch("stdout").fetch("data") == "installed:#{shell_pane.id}",
+      "authored shell context differs"
+    )
+    Example.check(
+      result.fetch("stderr") ==
+        {
+          "encoding" => "base64",
+          "data" => "AP8=",
+          "bytes" => 2,
+          "truncated" => false
+        },
+      "authored bytes differ"
+    )
+    Example.check(
+      result.fetch("completion") ==
+        { "state" => "exited", "exit_status" => 9, "signal" => nil },
+      "native completion differs"
+    )
+    Example.check(
+      result.fetch("authorization").fetch("state") == "authorized",
+      "authorization receipt missing"
+    )
   else
-    Example.check(run.dig("error", "code") == "unsupported" && run.dig("error", "delivery") == "not_sent", "unsupported enrollment did not refuse")
+    Example.check(
+      run.dig("error", "code") == "unsupported" &&
+        run.dig("error", "delivery") == "not_sent",
+      "unsupported enrollment did not refuse"
+    )
   end
-  closed = request.call(6, "tools/call", {name: "tmux_close", arguments: {target: data.fetch("entity")}})
-  Example.check(closed.fetch("structuredContent").fetch("ok"), "protocol close failed")
+  closed =
+    request.call(
+      6,
+      "tools/call",
+      { name: "tmux_close", arguments: { target: data.fetch("entity") } }
+    )
+  Example.check(
+    closed.fetch("structuredContent").fetch("ok"),
+    "protocol close failed"
+  )
   input.close
   Example.check(process.join(0.5), "MCP EOF did not retire its process")
-  Example.check(process.value.success? && errors.read.empty?, "MCP executable failed")
+  Example.check(
+    process.value.success? && errors.read.empty?,
+    "MCP executable failed"
+  )
   Example.check(!File.exist?(setup), "enrollment setup survived EOF")
 end
 ```
@@ -293,15 +521,36 @@ plan = workspace.plan(snapshot: server.snapshot)
 Example.check(server.list_sessions.size == 1, "planning changed tmux")
 result = plan.apply(server: server)
 Example.check(result.success?, "workspace apply failed")
-Example.check(result.effects.any? { |effect| effect.outcome == :dispatch_only }, "shell dispatch overclaims completion")
-crowded = LibTmux::Workspace.parse(JSON.generate({
-  session_name: "crowded", windows: [{window_name: "small", panes: Array.new(40) { {} }}]
-}), format: :json, base_directory: __dir__)
-error = Example.raises(LibTmux::Workspace::ApplyError) do
-  crowded.plan.apply(server: server, compensate: true)
-end
-Example.check(!error.result.created_refs.empty?, "failure lost partial creation ledger")
-Example.check(error.result.compensation == :completed, "owned compensation failed")
-Example.check(server.list_sessions.map(&:ref).include?(borrowed.ref), "borrowed session was removed")
+Example.check(
+  result.effects.any? { |effect| effect.outcome == :dispatch_only },
+  "shell dispatch overclaims completion"
+)
+crowded =
+  LibTmux::Workspace.parse(
+    JSON.generate(
+      {
+        session_name: "crowded",
+        windows: [{ window_name: "small", panes: Array.new(40) { {} } }]
+      }
+    ),
+    format: :json,
+    base_directory: __dir__
+  )
+error =
+  Example.raises(LibTmux::Workspace::ApplyError) do
+    crowded.plan.apply(server: server, compensate: true)
+  end
+Example.check(
+  !error.result.created_refs.empty?,
+  "failure lost partial creation ledger"
+)
+Example.check(
+  error.result.compensation == :completed,
+  "owned compensation failed"
+)
+Example.check(
+  server.list_sessions.map(&:ref).include?(borrowed.ref),
+  "borrowed session was removed"
+)
 ```
 <!-- /example -->

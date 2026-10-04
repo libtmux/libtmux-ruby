@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require 'libtmux/mcp/observation'
-require 'digest/sha2'
+require "libtmux/mcp/observation"
+require "digest/sha2"
 
 module LibTmux
   module MCP
@@ -32,7 +32,12 @@ module LibTmux
           begin
             File.unlink(@path) if File.exist?(@path)
           rescue Exception => error
-            ProcessIdentity.attach_cleanup(failure, ["socket path retirement failed (#{error.class})"]) if failure
+            if failure
+              ProcessIdentity.attach_cleanup(
+                failure,
+                ["socket path retirement failed (#{error.class})"]
+              )
+            end
             failure ||= error
           end
           raise failure if failure
@@ -41,13 +46,15 @@ module LibTmux
 
       class Channel
         def initialize(io)
-          @io, @buffer = io, +''.b
+          @io, @buffer = io, +"".b
         end
 
         attr_reader :io
 
         def write(line, budget)
-          raise ProtocolError.new('enrollment frame exceeds its limit', phase: :write) if line.bytesize > 1024 || line.include?("\n")
+          if line.bytesize > 1024 || line.include?("\n")
+            raise ProtocolError.new("enrollment frame exceeds its limit", phase: :write)
+          end
 
           write_bytes("#{line}\n".b, budget)
         end
@@ -75,7 +82,11 @@ module LibTmux
             elsif bytes
               result << bytes
             else
-              raise ClosedError.new('shell protocol channel closed', phase: :read, delivery: :possibly_sent)
+              raise ClosedError.new(
+                      "shell protocol channel closed",
+                      phase: :read,
+                      delivery: :possibly_sent
+                    )
             end
           end
           result.freeze
@@ -86,7 +97,9 @@ module LibTmux
             if (ending = @buffer.index("\n"))
               return @buffer.slice!(0, ending + 1).chomp
             end
-            raise ProtocolError.new('enrollment frame exceeds its limit', phase: :read) if @buffer.bytesize >= 1024
+            if @buffer.bytesize >= 1024
+              raise ProtocolError.new("enrollment frame exceeds its limit", phase: :read)
+            end
 
             remaining = budget.options.fetch(:timeout)
             bytes = @io.read_nonblock(1024 - @buffer.bytesize, exception: false)
@@ -95,7 +108,7 @@ module LibTmux
             elsif bytes
               @buffer << bytes
             else
-              raise ClosedError.new('shell protocol channel closed', phase: :read)
+              raise ClosedError.new("shell protocol channel closed", phase: :read)
             end
           end
         end
@@ -108,22 +121,46 @@ module LibTmux
       class Invitation
         attr_reader :reference, :capture, :listener, :path, :token, :expires_at
 
-        def initialize(reference:, capture:, listener:, path:, expires_at: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 60)
+        def initialize(
+          reference:,
+          capture:,
+          listener:,
+          path:,
+          expires_at: Process.clock_gettime(Process::CLOCK_MONOTONIC) + 60
+        )
           @reference, @capture, @listener, @path = reference, capture, listener, path.freeze
           @token = SecureRandom.hex(16).freeze
           @expires_at = expires_at
         end
 
         def shell_arguments
-          raise ClosedError.new('shell invitation is closed', phase: :admission) if @released
-          raise DeadlineExceeded.new('shell invitation expired', phase: :admission) if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= @expires_at
+          raise ClosedError.new("shell invitation is closed", phase: :admission) if @released
+          if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= @expires_at
+            raise DeadlineExceeded.new("shell invitation expired", phase: :admission)
+          end
 
-          roots = %w[libtmux fiddle digest].flat_map { |name| Gem.loaded_specs.fetch(name).full_require_paths }
-          roots.concat([RbConfig::CONFIG.fetch('rubylibdir'), RbConfig::CONFIG.fetch('rubyarchdir')])
-          raise UnsupportedFeatureError.new('helper load paths are unsupported', phase: :admission) if roots.any? { |path| path.include?(File::PATH_SEPARATOR) }
+          roots =
+            %w[libtmux fiddle digest].flat_map do |name|
+              Gem.loaded_specs.fetch(name).full_require_paths
+            end
+          roots.concat(
+            [RbConfig::CONFIG.fetch("rubylibdir"), RbConfig::CONFIG.fetch("rubyarchdir")]
+          )
+          if roots.any? { |path| path.include?(File::PATH_SEPARATOR) }
+            raise UnsupportedFeatureError.new(
+                    "helper load paths are unsupported",
+                    phase: :admission
+                  )
+          end
 
-          [File.expand_path('shell/integration.zsh', __dir__), @path, @token, Gem.ruby,
-            File.expand_path('shell/prepare.rb', __dir__), roots.uniq.join(File::PATH_SEPARATOR)].map { |value| value.dup.freeze }.freeze
+          [
+            File.expand_path("shell/integration.zsh", __dir__),
+            @path,
+            @token,
+            Gem.ruby,
+            File.expand_path("shell/prepare.rb", __dir__),
+            roots.uniq.join(File::PATH_SEPARATOR)
+          ].map { |value| value.dup.freeze }.freeze
         end
 
         def inspect
@@ -159,7 +196,12 @@ module LibTmux
         attr_reader :reference, :run_id, :process_generation, :receipt, :completion
 
         def initialize(registry, enrollment, digest, listener, path)
-          @registry, @enrollment, @digest, @listener, @path = registry, enrollment, digest.freeze, listener, path
+          @registry, @enrollment, @digest, @listener, @path =
+            registry,
+            enrollment,
+            digest.freeze,
+            listener,
+            path
           @reference = enrollment.reference
           @process_generation = enrollment.capture.process.generation
           @run_id, @token = SecureRandom.hex(16).freeze, SecureRandom.hex(16).freeze
@@ -169,16 +211,25 @@ module LibTmux
 
         def prepare(budget)
           @identity.ensure_live!
-          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + budget.options.fetch(:timeout)
+          deadline =
+            Process.clock_gettime(Process::CLOCK_MONOTONIC) + budget.options.fetch(:timeout)
           @sent = true
-          @enrollment.channel.write("P #{@run_id} #{@token} #{[@path].pack('m0')} #{deadline} #{@digest}", budget)
+          @enrollment.channel.write(
+            "P #{@run_id} #{@token} #{[@path].pack("m0")} #{deadline} #{@digest}",
+            budget
+          )
           @channel = Channel.new(@registry.__send__(:accept_socket, @listener, budget))
-          response = @channel.read(budget).split(' ')
+          response = @channel.read(budget).split(" ")
           expected = [@run_id, @token, @digest, @identity.pid.to_s]
           unless response.drop(1) == expected && %w[READY REFUSED].include?(response.first)
-            raise ProtocolError.new('prepared helper identity is invalid', phase: :admission)
+            raise ProtocolError.new("prepared helper identity is invalid", phase: :admission)
           end
-          raise UnsupportedFeatureError.new('shell editor is not idle and empty', phase: :admission) if response.first == 'REFUSED'
+          if response.first == "REFUSED"
+            raise UnsupportedFeatureError.new(
+                    "shell editor is not idle and empty",
+                    phase: :admission
+                  )
+          end
 
           @identity.ensure_live!
           self
@@ -189,21 +240,37 @@ module LibTmux
         end
 
         def authorize(timeout: 0.5, cancel: nil)
-          raise ClosedError.new('prepared authorization is single use', phase: :admission) if @attempted || @closed
+          if @attempted || @closed
+            raise ClosedError.new("prepared authorization is single use", phase: :admission)
+          end
 
           @attempted = true
           @registry.__send__(:perform, timeout, cancel) do |budget|
-          @identity.ensure_live!
-          @registry.__send__(:guard, @reference, @identity, budget, @authorization) { @grant_attempted = true }
-          @receipt = {'state' => 'authorized', 'run_id' => @run_id, 'script_digest' => @digest,
-            'server_generation' => @reference.binding_key, 'pane_id' => @reference.id,
-            'enrollment_generation' => @enrollment.epoch, 'process_generation' => @process_generation}.transform_values(&:freeze).freeze
-          @identity.ensure_live!
-          @channel.write("GRANT #{@run_id} #{@token} #{@digest}", budget)
-          expected = "AUTHORIZED #{@run_id} #{@token} #{@digest}"
-          raise ProtocolError.new('prepared helper acknowledgement is invalid', phase: :read, delivery: :possibly_sent) unless @channel.read(budget) == expected
+            @identity.ensure_live!
+            @registry.__send__(:guard, @reference, @identity, budget, @authorization) do
+              @grant_attempted = true
+            end
+            @receipt = {
+              "state" => "authorized",
+              "run_id" => @run_id,
+              "script_digest" => @digest,
+              "server_generation" => @reference.binding_key,
+              "pane_id" => @reference.id,
+              "enrollment_generation" => @enrollment.epoch,
+              "process_generation" => @process_generation
+            }.transform_values(&:freeze).freeze
+            @identity.ensure_live!
+            @channel.write("GRANT #{@run_id} #{@token} #{@digest}", budget)
+            expected = "AUTHORIZED #{@run_id} #{@token} #{@digest}"
+            unless @channel.read(budget) == expected
+              raise ProtocolError.new(
+                      "prepared helper acknowledgement is invalid",
+                      phase: :read,
+                      delivery: :possibly_sent
+                    )
+            end
 
-          @receipt
+            @receipt
           end
         end
 
@@ -212,33 +279,74 @@ module LibTmux
         end
 
         def execute(script, stdout_limit:, stderr_limit:, timeout:, cancel: nil)
-          raise ClosedError.new('prepared script is not authorized or has already been sent', phase: :admission) unless @receipt && !@executed && !@closed
+          unless @receipt && !@executed && !@closed
+            raise ClosedError.new(
+                    "prepared script is not authorized or has already been sent",
+                    phase: :admission
+                  )
+          end
 
           @executed = true
           @registry.__send__(:perform, timeout, cancel) do |operation|
-            @channel.write("SCRIPT #{@run_id} #{@token} #{@digest} #{script.bytesize} #{stdout_limit} #{stderr_limit}", operation)
+            @channel.write(
+              "SCRIPT #{@run_id} #{@token} #{@digest} #{script.bytesize} #{stdout_limit} #{stderr_limit}",
+              operation
+            )
             @channel.write_bytes(script, operation)
-            response = @channel.read(operation).split(' ')
+            response = @channel.read(operation).split(" ")
             unless response[1, 3] == [@run_id, @token, @digest]
-              raise ProtocolError.new('script response identity is invalid', phase: :read, delivery: :possibly_sent)
+              raise ProtocolError.new(
+                      "script response identity is invalid",
+                      phase: :read,
+                      delivery: :possibly_sent
+                    )
             end
-            if response.first == 'ERROR' && response.length == 6
-              klass = {'capacity' => CapacityError, 'deadline' => DeadlineExceeded, 'cancelled' => Cancelled,
-                'protocol' => ProtocolError, 'unknown' => OutcomeUnknown}.fetch(response[4], OutcomeUnknown)
-              cleanup = response[5] == 'clean' ? [] : ['authored child retirement was incomplete']
-              raise klass.new('authored script did not establish completion', phase: :read, delivery: :possibly_sent, cleanup_errors: cleanup)
+            if response.first == "ERROR" && response.length == 6
+              klass = {
+                "capacity" => CapacityError,
+                "deadline" => DeadlineExceeded,
+                "cancelled" => Cancelled,
+                "protocol" => ProtocolError,
+                "unknown" => OutcomeUnknown
+              }.fetch(response[4], OutcomeUnknown)
+              cleanup = response[5] == "clean" ? [] : ["authored child retirement was incomplete"]
+              raise klass.new(
+                      "authored script did not establish completion",
+                      phase: :read,
+                      delivery: :possibly_sent,
+                      cleanup_errors: cleanup
+                    )
             end
-            unless response.length == 8 && response.first == 'RESULT' && %w[EXIT SIGNAL].include?(response[4]) && response[5, 3].all? { |value| /\A\d{1,9}\z/.match?(value) }
-              raise ProtocolError.new('script completion frame is invalid', phase: :read, delivery: :possibly_sent)
+            unless response.length == 8 && response.first == "RESULT" &&
+                     %w[EXIT SIGNAL].include?(response[4]) &&
+                     response[5, 3].all? { |value| /\A\d{1,9}\z/.match?(value) }
+              raise ProtocolError.new(
+                      "script completion frame is invalid",
+                      phase: :read,
+                      delivery: :possibly_sent
+                    )
             end
             status, out_length, err_length = response[5, 3].map(&:to_i)
-            if out_length > stdout_limit || err_length > stderr_limit || status > 255 || (response[4] == 'SIGNAL' && status.zero?)
-              raise ProtocolError.new('script completion exceeds its limits', phase: :read, delivery: :possibly_sent)
+            if out_length > stdout_limit || err_length > stderr_limit || status > 255 ||
+                 (response[4] == "SIGNAL" && status.zero?)
+              raise ProtocolError.new(
+                      "script completion exceeds its limits",
+                      phase: :read,
+                      delivery: :possibly_sent
+                    )
             end
-            @completion = {'state' => response[4] == 'EXIT' ? 'exited' : 'signaled',
-              'exit_status' => response[4] == 'EXIT' ? status : nil, 'signal' => response[4] == 'SIGNAL' ? status : nil}.freeze
-            Result.new(stdout: @channel.read_bytes(out_length, operation), stderr: @channel.read_bytes(err_length, operation),
-              exit_status: response[4] == 'EXIT' ? status : nil, signal: response[4] == 'SIGNAL' ? status : nil, receipt: @receipt)
+            @completion = {
+              "state" => response[4] == "EXIT" ? "exited" : "signaled",
+              "exit_status" => response[4] == "EXIT" ? status : nil,
+              "signal" => response[4] == "SIGNAL" ? status : nil
+            }.freeze
+            Result.new(
+              stdout: @channel.read_bytes(out_length, operation),
+              stderr: @channel.read_bytes(err_length, operation),
+              exit_status: response[4] == "EXIT" ? status : nil,
+              signal: response[4] == "SIGNAL" ? status : nil,
+              receipt: @receipt
+            )
           end
         end
 
@@ -253,9 +361,11 @@ module LibTmux
             @done = true
           end
           if @sent && !@done
-            response = @enrollment.channel.read(@registry.__send__(:budget, timeout, nil)).split(' ')
-            unless response.length == 3 && response[0, 2] == ['DONE', @run_id] && /\A\d+\z/.match?(response[2])
-              raise ProtocolError.new('prepared helper retirement is invalid', phase: :retire)
+            response =
+              @enrollment.channel.read(@registry.__send__(:budget, timeout, nil)).split(" ")
+            unless response.length == 3 && response[0, 2] == ["DONE", @run_id] &&
+                     /\A\d+\z/.match?(response[2])
+              raise ProtocolError.new("prepared helper retirement is invalid", phase: :retire)
             end
             @done = true
           end
@@ -269,44 +379,74 @@ module LibTmux
       end
 
       def initialize(server:, parent:, max_enrollments: 8)
-        unless server.is_a?(LibTmux::Async::Server) && parent.is_a?(::Async::Task) && !parent.finished? && parent.root.equal?(Fiber.scheduler)
-          raise ArgumentError, 'enrollment requires an application-owned Async server and live parent task'
+        unless server.is_a?(LibTmux::Async::Server) && parent.is_a?(::Async::Task) &&
+                 !parent.finished? && parent.root.equal?(Fiber.scheduler)
+          raise ArgumentError,
+                "enrollment requires an application-owned Async server and live parent task"
         end
-        raise ArgumentError, 'enrollment capacity must be positive' unless max_enrollments.is_a?(Integer) && max_enrollments.positive?
+        unless max_enrollments.is_a?(Integer) && max_enrollments.positive?
+          raise ArgumentError, "enrollment capacity must be positive"
+        end
 
         @server, @parent, @capacity = server, parent, max_enrollments
         @thread, @pid, @scheduler = Thread.current, Process.pid, Fiber.scheduler
         @pending, @enrollments, @prepared = [], {}, []
         @reservations, @retiring, @accepting = {}, [], {}
         @calls, @runs, @watchers, @changed = {}, {}, [], ::Async::Notification.new
-        @directory = Dir.mktmpdir('libtmux-ruby-enrollment-')
+        @directory = Dir.mktmpdir("libtmux-ruby-enrollment-")
       end
 
       def inspect
         "#<#{self.class} closed=#{!!@closed}>"
       end
 
-      def run(reference, script:, timeout: 0.5, cancel: nil, stdout_limit: 65_536, stderr_limit: 65_536)
+      def run(
+        reference,
+        script:,
+        timeout: 0.5,
+        cancel: nil,
+        stdout_limit: 65_536,
+        stderr_limit: 65_536
+      )
         ensure_open
         unless script.is_a?(String) && script.bytesize <= 65_536 && !script.include?("\0")
-          raise ArgumentError, 'script must contain at most 65536 bytes without NUL'
+          raise ArgumentError, "script must contain at most 65536 bytes without NUL"
         end
-        unless [stdout_limit, stderr_limit].all? { |value| value.is_a?(Integer) && value.between?(0, 262_144) }
-          raise ArgumentError, 'script output limits must be integers between 0 and 262144'
+        unless [stdout_limit, stderr_limit].all? { |value|
+                 value.is_a?(Integer) && value.between?(0, 262_144)
+               }
+          raise ArgumentError, "script output limits must be integers between 0 and 262144"
         end
         script = script.b.freeze
         run_owner = ::Async::Task.current
-        raise CapacityError.new('authored run capacity is full', phase: :admission) if @runs.length >= @capacity || @runs.key?(run_owner)
+        if @runs.length >= @capacity || @runs.key?(run_owner)
+          raise CapacityError.new("authored run capacity is full", phase: :admission)
+        end
 
         @runs[run_owner] = true
         owned_run = true
         operation = budget(timeout, cancel)
-        prepared = prepare(reference, script_digest: Digest::SHA256.hexdigest(script), **operation.options)
+        prepared =
+          prepare(reference, script_digest: Digest::SHA256.hexdigest(script), **operation.options)
         prepared.authorize(**operation.options)
-        prepared.execute(script, stdout_limit: stdout_limit, stderr_limit: stderr_limit, **operation.options)
+        prepared.execute(
+          script,
+          stdout_limit: stdout_limit,
+          stderr_limit: stderr_limit,
+          **operation.options
+        )
       rescue Exception => error
         error.extend(RunReceipt)
-        error.instance_variable_set(:@run_delivery, prepared&.grant_attempted? ? error.respond_to?(:delivery) && error.delivery || :possibly_sent : :not_sent)
+        error.instance_variable_set(
+          :@run_delivery,
+          (
+            if prepared&.grant_attempted?
+              error.respond_to?(:delivery) && error.delivery || :possibly_sent
+            else
+              :not_sent
+            end
+          )
+        )
         if prepared&.receipt
           error.instance_variable_set(:@run_receipt, prepared.receipt)
           error.instance_variable_set(:@run_completion, prepared.completion)
@@ -320,12 +460,18 @@ module LibTmux
               prepared.close
             rescue Exception => cleanup
               if primary
-                ProcessIdentity.attach_cleanup(primary, ["authored helper retirement failed (#{cleanup.class})"])
+                ProcessIdentity.attach_cleanup(
+                  primary,
+                  ["authored helper retirement failed (#{cleanup.class})"]
+                )
               else
                 cleanup.extend(RunReceipt)
                 cleanup.instance_variable_set(:@run_receipt, prepared.receipt)
                 cleanup.instance_variable_set(:@run_completion, prepared.completion)
-                cleanup.instance_variable_set(:@run_delivery, prepared.completion ? :observed : :possibly_sent)
+                cleanup.instance_variable_set(
+                  :@run_delivery,
+                  prepared.completion ? :observed : :possibly_sent
+                )
                 raise
               end
             end
@@ -340,48 +486,74 @@ module LibTmux
 
       def invite(reference, timeout: 0.5, cancel: nil, expires_in: 60)
         ensure_open
-        unless expires_in.is_a?(Numeric) && expires_in.finite? && expires_in.positive? && expires_in <= 300
-          raise ArgumentError, 'shell invitation lifetime must be positive and at most 300 seconds'
+        unless expires_in.is_a?(Numeric) && expires_in.finite? && expires_in.positive? &&
+                 expires_in <= 300
+          raise ArgumentError, "shell invitation lifetime must be positive and at most 300 seconds"
         end
         perform(timeout, cancel) do |operation|
-        @server.__send__(:target, reference, :pane)
-        @pending.dup.each do |pending|
-          next if @accepting.key?(pending) || clock < pending.expires_at
+          @server.__send__(:target, reference, :pane)
+          @pending.dup.each do |pending|
+            next if @accepting.key?(pending) || clock < pending.expires_at
 
-          retire([pending])
-          @pending.delete(pending)
-          @reservations.delete(pending.reference)
-        end
-        if @reservations.length + @enrollments.length >= @capacity || @reservations.key?(reference) || @enrollments.key?(reference)
-          raise CapacityError.new('shell enrollment capacity is full', phase: :admission)
-        end
-        reservation = Object.new
-        @reservations[reference] = reservation
-        token = Internal::Cancellation.new
-        observer = Observation.new(server: @server, arguments: {'target' => wire(reference), 'track' => true,
-          'max_lines' => 1, 'max_bytes' => 1}, timeout: operation.options.fetch(:timeout), cancel: cancel || token, max_snapshot_bytes: 1 << 20)
-        _result, capture = observer.capture(expires: Float::INFINITY)
-        path = File.join(@directory, SecureRandom.hex(12))
-        socket = SocketLease.new(path)
-        @retiring << socket
-        listener = socket.bind
-        invitation = Invitation.new(reference: reference, capture: capture, listener: listener, path: path, expires_at: clock + expires_in)
-        @pending << invitation
-        @retiring.delete(socket)
-        invitation
-      ensure
-        begin
-          retire([observer, token, *(invitation ? [] : [socket, capture])].compact, primary: $!)
+            retire([pending])
+            @pending.delete(pending)
+            @reservations.delete(pending.reference)
+          end
+          if @reservations.length + @enrollments.length >= @capacity ||
+               @reservations.key?(reference) || @enrollments.key?(reference)
+            raise CapacityError.new("shell enrollment capacity is full", phase: :admission)
+          end
+          reservation = Object.new
+          @reservations[reference] = reservation
+          token = Internal::Cancellation.new
+          observer =
+            Observation.new(
+              server: @server,
+              arguments: {
+                "target" => wire(reference),
+                "track" => true,
+                "max_lines" => 1,
+                "max_bytes" => 1
+              },
+              timeout: operation.options.fetch(:timeout),
+              cancel: cancel || token,
+              max_snapshot_bytes: 1 << 20
+            )
+          _result, capture = observer.capture(expires: Float::INFINITY)
+          path = File.join(@directory, SecureRandom.hex(12))
+          socket = SocketLease.new(path)
+          @retiring << socket
+          listener = socket.bind
+          invitation =
+            Invitation.new(
+              reference: reference,
+              capture: capture,
+              listener: listener,
+              path: path,
+              expires_at: clock + expires_in
+            )
+          @pending << invitation
+          @retiring.delete(socket)
+          invitation
         ensure
-          @reservations.delete(reference) if reservation && !invitation && @reservations[reference].equal?(reservation)
-        end
+          begin
+            retire([observer, token, *(invitation ? [] : [socket, capture])].compact, primary: $!)
+          ensure
+            if reservation && !invitation && @reservations[reference].equal?(reservation)
+              @reservations.delete(reference)
+            end
+          end
         end
       end
 
       def accept(invitation, timeout: nil, cancel: nil)
         ensure_open
-        raise ArgumentError, 'invitation is not pending in this registry' unless @pending.include?(invitation)
-        raise CapacityError.new('shell invitation already has an acceptor', phase: :admission) if @accepting.key?(invitation)
+        unless @pending.include?(invitation)
+          raise ArgumentError, "invitation is not pending in this registry"
+        end
+        if @accepting.key?(invitation)
+          raise CapacityError.new("shell invitation already has an acceptor", phase: :admission)
+        end
 
         @accepting[invitation] = true
         accepted_slot = true
@@ -393,21 +565,26 @@ module LibTmux
           channel = Channel.new(accept_socket(invitation.listener, operation))
           identity = invitation.capture.process
           identity.ensure_live!
-          peer_pid = if RUBY_PLATFORM.include?('darwin')
-            channel.io.getsockopt(0, 0x002).int # SOL_LOCAL / LOCAL_PEERPID; generation remains the native lease.
-          else
-            channel.io.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED).data.unpack1('i')
-          end
-          hello = channel.read(operation).split(' ')
-          unless peer_pid == identity.pid && hello.length == 4 && hello[0, 2] == ['ZLE1', invitation.token] &&
-              /\A5\.9(?:\.\d+)?\z/.match?(hello[2]) && hello[3] == invitation.reference.id
-            raise UnsupportedFeatureError.new('shell enrollment identity or profile is unsupported', phase: :admission)
+          peer_pid =
+            if RUBY_PLATFORM.include?("darwin")
+              channel.io.getsockopt(0, 0x002).int # SOL_LOCAL / LOCAL_PEERPID; generation remains the native lease.
+            else
+              channel.io.getsockopt(Socket::SOL_SOCKET, Socket::SO_PEERCRED).data.unpack1("i")
+            end
+          hello = channel.read(operation).split(" ")
+          unless peer_pid == identity.pid && hello.length == 4 &&
+                   hello[0, 2] == ["ZLE1", invitation.token] &&
+                   /\A5\.9(?:\.\d+)?\z/.match?(hello[2]) && hello[3] == invitation.reference.id
+            raise UnsupportedFeatureError.new(
+                    "shell enrollment identity or profile is unsupported",
+                    phase: :admission
+                  )
           end
           guard(invitation.reference, identity, operation)
           enrollment = Enrollment.new(invitation.reference, invitation.capture, channel)
           @enrollments[enrollment.reference] = enrollment
           retire([invitation])
-          channel.write_bytes('A', operation)
+          channel.write_bytes("A", operation)
           acknowledged = true
           enrollment
         end
@@ -415,7 +592,9 @@ module LibTmux
         if accepted_slot
           begin
             unless acknowledged
-              @enrollments.delete(invitation.reference) if @enrollments[invitation.reference].equal?(enrollment)
+              if @enrollments[invitation.reference].equal?(enrollment)
+                @enrollments.delete(invitation.reference)
+              end
               retire([enrollment || channel, invitation].compact, primary: $!)
             end
           ensure
@@ -429,58 +608,68 @@ module LibTmux
       def prepare(reference, script_digest:, timeout: 0.5, cancel: nil)
         ensure_open
         unless script_digest.is_a?(String) && /\A[0-9a-f]{64}\z/.match?(script_digest)
-          raise ArgumentError, 'script_digest must be a SHA256 hex digest'
+          raise ArgumentError, "script_digest must be a SHA256 hex digest"
         end
         enrollment = @enrollments[reference]
-        raise UnsupportedFeatureError.new('pane has no enrolled shell', phase: :admission) unless enrollment
-        raise CapacityError.new('shell already has an active preparation', phase: :admission) if enrollment.prepared
+        unless enrollment
+          raise UnsupportedFeatureError.new("pane has no enrolled shell", phase: :admission)
+        end
+        if enrollment.prepared
+          raise CapacityError.new("shell already has an active preparation", phase: :admission)
+        end
 
         perform(timeout, cancel) do |operation|
-        raise CapacityError.new('shell already has an active preparation', phase: :admission) if enrollment.prepared
-        path = File.join(@directory, SecureRandom.hex(12))
-        socket = SocketLease.new(path)
-        @retiring << socket
-        listener = socket.bind
-        prepared = Prepared.new(self, enrollment, script_digest.dup, listener, path)
-        enrollment.prepared = prepared
-        @prepared << prepared
-        @retiring.delete(socket)
-        prepared.prepare(operation)
-      rescue Exception => error
-        begin
-          prepared ? prepared.close : retire([socket].compact, primary: error)
-        rescue Exception => cleanup
-          ProcessIdentity.attach_cleanup(error, ["prepared helper retirement failed (#{cleanup.class})"])
-        end
-        raise
+          if enrollment.prepared
+            raise CapacityError.new("shell already has an active preparation", phase: :admission)
+          end
+          path = File.join(@directory, SecureRandom.hex(12))
+          socket = SocketLease.new(path)
+          @retiring << socket
+          listener = socket.bind
+          prepared = Prepared.new(self, enrollment, script_digest.dup, listener, path)
+          enrollment.prepared = prepared
+          @prepared << prepared
+          @retiring.delete(socket)
+          prepared.prepare(operation)
+        rescue Exception => error
+          begin
+            prepared ? prepared.close : retire([socket].compact, primary: error)
+          rescue Exception => cleanup
+            ProcessIdentity.attach_cleanup(
+              error,
+              ["prepared helper retirement failed (#{cleanup.class})"]
+            )
+          end
+          raise
         end
       end
 
       def close(timeout: 0.5)
         ensure_owner
         unless timeout.is_a?(Numeric) && timeout.finite? && timeout.between?(0, 0.5)
-          raise ArgumentError, 'enrollment cleanup timeout must be between 0 and 0.5 seconds'
+          raise ArgumentError, "enrollment cleanup timeout must be between 0 and 0.5 seconds"
         end
         if @calls.key?(::Async::Task.current) || @runs.key?(::Async::Task.current)
-          raise ClosedError.new('cannot close enrollment from an active request', phase: :retire)
+          raise ClosedError.new("cannot close enrollment from an active request", phase: :retire)
         end
 
         @closed = true
         deadline = clock + timeout
         errors, interrupted = [], nil
-        attempt = lambda do |label, &work|
-          begin
-            work.call
-          rescue ::Async::Cancel => error
-            interrupted ||= error
-            retry if clock < deadline
-            errors << "#{label} remains pending"
-          rescue Exception => error
-            errors << "#{label} failed (#{error.class})"
+        attempt =
+          lambda do |label, &work|
+            begin
+              work.call
+            rescue ::Async::Cancel => error
+              interrupted ||= error
+              retry if clock < deadline
+              errors << "#{label} remains pending"
+            rescue Exception => error
+              errors << "#{label} failed (#{error.class})"
+            end
           end
-        end
         (@calls.keys + @runs.keys).uniq.each do |task|
-          attempt.call('request cancellation') { task.cancel unless task.finished? }
+          attempt.call("request cancellation") { task.cancel unless task.finished? }
         end
         until (@calls.empty? && @runs.empty?) || clock >= deadline
           begin
@@ -493,17 +682,19 @@ module LibTmux
         end
         if @calls.empty? && @runs.empty?
           @watchers.dup.each do |watcher|
-            attempt.call('cancellation watcher retirement') do
+            attempt.call("cancellation watcher retirement") do
               watcher.cancel unless watcher.finished?
               watcher.wait(timeout: [deadline - clock, 0].max) unless watcher.finished?
               @watchers.delete(watcher) if watcher.finished?
             end
           end
           @prepared.dup.each do |prepared|
-            attempt.call('prepared shell retirement') { prepared.close(timeout: [deadline - clock, 0].max) }
+            attempt.call("prepared shell retirement") do
+              prepared.close(timeout: [deadline - clock, 0].max)
+            end
           end
           @pending.dup.each do |invitation|
-            attempt.call('invitation retirement') do
+            attempt.call("invitation retirement") do
               invitation.close
               @pending.delete(invitation)
               @reservations.delete(invitation.reference)
@@ -512,26 +703,40 @@ module LibTmux
           @enrollments.dup.each do |reference, enrollment|
             next if enrollment.prepared
 
-            attempt.call('enrollment retirement') do
+            attempt.call("enrollment retirement") do
               enrollment.close
               @enrollments.delete(reference)
             end
           end
           @retiring.dup.each do |resource|
-            attempt.call('shell resource retirement') do
-              resource.is_a?(Observation) ? resource.close(timeout: [deadline - clock, 0].max) : resource.close
+            attempt.call("shell resource retirement") do
+              if resource.is_a?(Observation)
+                resource.close(timeout: [deadline - clock, 0].max)
+              else
+                resource.close
+              end
               @retiring.delete(resource)
             end
           end
         else
-          errors << 'admitted shell requests remain active'
+          errors << "admitted shell requests remain active"
         end
-        attempt.call('enrollment directory retirement') { Dir.rmdir(@directory) if Dir.exist?(@directory) } if errors.empty?
+        if errors.empty?
+          attempt.call("enrollment directory retirement") do
+            Dir.rmdir(@directory) if Dir.exist?(@directory)
+          end
+        end
         if interrupted
           ProcessIdentity.attach_cleanup(interrupted, errors) unless errors.empty?
           raise interrupted
         end
-        raise TransportError.new('shell enrollment cleanup remains pending', phase: :retire, cleanup_errors: errors) unless errors.empty?
+        unless errors.empty?
+          raise TransportError.new(
+                  "shell enrollment cleanup remains pending",
+                  phase: :retire,
+                  cleanup_errors: errors
+                )
+        end
 
         nil
       end
@@ -546,7 +751,12 @@ module LibTmux
             @retiring.delete(resource)
           rescue Exception => error
             @retiring << resource unless @retiring.include?(resource)
-            ProcessIdentity.attach_cleanup(failure, ["shell resource cleanup failed (#{error.class})"]) if failure
+            if failure
+              ProcessIdentity.attach_cleanup(
+                failure,
+                ["shell resource cleanup failed (#{error.class})"]
+              )
+            end
             failure ||= error
           end
         end
@@ -557,26 +767,42 @@ module LibTmux
         ensure_open
         owner = ::Async::Task.current
         if @calls.length >= @capacity * 2 || @watchers.length >= @capacity * 2
-          raise CapacityError.new('shell protocol request capacity is full', phase: :admission)
+          raise CapacityError.new("shell protocol request capacity is full", phase: :admission)
         end
-        raise ClosedError.new('nested shell protocol request', phase: :admission) if @calls.key?(owner)
-        raise Cancelled.new('shell protocol request cancelled', phase: :admission) if cancel&.cancelled?
+        if @calls.key?(owner)
+          raise ClosedError.new("nested shell protocol request", phase: :admission)
+        end
+        if cancel&.cancelled?
+          raise Cancelled.new("shell protocol request cancelled", phase: :admission)
+        end
 
         @calls[owner] = true
         armed = true
         watcher = failure = result = nil
         begin
-          watcher = if cancel
-            ::Async::Task.new(@parent) do
-              Fiber.scheduler.io_wait(cancel.reader, IO::READABLE) unless cancel.cancelled?
-              owner.cancel if armed && cancel.cancelled?
+          watcher =
+            if cancel
+              ::Async::Task.new(@parent) do
+                Fiber.scheduler.io_wait(cancel.reader, IO::READABLE) unless cancel.cancelled?
+                owner.cancel if armed && cancel.cancelled?
+              end
             end
-          end
           @watchers << watcher if watcher
           watcher&.run
           result = yield budget(timeout, cancel)
         rescue ::Async::Cancel => error
-          failure = (@closed || cancel&.cancelled?) ? Cancelled.new('shell protocol request cancelled', phase: :admission, delivery: :possibly_sent) : error
+          failure =
+            (
+              if (@closed || cancel&.cancelled?)
+                Cancelled.new(
+                  "shell protocol request cancelled",
+                  phase: :admission,
+                  delivery: :possibly_sent
+                )
+              else
+                error
+              end
+            )
         rescue Exception => error
           failure = error
         ensure
@@ -590,8 +816,14 @@ module LibTmux
               failure ||= error
               retry if clock < deadline
             rescue Exception => error
-              ProcessIdentity.attach_cleanup(failure, ["cancellation watcher cleanup failed (#{error.class})"]) if failure
-              failure ||= TransportError.new('cancellation watcher cleanup remains pending', phase: :retire)
+              if failure
+                ProcessIdentity.attach_cleanup(
+                  failure,
+                  ["cancellation watcher cleanup failed (#{error.class})"]
+                )
+              end
+              failure ||=
+                TransportError.new("cancellation watcher cleanup remains pending", phase: :retire)
             ensure
               @watchers.delete(watcher) if watcher.finished?
             end
@@ -610,7 +842,7 @@ module LibTmux
       end
 
       def wire(ref)
-        {'generation' => ref.binding_key, 'kind' => 'pane', 'id' => ref.id}
+        { "generation" => ref.binding_key, "kind" => "pane", "id" => ref.id }
       end
 
       def release(prepared)
@@ -634,31 +866,47 @@ module LibTmux
 
       def guard(reference, identity, operation, nonce = nil)
         identity.ensure_live!
-        names = @server.__send__(:builtin_spellings, 'if-shell', 'wait-for', budget: operation)
-        predicate = "\#{&&:\#{==:\#{pane_id},#{reference.id}},\#{&&:\#{==:\#{pane_pid},#{identity.pid}},\#{&&:\#{==:\#{pane_dead_status},},\#{==:\#{pane_dead_signal},}}}}"
-        branch = if nonce
-          [@server.__send__(:tmux_command, [names.fetch('wait-for'), '-S', nonce]),
-            @server.__send__(:tmux_command, [names.fetch('wait-for'), nonce])].join(' ; ')
-        else
-          ''
-        end
-        failure = @server.__send__(:tmux_command, [names.fetch('wait-for')])
+        names = @server.__send__(:builtin_spellings, "if-shell", "wait-for", budget: operation)
+        predicate =
+          "\#{&&:\#{==:\#{pane_id},#{reference.id}},\#{&&:\#{==:\#{pane_pid},#{identity.pid}},\#{&&:\#{==:\#{pane_dead_status},},\#{==:\#{pane_dead_signal},}}}}"
+        branch =
+          if nonce
+            [
+              @server.__send__(:tmux_command, [names.fetch("wait-for"), "-S", nonce]),
+              @server.__send__(:tmux_command, [names.fetch("wait-for"), nonce])
+            ].join(" ; ")
+          else
+            ""
+          end
+        failure = @server.__send__(:tmux_command, [names.fetch("wait-for")])
         yield if block_given?
-        @server.__send__(:execute_typed, [names.fetch('if-shell'), '-F', '-t', reference.id, predicate, branch, failure], **operation.options)
+        @server.__send__(
+          :execute_typed,
+          [names.fetch("if-shell"), "-F", "-t", reference.id, predicate, branch, failure],
+          **operation.options
+        )
       rescue CommandError => error
-        raise TargetNotFoundError.new('enrolled shell no longer belongs to the pane', phase: :admission, delivery: :not_sent), cause: nil
+        raise TargetNotFoundError.new(
+                "enrolled shell no longer belongs to the pane",
+                phase: :admission,
+                delivery: :not_sent
+              ),
+              cause: nil
       end
 
       def ensure_owner
-        unless Process.pid == @pid && Thread.current.equal?(@thread) && Fiber.scheduler.equal?(@scheduler)
-          raise ClosedError.new('shell enrollment belongs to another scheduler', phase: :admission)
+        unless Process.pid == @pid && Thread.current.equal?(@thread) &&
+                 Fiber.scheduler.equal?(@scheduler)
+          raise ClosedError.new("shell enrollment belongs to another scheduler", phase: :admission)
         end
       end
 
       def ensure_open
         ensure_owner
-        raise ClosedError.new('shell enrollment is closed', phase: :admission) if @closed
-        raise CapacityError.new('shell resource retirement remains pending', phase: :admission) unless @retiring.empty?
+        raise ClosedError.new("shell enrollment is closed", phase: :admission) if @closed
+        unless @retiring.empty?
+          raise CapacityError.new("shell resource retirement remains pending", phase: :admission)
+        end
       end
 
       def clock

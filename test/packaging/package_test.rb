@@ -19,21 +19,23 @@ class PackageTest < Minitest::Test
 
   # Outer: builds and installs artifacts into isolated gem homes.
   def test_installed_imports_use_declared_dependencies_without_starting_resources
-    specs = IMPORTS.to_h do |name, _|
-      manifest = File.join(ROOT, "gems", name, "#{name}.gemspec")
-      assert File.file?(manifest), "missing independently buildable #{name} gemspec"
-      [name, Gem::Specification.load(manifest)]
-    end
+    specs =
+      IMPORTS.to_h do |name, _|
+        manifest = File.join(ROOT, "gems", name, "#{name}.gemspec")
+        assert File.file?(manifest), "missing independently buildable #{name} gemspec"
+        [name, Gem::Specification.load(manifest)]
+      end
 
     Dir.mktmpdir("libtmux-ruby-packaging-") do |directory|
-      artifacts = specs.to_h do |name, spec|
-        assert_equal "MIT", spec.license
-        assert_includes spec.files, "LICENSE"
-        assert spec.files.any? { |file| file.start_with?("sig/") }, "missing signatures: #{name}"
-        refute spec.files.any? { |file| file.start_with?("test/", "vendor/", "benchmark/") }
-        artifact = package_artifact(spec, directory, ROOT)
-        [name, artifact]
-      end
+      artifacts =
+        specs.to_h do |name, spec|
+          assert_equal "MIT", spec.license
+          assert_includes spec.files, "LICENSE"
+          assert spec.files.any? { |file| file.start_with?("sig/") }, "missing signatures: #{name}"
+          refute spec.files.any? { |file| file.start_with?("test/", "vendor/", "benchmark/") }
+          artifact = package_artifact(spec, directory, ROOT)
+          [name, artifact]
+        end
 
       IMPORTS.each do |name, import|
         home = File.join(directory, name)
@@ -43,14 +45,26 @@ class PackageTest < Minitest::Test
         local, external = dependency_closure(specs.fetch(name), specs)
         external.each { |spec| copy_dependency(spec, home) }
         environment = {
-          "GEM_HOME" => home, "GEM_PATH" => home, "RUBYLIB" => nil,
-          "RUBYOPT" => nil, "BUNDLE_GEMFILE" => nil, "BUNDLE_BIN_PATH" => nil,
-          "BUNDLE_LOCKFILE" => nil, "BUNDLER_SETUP" => nil,
-          "TMUX" => nil, "TMUX_PANE" => nil
+          "GEM_HOME" => home,
+          "GEM_PATH" => home,
+          "RUBYLIB" => nil,
+          "RUBYOPT" => nil,
+          "BUNDLE_GEMFILE" => nil,
+          "BUNDLE_BIN_PATH" => nil,
+          "BUNDLE_LOCKFILE" => nil,
+          "BUNDLER_SETUP" => nil,
+          "TMUX" => nil,
+          "TMUX_PANE" => nil
         }
         local.each do |spec|
-          command = [Gem.ruby, File.join(RbConfig::CONFIG.fetch("bindir"), "gem"),
-                     "install", "--local", "--no-document", artifacts.fetch(spec.name)]
+          command = [
+            Gem.ruby,
+            File.join(RbConfig::CONFIG.fetch("bindir"), "gem"),
+            "install",
+            "--local",
+            "--no-document",
+            artifacts.fetch(spec.name)
+          ]
           output, status = Open3.capture2e(environment, *command, chdir: directory)
           assert status.success?, "#{name} installation failed: #{output}"
         end
@@ -79,7 +93,8 @@ class PackageTest < Minitest::Test
             raise "optional dependency installed" unless Gem::Specification.find_all_by_name("async").empty? && Gem::Specification.find_all_by_name("mcp").empty?
           end
         RUBY
-        output, status = Open3.capture2e(environment, Gem.ruby, "-e", source, import, chdir: directory)
+        output, status =
+          Open3.capture2e(environment, Gem.ruby, "-e", source, import, chdir: directory)
         assert status.success?, "#{name} import failed: #{output}"
         assert_empty output, "#{name} import wrote output"
         run_installed_shell_helper(environment, directory) if name == "libtmux-mcp"
@@ -141,9 +156,9 @@ class PackageTest < Minitest::Test
       end
       raise 'helper failed' unless worker.value.success?
     RUBY
-    output, status = Open3.capture2e(environment, Gem.ruby, '-W:no-experimental', '-e', source, chdir: directory)
+    output, status =
+      Open3.capture2e(environment, Gem.ruby, "-W:no-experimental", "-e", source, chdir: directory)
     assert status.success?, "installed authored helper closure failed: #{output}"
-    assert_empty output, 'installed authored helper wrote protocol data outside its socket'
+    assert_empty output, "installed authored helper wrote protocol data outside its socket"
   end
-
 end

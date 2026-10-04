@@ -12,36 +12,68 @@ class McpCLIIntegrationTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       next unless enrollment_supported?(fixture)
 
-      LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |server|
+      LibTmux::Server.open(
+        socket_path: fixture.socket_path,
+        executable: fixture.executable
+      ) do |server|
         pane = server.list_panes.first
         setup = File.join(File.dirname(fixture.socket_path), "enroll shell's setup.zsh")
         reader, input = IO.pipe
         output, writer = IO.pipe
         errors = StringIO.new
         publications = []
-        trace = TracePoint.new(:c_call) do |event|
-          if event.method_id == :write && event.self.is_a?(File) && File.dirname(event.self.path) == File.dirname(setup)
-            publications << File.exist?(setup)
+        trace =
+          TracePoint.new(:c_call) do |event|
+            if event.method_id == :write && event.self.is_a?(File) &&
+                 File.dirname(event.self.path) == File.dirname(setup)
+              publications << File.exist?(setup)
+            end
           end
-        end
         trace.enable
-        worker = Thread.new do
-          LibTmux::MCP::CLI.run(["--socket", fixture.socket_path,
-            "--tmux", fixture.executable, "--enable-tool", "tmux_run",
-            "--enroll-pane", "#{pane.id}=#{setup}"], input: reader, out: writer, err: errors)
-        ensure
-          writer.close
-        end
+        worker =
+          Thread.new do
+            LibTmux::MCP::CLI.run(
+              [
+                "--socket",
+                fixture.socket_path,
+                "--tmux",
+                fixture.executable,
+                "--enable-tool",
+                "tmux_run",
+                "--enroll-pane",
+                "#{pane.id}=#{setup}"
+              ],
+              input: reader,
+              out: writer,
+              err: errors
+            )
+          ensure
+            writer.close
+          end
         begin
-          send_frame(input, id: 1, method: "initialize", params: {protocolVersion: "2025-11-25",
-            capabilities: {}, clientInfo: {name: "test", version: "1"}})
+          send_frame(
+            input,
+            id: 1,
+            method: "initialize",
+            params: {
+              protocolVersion: "2025-11-25",
+              capabilities: {
+              },
+              clientInfo: {
+                name: "test",
+                version: "1"
+              }
+            }
+          )
           assert IO.select([output], nil, nil, 0.5), "enrollment CLI did not initialize"
           line = output.gets
           refute_nil line, "enrollment CLI closed protocol output: #{errors.string}"
           initialized = JSON.parse(line)
           trace.disable
           assert_equal "2025-11-25", initialized.dig("result", "protocolVersion")
-          assert_equal [false], publications, "setup was visible before its complete source command was written"
+          assert_equal [false],
+                       publications,
+                       "setup was visible before its complete source command was written"
           assert_equal 0o600, File.stat(setup).mode & 0o777
           source = File.read(setup)
           assert_equal 1, source.lines.length
@@ -75,23 +107,51 @@ class McpCLIIntegrationTest < Minitest::Test
       output, writer = IO.pipe
       errors = StringIO.new
       application_closes = []
-      trace = TracePoint.new(:call) do |event|
-        if event.defined_class == LibTmux::MCP::Application && event.method_id == :close
-          application_closes << Fiber.scheduler
+      trace =
+        TracePoint.new(:call) do |event|
+          if event.defined_class == LibTmux::MCP::Application && event.method_id == :close
+            application_closes << Fiber.scheduler
+          end
         end
-      end
-      worker = Thread.new do
-        LibTmux::MCP::CLI.run(["--socket", fixture.socket_path, "--endpoint", "test"],
-          input: reader, out: writer, err: errors)
-      end
+      worker =
+        Thread.new do
+          LibTmux::MCP::CLI.run(
+            ["--socket", fixture.socket_path, "--endpoint", "test"],
+            input: reader,
+            out: writer,
+            err: errors
+          )
+        end
       begin
-        send_frame(input, id: 1, method: "initialize", params: {protocolVersion: "2025-11-25",
-          capabilities: {}, clientInfo: {name: "test", version: "1"}})
+        send_frame(
+          input,
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {
+            },
+            clientInfo: {
+              name: "test",
+              version: "1"
+            }
+          }
+        )
         assert_equal "2025-11-25", frame(output).dig("result", "protocolVersion")
         send_frame(input, method: "notifications/initialized")
         send_frame(input, id: 2, method: "tools/list")
-        assert_equal %w[tmux_capabilities tmux_snapshot], frame(output).fetch("result").fetch("tools").map { |tool| tool.fetch("name") }
-        send_frame(input, id: 3, method: "tools/call", params: {name: "tmux_capabilities", arguments: {}})
+        assert_equal %w[tmux_capabilities tmux_snapshot],
+                     frame(output).fetch("result").fetch("tools").map { |tool| tool.fetch("name") }
+        send_frame(
+          input,
+          id: 3,
+          method: "tools/call",
+          params: {
+            name: "tmux_capabilities",
+            arguments: {
+            }
+          }
+        )
         result = frame(output).dig("result", "structuredContent")
         assert result.fetch("ok")
         assert_equal "test", result.fetch("data").fetch("endpoint")
@@ -118,7 +178,10 @@ class McpCLIIntegrationTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       next unless enrollment_supported?(fixture)
 
-      LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |server|
+      LibTmux::Server.open(
+        socket_path: fixture.socket_path,
+        executable: fixture.executable
+      ) do |server|
         pane = server.list_panes.first
         other = pane.split(direction: :horizontal, command: ["cat"])
         provisional = File.join(File.dirname(fixture.socket_path), "provisional-setup")
@@ -130,10 +193,24 @@ class McpCLIIntegrationTest < Minitest::Test
           reader, input = IO.pipe
           output, writer = IO.pipe
           errors = StringIO.new
-          status = LibTmux::MCP::CLI.run(["--socket", fixture.socket_path, "--tmux", fixture.executable,
-            "--enable-tool", "tmux_run", "--enroll-pane", "#{pane.id}=#{provisional}",
-            "--enroll-pane", "#{other.id}=#{path}"],
-            input: reader, out: writer, err: errors)
+          status =
+            LibTmux::MCP::CLI.run(
+              [
+                "--socket",
+                fixture.socket_path,
+                "--tmux",
+                fixture.executable,
+                "--enable-tool",
+                "tmux_run",
+                "--enroll-pane",
+                "#{pane.id}=#{provisional}",
+                "--enroll-pane",
+                "#{other.id}=#{path}"
+              ],
+              input: reader,
+              out: writer,
+              err: errors
+            )
           assert_equal 1, status
           assert_equal "preserve this file\n", File.read(original)
           assert File.symlink?(link)
@@ -169,54 +246,131 @@ class McpCLIIntegrationTest < Minitest::Test
         test_ready() { print -r -- ready >&$test_control }
         zle -N zle-line-init test_ready
       ZSH
-      LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |server|
-        pane = server.new_session(name: "cli-shell",
-          command: ["/usr/bin/env", "ZDOTDIR=#{directory}", "/bin/zsh", "-d", "-i"]).list_panes.first
+      LibTmux::Server.open(
+        socket_path: fixture.socket_path,
+        executable: fixture.executable
+      ) do |server|
+        pane =
+          server
+            .new_session(
+              name: "cli-shell",
+              command: ["/usr/bin/env", "ZDOTDIR=#{directory}", "/bin/zsh", "-d", "-i"]
+            )
+            .list_panes
+            .first
         assert IO.select([listener], nil, nil, 0.5), "owned shell did not connect"
         channel = listener.accept
         assert_equal "initializing", line(channel, label: "owned shell initialization")
         reader, input = IO.pipe
         output, writer = IO.pipe
         errors = StringIO.new
-        worker = Thread.new do
-          LibTmux::MCP::CLI.run(["--socket", fixture.socket_path, "--tmux", fixture.executable,
-            "--enable-tool", "tmux_run", "--enroll-pane", "#{pane.id}=#{setup}"],
-            input: reader, out: writer, err: errors)
-        ensure
-          writer.close
-        end
+        worker =
+          Thread.new do
+            LibTmux::MCP::CLI.run(
+              [
+                "--socket",
+                fixture.socket_path,
+                "--tmux",
+                fixture.executable,
+                "--enable-tool",
+                "tmux_run",
+                "--enroll-pane",
+                "#{pane.id}=#{setup}"
+              ],
+              input: reader,
+              out: writer,
+              err: errors
+            )
+          ensure
+            writer.close
+          end
         begin
-          send_frame(input, id: 1, method: "initialize", params: {protocolVersion: "2025-11-25",
-            capabilities: {}, clientInfo: {name: "test", version: "1"}})
+          send_frame(
+            input,
+            id: 1,
+            method: "initialize",
+            params: {
+              protocolVersion: "2025-11-25",
+              capabilities: {
+              },
+              clientInfo: {
+                name: "test",
+                version: "1"
+              }
+            }
+          )
           assert_equal "2025-11-25", frame(output).dig("result", "protocolVersion")
           send_frame(input, method: "notifications/initialized")
           channel.puts(setup)
           assert_equal "ready", line(channel, label: "shell enrollment acknowledgement")
-          send_frame(input, id: 2, method: "tools/call", params: {name: "tmux_capabilities", arguments: {}})
+          send_frame(
+            input,
+            id: 2,
+            method: "tools/call",
+            params: {
+              name: "tmux_capabilities",
+              arguments: {
+              }
+            }
+          )
           capabilities = frame(output).dig("result", "structuredContent", "data")
-          target = {generation: capabilities.fetch("server_identity").fetch("generation"), kind: "pane", id: pane.id}
+          target = {
+            generation: capabilities.fetch("server_identity").fetch("generation"),
+            kind: "pane",
+            id: pane.id
+          }
           script = 'printf "%s:%s" "$LIBTMUX_CLI_CONTEXT" "$TMUX_PANE"; printf "\\377" >&2; exit 9'
-          send_frame(input, id: 3, method: "tools/call", params: {name: "tmux_run", arguments: {target: target, script: script}})
+          send_frame(
+            input,
+            id: 3,
+            method: "tools/call",
+            params: {
+              name: "tmux_run",
+              arguments: {
+                target: target,
+                script: script
+              }
+            }
+          )
           response = frame(output).dig("result", "structuredContent")
           assert response.fetch("ok"), response.inspect
           result = response.fetch("data")
           assert_equal "literal-context:#{pane.id}", result.fetch("stdout").fetch("data")
-          assert_equal({"encoding" => "base64", "data" => "/w==", "bytes" => 1, "truncated" => false}, result.fetch("stderr"))
-          assert_equal({"state" => "exited", "exit_status" => 9, "signal" => nil}, result.fetch("completion"))
+          assert_equal(
+            { "encoding" => "base64", "data" => "/w==", "bytes" => 1, "truncated" => false },
+            result.fetch("stderr")
+          )
+          assert_equal(
+            { "state" => "exited", "exit_status" => 9, "signal" => nil },
+            result.fetch("completion")
+          )
           assert_equal "authorized", result.fetch("authorization").fetch("state")
-          send_frame(input, id: 4, method: "tools/call", params: {name: "tmux_run",
-            arguments: {target: target, script: "printf ready", stdout_limit: 8, stderr_limit: 0}})
+          send_frame(
+            input,
+            id: 4,
+            method: "tools/call",
+            params: {
+              name: "tmux_run",
+              arguments: {
+                target: target,
+                script: "printf ready",
+                stdout_limit: 8,
+                stderr_limit: 0
+              }
+            }
+          )
           repeated = frame(output).dig("result", "structuredContent")
           assert repeated.fetch("ok"), repeated.inspect
           assert_equal "ready", repeated.fetch("data").fetch("stdout").fetch("data")
-          refute_equal result.fetch("authorization").fetch("run_id"), repeated.fetch("data").fetch("authorization").fetch("run_id")
+          refute_equal result.fetch("authorization").fetch("run_id"),
+                       repeated.fetch("data").fetch("authorization").fetch("run_id")
           input.close
           assert worker.join(0.5), "enrolled CLI did not retire after EOF"
           assert_equal 0, worker.value, errors.string
           assert_empty errors.string
           refute File.exist?(setup)
           assert_empty Dir[File.join(directory, ".libtmux-ruby-shell-*")]
-          assert server.run(["has-session", "-t", "cli-shell"]).success?
+          assert server.run(%w[has-session -t cli-shell]).success?
           assert_empty server.list_clients
         ensure
           input.close unless input.closed?
@@ -245,9 +399,22 @@ class McpCLIIntegrationTest < Minitest::Test
     reader, input = IO.pipe
     output, writer = IO.pipe
     errors = StringIO.new
-    status = LibTmux::MCP::CLI.run(["--socket", fixture.socket_path, "--tmux", fixture.executable,
-      "--enable-tool", "tmux_run", "--enroll-pane", "#{pane_id}=#{setup}"],
-      input: reader, out: writer, err: errors)
+    status =
+      LibTmux::MCP::CLI.run(
+        [
+          "--socket",
+          fixture.socket_path,
+          "--tmux",
+          fixture.executable,
+          "--enable-tool",
+          "tmux_run",
+          "--enroll-pane",
+          "#{pane_id}=#{setup}"
+        ],
+        input: reader,
+        out: writer,
+        err: errors
+      )
     assert_equal 1, status
     assert_includes errors.string, "LibTmux::UnsupportedFeatureError"
     writer.close
@@ -261,7 +428,7 @@ class McpCLIIntegrationTest < Minitest::Test
   end
 
   def send_frame(io, **message)
-    io.write(JSON.generate({jsonrpc: "2.0", **message}) + "\n")
+    io.write(JSON.generate({ jsonrpc: "2.0", **message }) + "\n")
   end
 
   def frame(io)
@@ -281,7 +448,8 @@ class McpCLIIntegrationTest < Minitest::Test
       part = io.read_nonblock(16_384, exception: false)
       if part == :wait_readable
         remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        assert remaining.positive? && IO.select([io], nil, nil, remaining), "#{label} did not complete"
+        assert remaining.positive? && IO.select([io], nil, nil, remaining),
+               "#{label} did not complete"
       elsif part
         bytes << part
       else

@@ -33,7 +33,9 @@ module LibTmux
           raise ArgumentError, "config must be a nonempty filename without NUL"
         end
         config = config ? File.expand_path(config) : File::NULL
-        raise ArgumentError, "config must be a readable regular file" unless File.file?(config) && File.readable?(config) || config == File::NULL
+        unless File.file?(config) && File.readable?(config) || config == File::NULL
+          raise ArgumentError, "config must be a readable regular file"
+        end
 
         @owner_pid = Process.pid
         @mutex = Mutex.new
@@ -45,9 +47,13 @@ module LibTmux
             begin
               check_cancel(cancel)
               @directory = Dir.mktmpdir("libtmux-ruby-server-")
-              @endpoint = Endpoint.new(socket_path: File.join(@directory, "socket"), executable: executable)
+              @endpoint =
+                Endpoint.new(socket_path: File.join(@directory, "socket"), executable: executable)
               if @endpoint.socket_path.bytesize > 103
-                raise UnsupportedFeatureError.new("owned Unix socket path exceeds the platform limit", phase: :startup)
+                raise UnsupportedFeatureError.new(
+                        "owned Unix socket path exceeds the platform limit",
+                        phase: :startup
+                      )
               end
               @readiness = SocketReadiness.new(@directory)
               @child = OwnedChild.new
@@ -55,11 +61,29 @@ module LibTmux
               begin
                 check_cancel(cancel)
                 check_deadline(deadline)
-                pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil},
-                  @endpoint.executable, "-u", "-D", *@readiness.arguments, "-S", @endpoint.socket_path, "-f", config,
-                  in: File::NULL, out: File::NULL, err: File::NULL, close_others: true, **@readiness.spawn_options)
+                pid =
+                  Process.spawn(
+                    { "TMUX" => nil, "TMUX_PANE" => nil },
+                    @endpoint.executable,
+                    "-u",
+                    "-D",
+                    *@readiness.arguments,
+                    "-S",
+                    @endpoint.socket_path,
+                    "-f",
+                    config,
+                    in: File::NULL,
+                    out: File::NULL,
+                    err: File::NULL,
+                    close_others: true,
+                    **@readiness.spawn_options
+                  )
               rescue SystemCallError, IOError => error
-                raise TransportError.new("owned daemon could not start (#{error.class})", phase: :spawn), cause: nil
+                raise TransportError.new(
+                        "owned daemon could not start (#{error.class})",
+                        phase: :spawn
+                      ),
+                      cause: nil
               ensure
                 @child.spawned(pid)
               end
@@ -113,7 +137,11 @@ module LibTmux
                   @child.finish_signalling
                 end
                 unless @child.join((deadline - clock).clamp(0, 0.5))
-                  raise DeadlineExceeded.new("owned daemon has not retired; retry close", phase: :retire, pid: @child.pid)
+                  raise DeadlineExceeded.new(
+                          "owned daemon has not retired; retry close",
+                          phase: :retire,
+                          pid: @child.pid
+                        )
                 end
               end
               attempt(errors, "observer close") { @child.close } if @child.complete?
@@ -121,7 +149,9 @@ module LibTmux
             if !@child || @child.complete?
               attempt(errors, "startup log removal") { @readiness&.remove_files(@child&.pid) }
               attempt(errors, "socket removal") do
-                File.unlink(@endpoint.socket_path) if @endpoint && File.exist?(@endpoint.socket_path)
+                if @endpoint && File.exist?(@endpoint.socket_path)
+                  File.unlink(@endpoint.socket_path)
+                end
               end
               attempt(errors, "owned directory removal") do
                 Dir.rmdir(@directory) if @directory && File.exist?(@directory)
@@ -135,8 +165,13 @@ module LibTmux
               @observer_fault_reported = true
             end
             unless errors.empty?
-              raise TransportError.new("owned daemon cleanup failed", phase: :retire,
-                pid: @child&.pid, delivery: @child&.pid ? :possibly_sent : :not_sent, cleanup_errors: errors)
+              raise TransportError.new(
+                      "owned daemon cleanup failed",
+                      phase: :retire,
+                      pid: @child&.pid,
+                      delivery: @child&.pid ? :possibly_sent : :not_sent,
+                      cleanup_errors: errors
+                    )
             end
           end
         end
@@ -148,8 +183,12 @@ module LibTmux
       def await_ready(deadline, cancel)
         loop do
           if @child.observed? || @child.observation_error || @child.complete?
-            raise TransportError.new("owned tmux daemon exited before becoming ready", phase: :startup,
-              pid: @child.pid, delivery: :possibly_sent)
+            raise TransportError.new(
+                    "owned tmux daemon exited before becoming ready",
+                    phase: :startup,
+                    pid: @child.pid,
+                    delivery: :possibly_sent
+                  )
           end
           if @readiness.ready?(@child)
             check_deadline(deadline)
@@ -163,22 +202,35 @@ module LibTmux
           IO.select(readers, nil, nil, [deadline - clock, 0].max)
         end
       rescue IOError, SystemCallError
-        raise TransportError.new("owned daemon readiness failed", phase: :startup,
-          pid: @child.pid, delivery: :possibly_sent), cause: nil
+        raise TransportError.new(
+                "owned daemon readiness failed",
+                phase: :startup,
+                pid: @child.pid,
+                delivery: :possibly_sent
+              ),
+              cause: nil
       end
 
       def check_cancel(cancel)
         return unless cancel&.cancelled?
 
-        raise Cancelled.new("owned daemon startup cancelled", phase: :startup,
-          delivery: @child&.pid ? :possibly_sent : :not_sent, pid: @child&.pid)
+        raise Cancelled.new(
+                "owned daemon startup cancelled",
+                phase: :startup,
+                delivery: @child&.pid ? :possibly_sent : :not_sent,
+                pid: @child&.pid
+              )
       end
 
       def check_deadline(deadline)
         return if clock < deadline
 
-        raise DeadlineExceeded.new("owned daemon startup exceeded deadline", phase: :startup,
-          delivery: @child&.pid ? :possibly_sent : :not_sent, pid: @child&.pid)
+        raise DeadlineExceeded.new(
+                "owned daemon startup exceeded deadline",
+                phase: :startup,
+                delivery: @child&.pid ? :possibly_sent : :not_sent,
+                pid: @child&.pid
+              )
       end
 
       def clock
@@ -203,7 +255,13 @@ module LibTmux
       def initialize(executable: "tmux", config: nil, timeout: 5.0, cancel: nil, **options)
         begin
           Thread.handle_interrupt(Exception => :never) do
-            @daemon = OwnedDaemon.new(executable: executable, config: config, timeout: timeout, cancel: cancel)
+            @daemon =
+              OwnedDaemon.new(
+                executable: executable,
+                config: config,
+                timeout: timeout,
+                cancel: cancel
+              )
             super(endpoint: @daemon.endpoint, **options)
             @binding_ready = true
             Thread.handle_interrupt(Exception => :immediate) { nil }
@@ -212,7 +270,12 @@ module LibTmux
           begin
             Thread.handle_interrupt(Exception => :never) { close }
           rescue Exception => cleanup
-            failure.__send__(:attach_cleanup_errors, ["owned daemon close failed (#{cleanup.class})"]) if failure.is_a?(Error)
+            if failure.is_a?(Error)
+              failure.__send__(
+                :attach_cleanup_errors,
+                ["owned daemon close failed (#{cleanup.class})"]
+              )
+            end
           end
           raise failure
         end
@@ -234,7 +297,12 @@ module LibTmux
               begin
                 @daemon&.close
               rescue Exception => cleanup
-                failure.__send__(:attach_cleanup_errors, ["owned daemon close failed (#{cleanup.class})"]) if failure.is_a?(Error)
+                if failure.is_a?(Error)
+                  failure.__send__(
+                    :attach_cleanup_errors,
+                    ["owned daemon close failed (#{cleanup.class})"]
+                  )
+                end
                 failure ||= cleanup
               end
             end

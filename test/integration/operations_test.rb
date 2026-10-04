@@ -33,11 +33,15 @@ class OperationsTest < Minitest::Test
       session.options.set("update-environment", "TWO", index: 7)
       rows = session.options.list(name: "update-environment")
       assert_equal [2, 7], rows.map(&:index)
-      assert_equal ["ONE", "TWO"], rows.map(&:raw)
+      assert_equal %w[ONE TWO], rows.map(&:raw)
       session.options.unset("update-environment", index: 2)
       assert_equal [7], session.options.list(name: "update-environment").map(&:index)
       assert_equal "TWO", session.options.get("update-environment", index: 7).raw
-      session.hooks.set("after-new-window", command: "set-option -t #{session.id} @hook ran", index: 4)
+      session.hooks.set(
+        "after-new-window",
+        command: "set-option -t #{session.id} @hook ran",
+        index: 4
+      )
       assert_equal [4], session.hooks.list(name: "after-new-window").map(&:index)
       session.hooks.run("after-new-window")
       assert_equal "ran".b, session.options.get("@hook").raw
@@ -55,7 +59,8 @@ class OperationsTest < Minitest::Test
       payload = "NUL\0\xff\n\n".b
       server.write_buffer(name: "literal ;", data: payload)
       assert_equal payload, server.read_buffer("literal ;").stdout
-      assert_equal [["literal ;", payload.bytesize]], server.list_buffers.map { |row| [row.fetch(:name), row.fetch(:size)] }
+      assert_equal [["literal ;", payload.bytesize]],
+                   server.list_buffers.map { |row| [row.fetch(:name), row.fetch(:size)] }
       server.write_buffer(name: "paste", data: "one\ntwo\n")
       assert pane.paste(buffer: "paste", delete: true, separator: " ").success?
       assert_raises(LibTmux::CommandError) { server.read_buffer("paste") }
@@ -83,7 +88,8 @@ class OperationsTest < Minitest::Test
       assert_equal "20\n", split.display('#{pane_width}').text
       positions = [split, pane].map { |entry| entry.display('#{pane_left}:#{pane_top}').stdout }
       split.swap(pane.ref)
-      assert_equal positions.reverse, [split, pane].map { |entry| entry.display('#{pane_left}:#{pane_top}').stdout }
+      assert_equal positions.reverse,
+                   [split, pane].map { |entry| entry.display('#{pane_left}:#{pane_top}').stdout }
       split.select
       assert_equal "1\n", split.display('#{pane_active}').text
       destination = split.break_out(session: session.ref, name: "broken;")
@@ -91,7 +97,9 @@ class OperationsTest < Minitest::Test
       split.join(pane.ref, direction: :vertical)
       assert_equal [pane.id, split.id].sort, window.list_panes.map(&:id).sort
       split.move(pane.ref, direction: :horizontal, before: true)
-      assert_operator split.display('#{pane_left}').text.to_i, :<, pane.display('#{pane_left}').text.to_i
+      assert_operator split.display('#{pane_left}').text.to_i,
+                      :<,
+                      pane.display('#{pane_left}').text.to_i
       split.respawn(command: ["/bin/cat"], kill: true)
       session.link_window(window.ref, index: 8)
       session.link_window(window.ref, index: 9)
@@ -123,15 +131,27 @@ class OperationsTest < Minitest::Test
       server.options(scope: :server).set("command-alias", "if-shell=wait-for never", index: 90)
       server.options(scope: :server).set("command-alias", "select-window=wait-for never", index: 91)
       assert link.select.success?
-      assert fixture.tmux("set-hook", "-g", "after-show-options[99]", "wait-for -S link-ready ; wait-for link-release").last.success?
-      request = Thread.new do
-        link.unlink
-      rescue LibTmux::TargetNotFoundError => error
-        error
-      end
+      assert fixture
+               .tmux(
+                 "set-hook",
+                 "-g",
+                 "after-show-options[99]",
+                 "wait-for -S link-ready ; wait-for link-release"
+               )
+               .last
+               .success?
+      request =
+        Thread.new do
+          link.unlink
+        rescue LibTmux::TargetNotFoundError => error
+          error
+        end
       begin
         assert fixture.tmux("wait-for", "link-ready").last.success?
-        assert fixture.tmux("link-window", "-k", "-s", replacement.id, "-t", "#{session.id}:8").last.success?
+        assert fixture
+                 .tmux("link-window", "-k", "-s", replacement.id, "-t", "#{session.id}:8")
+                 .last
+                 .success?
         assert fixture.tmux("set-hook", "-gu", "after-show-options[99]").last.success?
         assert fixture.tmux("wait-for", "-S", "link-release").last.success?
         assert request.join(0.5), "link guard did not finish"
@@ -153,11 +173,12 @@ class OperationsTest < Minitest::Test
       link = session.list_window_links.find { |entry| entry.index == 8 }
       server.options.set("command-alias", "if-shell=", index: 90)
       server.options.set("command-alias", "show-options=show-options -v", index: 91)
-      outcome = begin
-        link.unlink(timeout: 0.5)
-      rescue LibTmux::UnsupportedFeatureError => error
-        error
-      end
+      outcome =
+        begin
+          link.unlink(timeout: 0.5)
+        rescue LibTmux::UnsupportedFeatureError => error
+          error
+        end
       assert_equal [0, 8], session.list_window_links.map(&:index)
       assert_instance_of LibTmux::UnsupportedFeatureError, outcome
       assert_equal :not_sent, outcome.delivery
@@ -171,7 +192,8 @@ class OperationsTest < Minitest::Test
       other = session.new_window(name: "other", command: ["/bin/cat"])
       first, second = session.list_window_links
       assert first.swap(second.ref, timeout: 0.5).success?
-      assert_equal [[0, other.id], [1, initial.id]], session.list_window_links.map { |link| [link.index, link.id] }
+      assert_equal [[0, other.id], [1, initial.id]],
+                   session.list_window_links.map { |link| [link.index, link.id] }
       assert_raises(LibTmux::TargetNotFoundError) { first.select }
       assert_raises(LibTmux::TargetNotFoundError) { second.select }
       assert_equal "#{initial.id}\n", initial.display('#{window_id}').stdout
@@ -208,7 +230,8 @@ class OperationsTest < Minitest::Test
 
       second.select
       window.select_layout(:even_horizontal)
-      assert_equal [30, 30], window.list_panes.map { |pane| pane.display('#{pane_height}').text.to_i }
+      assert_equal [30, 30],
+                   window.list_panes.map { |pane| pane.display('#{pane_height}').text.to_i }
       assert_equal "#{second.id}\n", window.display('#{pane_id}').text
       window.select_layout(layout)
       assert_equal layout, window.display('#{window_layout}').text.strip
@@ -223,10 +246,15 @@ class OperationsTest < Minitest::Test
       if release >= Gem::Version.new("3.5")
         assert_raises(ArgumentError) { window.select_layout("main-h") }
         window.select_layout(:main_vertical_mirrored)
-        assert_operator first.display('#{pane_left}').text.to_i, :>, second.display('#{pane_left}').text.to_i
+        assert_operator first.display('#{pane_left}').text.to_i,
+                        :>,
+                        second.display('#{pane_left}').text.to_i
       else
         window.select_layout("main-h")
-        error = assert_raises(LibTmux::UnsupportedFeatureError) { window.select_layout(:main_vertical_mirrored) }
+        error =
+          assert_raises(LibTmux::UnsupportedFeatureError) do
+            window.select_layout(:main_vertical_mirrored)
+          end
         assert_equal :not_sent, error.delivery
       end
       window.select_layout(layout)
@@ -269,7 +297,10 @@ class OperationsTest < Minitest::Test
       File.write(config, "set-option -g @source-loaded 'literal ; value'\n")
       assert server.source_file(config, timeout: 0.5).success?
       assert_equal "literal ; value", server.options(scope: :session).get("@source-loaded").raw
-      File.write(config, "set-option -g @source-loaded changed\nset-option -g nonexistent-option invalid\n")
+      File.write(
+        config,
+        "set-option -g @source-loaded changed\nset-option -g nonexistent-option invalid\n"
+      )
       failure = assert_raises(LibTmux::CommandError) { server.source_file(config, timeout: 0.5) }
       assert_equal :observed, failure.delivery
       assert_equal "changed", server.options(scope: :session).get("@source-loaded").raw
@@ -278,7 +309,10 @@ class OperationsTest < Minitest::Test
       assert server.wait_for(channel, action: :signal, timeout: 0.5).success?
       assert server.wait_for(channel, timeout: 0.5).success?
       assert server.wait_for(channel, action: :lock, timeout: 0.5).success?
-      blocked = assert_raises(LibTmux::DeadlineExceeded) { server.wait_for(channel, action: :lock, timeout: 0.1) }
+      blocked =
+        assert_raises(LibTmux::DeadlineExceeded) do
+          server.wait_for(channel, action: :lock, timeout: 0.1)
+        end
       assert_equal :possibly_sent, blocked.delivery
       assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
       # The retired client's queued lock still acquires in tmux after unlock.

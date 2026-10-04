@@ -21,7 +21,10 @@ module LibTmux
         error.__send__(:attach_cleanup_errors, details)
       else
         error.extend(CleanupDetails)
-        error.instance_variable_set(:@async_cleanup_errors, ((error.async_cleanup_errors || []) + details).freeze)
+        error.instance_variable_set(
+          :@async_cleanup_errors,
+          ((error.async_cleanup_errors || []) + details).freeze
+        )
       end
     rescue FrozenError, TypeError
       nil

@@ -15,7 +15,7 @@ module LibTmux
       end
       if socket_name
         validate_string(socket_name, "socket_name")
-        if socket_name.include?("/") || [".", ".."].include?(socket_name)
+        if socket_name.include?("/") || %w[. ..].include?(socket_name)
           raise ArgumentError, "socket_name must be a single filename"
         end
         directory = socket_directory || ENV["TMUX_TMPDIR"] || "/tmp"
@@ -61,13 +61,15 @@ module LibTmux
     end
 
     def resolve_executable(value)
-      candidates = if value.include?(File::SEPARATOR)
-        [File.expand_path(value)]
-      else
-        ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).map do |directory|
-          File.expand_path(value, directory.empty? ? Dir.pwd : directory)
+      candidates =
+        if value.include?(File::SEPARATOR)
+          [File.expand_path(value)]
+        else
+          ENV
+            .fetch("PATH", "")
+            .split(File::PATH_SEPARATOR)
+            .map { |directory| File.expand_path(value, directory.empty? ? Dir.pwd : directory) }
         end
-      end
       candidates.find { |path| File.file?(path) && File.executable?(path) } ||
         raise(ArgumentError, "tmux executable is unavailable")
     end
@@ -91,7 +93,10 @@ module LibTmux
             begin
               source = File.realpath(endpoint.socket_path)
               unless File.lstat(source).socket?
-                raise TargetNotFoundError.new("the selected endpoint is not a Unix socket", phase: :bind)
+                raise TargetNotFoundError.new(
+                        "the selected endpoint is not a Unix socket",
+                        phase: :bind
+                      )
               end
               make_route(source)
               @stat = File.lstat(@route)
@@ -111,7 +116,9 @@ module LibTmux
         end
         if error
           begin
-            Thread.handle_interrupt(Exception => :never) { cleanup_after_failure(error) } unless cleanup_attempted
+            unless cleanup_attempted
+              Thread.handle_interrupt(Exception => :never) { cleanup_after_failure(error) }
+            end
           rescue Exception
             # A second deferred cancellation cannot replace the original failure.
           end
@@ -122,7 +129,10 @@ module LibTmux
       def command_prefix
         @mutex.synchronize do
           if @closed || Process.pid != @owner_pid
-            raise ClosedError.new("the server binding is closed or belongs to another process", phase: :admission)
+            raise ClosedError.new(
+                    "the server binding is closed or belongs to another process",
+                    phase: :admission
+                  )
           end
           current = File.lstat(@route)
           unless current.socket? && [current.dev, current.ino] == [@stat.dev, @stat.ino]
@@ -130,7 +140,10 @@ module LibTmux
           end
           @prefix
         rescue Errno::ENOENT
-          raise TargetNotFoundError.new("the retained server route is unavailable", phase: :admission)
+          raise TargetNotFoundError.new(
+                  "the retained server route is unavailable",
+                  phase: :admission
+                )
         end
       end
 
@@ -147,7 +160,7 @@ module LibTmux
       end
 
       def inspect
-        "#<#{self.class} #{@closed ? 'closed' : 'bound'}>"
+        "#<#{self.class} #{@closed ? "closed" : "bound"}>"
       end
 
       private
@@ -165,7 +178,10 @@ module LibTmux
         when Errno::ENOENT, Errno::ECONNREFUSED
           TargetNotFoundError.new("the selected tmux endpoint is unavailable", phase: :bind)
         when SystemCallError
-          UnsupportedFeatureError.new("cannot retain a private route to this Unix socket", phase: :bind)
+          UnsupportedFeatureError.new(
+            "cannot retain a private route to this Unix socket",
+            phase: :bind
+          )
         else
           failure
         end
@@ -180,7 +196,10 @@ module LibTmux
           if @route.bytesize > 103
             remove_route
             next if index < roots.length - 1
-            raise UnsupportedFeatureError.new("the private Unix socket path exceeds the platform limit", phase: :bind)
+            raise UnsupportedFeatureError.new(
+                    "the private Unix socket path exceeds the platform limit",
+                    phase: :bind
+                  )
           end
           begin
             File.link(source, @route)

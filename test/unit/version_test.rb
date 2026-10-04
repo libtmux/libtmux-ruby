@@ -106,11 +106,12 @@ class VersionTest < Minitest::Test
   def test_sibling_dependency_must_be_runtime
     with_repository do |root|
       path = File.join(root, "gems/libtmux-async/libtmux-async.gemspec")
-      source = File.read(path).sub(
-        %(  spec.add_dependency "libtmux", "= 0.1.0.pre"\n),
-        %(  if false\n    spec.add_dependency "libtmux", "= 0.1.0.pre"\n  end\n) +
-          %(  spec.add_development_dependency("libtmux", "= 0.1.0.pre")\n)
-      )
+      source =
+        File.read(path).sub(
+          %(  spec.add_dependency "libtmux", "= 0.1.0.pre"\n),
+          %(  if false\n    spec.add_dependency "libtmux", "= 0.1.0.pre"\n  end\n) +
+            %(  spec.add_development_dependency("libtmux", "= 0.1.0.pre")\n)
+        )
       File.write(path, source)
       before = contents(root)
 
@@ -123,10 +124,11 @@ class VersionTest < Minitest::Test
     with_repository do |root|
       path = File.join(root, "Gemfile.lock")
       source = File.read(path).sub("      libtmux-async (= 0.1.0.pre)\n", "")
-      source = source.sub(
-        "    libtmux-workspace (0.1.0.pre)\n",
-        "    libtmux-workspace (0.1.0.pre)\n      libtmux-async (= 0.1.0.pre)\n"
-      )
+      source =
+        source.sub(
+          "    libtmux-workspace (0.1.0.pre)\n",
+          "    libtmux-workspace (0.1.0.pre)\n      libtmux-async (= 0.1.0.pre)\n"
+        )
       File.write(path, source)
       before = contents(root)
 
@@ -138,10 +140,11 @@ class VersionTest < Minitest::Test
   def test_lockfile_dependency_under_nonlocal_spec_in_same_source_fails_before_edits
     with_repository do |root|
       path = File.join(root, "Gemfile.lock")
-      source = File.read(path).sub(
-        "      libtmux-async (= 0.1.0.pre)\n",
-        "    shadow (1.0)\n      libtmux-async (= 0.1.0.pre)\n"
-      )
+      source =
+        File.read(path).sub(
+          "      libtmux-async (= 0.1.0.pre)\n",
+          "    shadow (1.0)\n      libtmux-async (= 0.1.0.pre)\n"
+        )
       File.write(path, source)
       before = contents(root)
 
@@ -153,11 +156,12 @@ class VersionTest < Minitest::Test
   def test_dormant_sibling_declaration_cannot_hide_stale_proposed_dependency
     with_repository do |root|
       path = File.join(root, "gems/libtmux-async/libtmux-async.gemspec")
-      source = File.read(path).sub(
-        %(  spec.add_dependency "libtmux", "= 0.1.0.pre"\n),
-        %(  if false\n    spec.add_dependency "libtmux", "= 0.1.0.pre"\n  end\n) +
-          %(  spec.add_dependency("libtmux", "= 0.1.0.pre")\n)
-      )
+      source =
+        File.read(path).sub(
+          %(  spec.add_dependency "libtmux", "= 0.1.0.pre"\n),
+          %(  if false\n    spec.add_dependency "libtmux", "= 0.1.0.pre"\n  end\n) +
+            %(  spec.add_dependency("libtmux", "= 0.1.0.pre")\n)
+        )
       File.write(path, source)
       before = contents(root)
 
@@ -181,17 +185,31 @@ class VersionTest < Minitest::Test
   def with_repository(version: "0.1.0.pre")
     Dir.mktmpdir("libtmux-ruby-version-") do |root|
       fixture = File.basename(root).split(/[^A-Za-z0-9]/).map(&:capitalize).join
-      constants = VERSION_FILES.to_h do |path|
-        name = path.split("/")[1].split("-").map(&:capitalize).join
-        [path, "#{fixture}#{name}"]
-      end
+      constants =
+        VERSION_FILES.to_h do |path|
+          name = path.split("/")[1].split("-").map(&:capitalize).join
+          [path, "#{fixture}#{name}"]
+        end
       constants.each do |path, constant|
-        write(root, path, "# frozen_string_literal: true\n\nmodule #{constant}\n  VERSION = \"#{version}\"\nend\n")
+        write(
+          root,
+          path,
+          "# frozen_string_literal: true\n\nmodule #{constant}\n  VERSION = \"#{version}\"\nend\n"
+        )
       end
       VERSION_FILES.each do |version_path|
         name = version_path.split("/")[1]
-        write(root, "gems/#{name}/#{name}.gemspec",
-          gemspec(name, sibling_dependencies(name), version, version_path, constants.fetch(version_path)))
+        write(
+          root,
+          "gems/#{name}/#{name}.gemspec",
+          gemspec(
+            name,
+            sibling_dependencies(name),
+            version,
+            version_path,
+            constants.fetch(version_path)
+          )
+        )
       end
       write(root, "README.md", "Install pkg/libtmux-#{version}.gem from the build output.\n")
       write(root, "Gemfile.lock", lockfile(version))
@@ -200,7 +218,8 @@ class VersionTest < Minitest::Test
   end
 
   def gemspec(name, siblings, version, version_path, constant)
-    dependencies = siblings.map { |dependency| %(  spec.add_dependency "#{dependency}", "= #{version}"\n) }.join
+    dependencies =
+      siblings.map { |dependency| %(  spec.add_dependency "#{dependency}", "= #{version}"\n) }.join
     relative_version = version_path.delete_prefix("gems/#{name}/").delete_suffix(".rb")
     <<~GEMSPEC
       require_relative "#{relative_version}"
@@ -215,8 +234,12 @@ class VersionTest < Minitest::Test
   end
 
   def sibling_dependencies(name)
-    {"libtmux" => [], "libtmux-async" => %w[libtmux],
-     "libtmux-mcp" => %w[libtmux libtmux-async], "libtmux-workspace" => %w[libtmux]}.fetch(name)
+    {
+      "libtmux" => [],
+      "libtmux-async" => %w[libtmux],
+      "libtmux-mcp" => %w[libtmux libtmux-async],
+      "libtmux-workspace" => %w[libtmux]
+    }.fetch(name)
   end
 
   def lockfile(version)
@@ -275,14 +298,16 @@ class VersionTest < Minitest::Test
   end
 
   def contents(root)
-    Dir.glob("{README.md,Gemfile.lock,gems/**/*}", base: root).select do |path|
-      File.file?(File.join(root, path))
-    end.to_h { |path| [path, File.binread(File.join(root, path))] }
+    Dir
+      .glob("{README.md,Gemfile.lock,gems/**/*}", base: root)
+      .select { |path| File.file?(File.join(root, path)) }
+      .to_h { |path| [path, File.binread(File.join(root, path))] }
   end
 
   def external_lock_content(lockfile)
-    lockfile.lines.reject do |line|
-      line.match?(/^ {2,6}libtmux(?:-(?:async|mcp|workspace))?(?:!| \()/)
-    end.join
+    lockfile
+      .lines
+      .reject { |line| line.match?(/^ {2,6}libtmux(?:-(?:async|mcp|workspace))?(?:!| \()/) }
+      .join
   end
 end

@@ -4,7 +4,8 @@ require "libtmux"
 
 begin
   LibTmux::Server.start do |server|
-    work = server.new_session(name: "work", command: ["/bin/cat"], receipt: true)
+    work =
+      server.new_session(name: "work", command: ["/bin/cat"], receipt: true)
     work.pane.split(direction: :horizontal, command: ["/bin/cat"])
     server.new_session(name: "other", command: ["/bin/cat"])
     puts "server panes: #{server.list_panes.length}"

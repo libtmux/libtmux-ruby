@@ -11,7 +11,7 @@ class ProcessExecutorTest < Minitest::Test
     arguments = ["", ";", "a\nb", "\\", "$(false)", "x y", "\"'", "#{35.chr}{pid}"]
     source = "Marshal.dump([ARGV, ENV.values_at('TMUX', 'TMUX_PANE')], STDOUT)"
     argv = ruby(source, *arguments)
-    result = executor.run(argv, env: {"TMUX" => "borrowed", "TMUX_PANE" => "%42"})
+    result = executor.run(argv, env: { "TMUX" => "borrowed", "TMUX_PANE" => "%42" })
 
     assert_equal [arguments, [nil, nil]], Marshal.load(result.stdout)
     assert result.success?
@@ -24,7 +24,10 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_preserves_binary_streams_and_raw_nonzero_status
-    result = executor.run(ruby("STDOUT.write([255, 10, 10].pack('C*')); STDERR.write([0, 254].pack('C*')); exit 17"))
+    result =
+      executor.run(
+        ruby("STDOUT.write([255, 10, 10].pack('C*')); STDERR.write([0, 254].pack('C*')); exit 17")
+      )
 
     assert_equal "\xff\n\n".b, result.stdout
     assert_equal "\x00\xfe".b, result.stderr
@@ -63,7 +66,8 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_expired_deadline_is_known_not_sent
-    error = assert_raises(LibTmux::DeadlineExceeded) { executor.run(["must-not-spawn"], timeout: 0) }
+    error =
+      assert_raises(LibTmux::DeadlineExceeded) { executor.run(["must-not-spawn"], timeout: 0) }
 
     assert_equal :not_sent, error.delivery
     assert_equal :admission, error.phase
@@ -71,9 +75,12 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_output_limit_retires_and_reaps_the_child
-    error = assert_raises(LibTmux::CapacityError) do
-      executor(stdout_limit: 1024).run(ruby("STDOUT.sync = true; loop { STDOUT.write('x' * 8192) }"))
-    end
+    error =
+      assert_raises(LibTmux::CapacityError) do
+        executor(stdout_limit: 1024).run(
+          ruby("STDOUT.sync = true; loop { STDOUT.write('x' * 8192) }")
+        )
+      end
 
     assert_equal :possibly_sent, error.delivery
     assert_equal :read, error.phase
@@ -84,7 +91,8 @@ class ProcessExecutorTest < Minitest::Test
   def test_cancellation_before_dispatch_never_spawns
     cancellation = LibTmux::Cancellation.new
     cancellation.cancel
-    error = assert_raises(LibTmux::Cancelled) { executor.run(["must-not-spawn"], cancel: cancellation) }
+    error =
+      assert_raises(LibTmux::Cancelled) { executor.run(["must-not-spawn"], cancel: cancellation) }
 
     assert_equal :not_sent, error.delivery
     assert_equal :admission, error.phase
@@ -96,14 +104,15 @@ class ProcessExecutorTest < Minitest::Test
   def test_cancellation_escalates_and_reaps_a_child_ignoring_term
     cancellation = LibTmux::Cancellation.new
     with_child_readiness do |ready, environment|
-      worker = task do
-        executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
+      worker =
+        task do
+          executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
           trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
           input.read(1)
         RUBY
-      end
+        end
       pid = Integer(read_event(ready), 10)
       20.times { cancellation.cancel }
       assert worker.join(0.5), "cancellation did not retire the owned client"
@@ -124,13 +133,11 @@ class ProcessExecutorTest < Minitest::Test
 
   def test_deadline_after_dispatch_reports_possible_effects
     with_child_readiness do |ready, environment|
-      worker = task do
-        executor.run(ruby(<<~RUBY), env: environment, timeout: 0.1)
+      worker = task { executor.run(ruby(<<~RUBY), env: environment, timeout: 0.1) }
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
           input.read(1)
         RUBY
-      end
       pid = Integer(read_event(ready), 10)
       assert worker.join(0.5), "deadline did not retire the owned client"
       error = worker.value
@@ -150,14 +157,13 @@ class ProcessExecutorTest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-") do |directory|
       path = File.join(directory, "transfer")
       UNIXServer.open(path) do |server|
-        worker = task do
-          executor(drain_timeout: 0.04).run(ruby(<<~RUBY), env: {"TRANSFER" => path})
+        worker =
+          task { executor(drain_timeout: 0.04).run(ruby(<<~RUBY), env: { "TRANSFER" => path }) }
             require 'socket'
             socket = UNIXSocket.new(ENV.fetch('TRANSFER'))
             socket.send_io(STDOUT)
             socket.close
           RUBY
-        end
         assert IO.select([server], nil, nil, 0.5), "child did not connect for pipe transfer"
         connection = server.accept
         assert IO.select([connection], nil, nil, 0.5), "child did not transfer its pipe"
@@ -184,13 +190,11 @@ class ProcessExecutorTest < Minitest::Test
   def test_thread_exception_survives_owned_cleanup
     failure = RuntimeError.new("caller cancelled")
     with_child_readiness do |ready, environment|
-      worker = task do
-        executor.run(ruby(<<~RUBY), env: environment)
+      worker = task { executor.run(ruby(<<~RUBY), env: environment) }
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
           input.read(1)
         RUBY
-      end
       pid = Integer(read_event(ready), 10)
       worker.raise(failure)
       assert worker.join(0.5), "interrupted caller did not retire its client"
@@ -209,22 +213,21 @@ class ProcessExecutorTest < Minitest::Test
     release = Queue.new
     observer = nil
     with_child_readiness do |ready, environment|
-      trace = TracePoint.new(:c_call) do |event|
-        next unless event.method_id == :wait2 && !observer
+      trace =
+        TracePoint.new(:c_call) do |event|
+          next unless event.method_id == :wait2 && !observer
 
-        observer = Thread.current
-        ready.syswrite("reaping\n")
-        release.pop
-      end
+          observer = Thread.current
+          ready.syswrite("reaping\n")
+          release.pop
+        end
       trace.enable
-      worker = task do
-        executor(cleanup_timeout: 0.15).run(ruby(<<~RUBY), env: environment)
+      worker = task { executor(cleanup_timeout: 0.15).run(ruby(<<~RUBY), env: environment) }
           input, output = IO.pipe
           trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input.read(1)
         RUBY
-      end
       pid = Integer(read_event(ready), 10)
       worker.raise(original)
       assert_equal "reaping", read_event(ready)
@@ -244,9 +247,10 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def test_caps_request_bytes_before_dispatch
-    error = assert_raises(LibTmux::CapacityError) do
-      executor.run(ruby("exit 0"), input: "x" * ((1 << 20) + 1))
-    end
+    error =
+      assert_raises(LibTmux::CapacityError) do
+        executor.run(ruby("exit 0"), input: "x" * ((1 << 20) + 1))
+      end
     assert_equal :not_sent, error.delivery
     assert_equal :admission, error.phase
     assert_nil error.pid
@@ -259,9 +263,10 @@ class ProcessExecutorTest < Minitest::Test
 
   def test_spawn_failure_closes_descriptors_and_redacts_the_executable
     before = Dir.children("/dev/fd").length
-    error = assert_raises(LibTmux::TransportError) do
-      executor.run(["/unavailable/private-command-argument"])
-    end
+    error =
+      assert_raises(LibTmux::TransportError) do
+        executor.run(["/unavailable/private-command-argument"])
+      end
 
     assert_equal :not_sent, error.delivery
     assert_equal :spawn, error.phase
@@ -281,11 +286,12 @@ class ProcessExecutorTest < Minitest::Test
     assert_equal 1, Process.kill(0, pid)
     assert_equal 1, Process.kill("TERM", pid)
 
-    waited = begin
-      Process.waitpid2(pid, Process::WNOHANG)
-    rescue Errno::ECHILD
-      nil
-    end
+    waited =
+      begin
+        Process.waitpid2(pid, Process::WNOHANG)
+      rescue Errno::ECHILD
+        nil
+      end
     assert waited, "exit observer reaped the client before its owner could finish signalling"
     assert_equal pid, waited.first
     assert_equal 17, waited.last.exitstatus
@@ -330,20 +336,22 @@ class ProcessExecutorTest < Minitest::Test
     release = Queue.new
     handed_off = false
     observer = nil
-    trace = TracePoint.new(:return, :c_call) do |event|
-      if event.event == :return && event.defined_class == LibTmux::Internal::OwnedChild &&
-          event.method_id == :finish_signalling && !handed_off
-        handed_off = true
-        cancel.cancel
-      elsif event.event == :c_call && event.method_id == :wait2 && !observer
-        observer = Thread.current
-        release.pop
-      elsif event.event == :c_call && event.method_id == :select && handed_off
-        release << true
+    trace =
+      TracePoint.new(:return, :c_call) do |event|
+        if event.event == :return && event.defined_class == LibTmux::Internal::OwnedChild &&
+             event.method_id == :finish_signalling && !handed_off
+          handed_off = true
+          cancel.cancel
+        elsif event.event == :c_call && event.method_id == :wait2 && !observer
+          observer = Thread.current
+          release.pop
+        elsif event.event == :c_call && event.method_id == :select && handed_off
+          release << true
+        end
       end
-    end
     trace.enable
-    worker = task { executor(cleanup_timeout: 0.02).run(ruby('STDOUT.write("done")'), cancel: cancel) }
+    worker =
+      task { executor(cleanup_timeout: 0.02).run(ruby('STDOUT.write("done")'), cancel: cancel) }
     assert worker.join(0.5), "observed command did not finish its bounded drain"
     assert_instance_of LibTmux::CommandResult, worker.value
     assert_equal "done", worker.value.stdout
@@ -361,14 +369,19 @@ class ProcessExecutorTest < Minitest::Test
     before = Thread.list
     cancellation = LibTmux::Cancellation.new
     with_child_readiness do |ready, environment|
-      worker = task do
-        executor(cleanup_timeout: 0.000000001).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
+      worker =
+        task do
+          executor(cleanup_timeout: 0.000000001).run(
+            ruby(<<~RUBY),
           trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
           input.read(1)
         RUBY
-      end
+            env: environment,
+            cancel: cancellation
+          )
+        end
       pid = Integer(read_event(ready), 10)
       cancellation.cancel
       assert worker.join(0.5), "cleanup did not respect its deadline"
@@ -392,17 +405,19 @@ class ProcessExecutorTest < Minitest::Test
 
   def test_fork_child_detaches_cancellation_without_waking_parent
     cancellation = LibTmux::Cancellation.new
-    child = fork do
-      cancellation.close
-      exit!(cancellation.reader.closed? ? 0 : 18)
-    rescue Exception
-      exit! 17
-    end
+    child =
+      fork do
+        cancellation.close
+        exit!(cancellation.reader.closed? ? 0 : 18)
+      rescue Exception
+        exit! 17
+      end
     _, status = Process.wait2(child)
 
     assert status.success?, "fork child could not detach inherited token descriptors"
     refute cancellation.cancelled?
-    assert_nil IO.select([cancellation.reader], nil, nil, 0), "child wrote to the parent's cancellation pipe"
+    assert_nil IO.select([cancellation.reader], nil, nil, 0),
+               "child wrote to the parent's cancellation pipe"
     cancellation.cancel
     assert IO.select([cancellation.reader], nil, nil, 0)
   ensure
@@ -412,22 +427,21 @@ class ProcessExecutorTest < Minitest::Test
   def test_interrupted_exit_observer_does_not_abandon_a_live_owned_child
     release = Queue.new
     # Raise in the real observer thread without substituting the child or waiter.
-    trace = TracePoint.new(:call) do |event|
-      if event.defined_class == LibTmux::Internal::ProcessWait && event.method_id == :observe
-        release.pop
-        raise IOError, "exit observer failed"
+    trace =
+      TracePoint.new(:call) do |event|
+        if event.defined_class == LibTmux::Internal::ProcessWait && event.method_id == :observe
+          release.pop
+          raise IOError, "exit observer failed"
+        end
       end
-    end
     with_child_readiness do |ready, environment|
       trace.enable
-      worker = task do
-        executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment)
+      worker = task { executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment) }
           trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
           input.read(1)
         RUBY
-      end
       pid = Integer(read_event(ready), 10)
       release << true
       assert worker.join(0.5), "failed exit observer did not release command ownership"
@@ -455,23 +469,26 @@ class ProcessExecutorTest < Minitest::Test
     release = Queue.new
     selected = nil
     cancellation = LibTmux::Cancellation.new
-    trace = TracePoint.new(:call) do |event|
-      if event.defined_class == LibTmux::Internal::ProcessWait && event.method_id == :observe && !selected
-        selected = Thread.current
-        release.pop
-        raise IOError, "late exit observer failure"
+    trace =
+      TracePoint.new(:call) do |event|
+        if event.defined_class == LibTmux::Internal::ProcessWait && event.method_id == :observe &&
+             !selected
+          selected = Thread.current
+          release.pop
+          raise IOError, "late exit observer failure"
+        end
       end
-    end
     with_child_readiness do |ready, environment|
       trace.enable
-      worker = task do
-        executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
+      worker =
+        task do
+          executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
           trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
           input.read(1)
         RUBY
-      end
+        end
       pid = Integer(read_event(ready), 10)
       cancellation.cancel
       witness = task { LibTmux::Internal::ProcessWait.new.observe(pid) }
@@ -521,9 +538,7 @@ class ProcessExecutorTest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-") do |directory|
       path = File.join(directory, "ready")
       File.mkfifo(path, 0o600)
-      File.open(path, File::RDWR | File::NONBLOCK) do |ready|
-        yield ready, {"READY" => path}
-      end
+      File.open(path, File::RDWR | File::NONBLOCK) { |ready| yield ready, { "READY" => path } }
     end
   end
 

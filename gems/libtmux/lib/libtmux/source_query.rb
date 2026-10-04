@@ -6,8 +6,13 @@ module LibTmux
   module Internal
     # Capturing all relation evidence is the conservative source plan.
     class SourceQuery
-      COLLECTIONS = {session: :sessions, window: :windows, pane: :panes,
-                     window_link: :window_links, client: :clients}.freeze
+      COLLECTIONS = {
+        session: :sessions,
+        window: :windows,
+        pane: :panes,
+        window_link: :window_links,
+        client: :clients
+      }.freeze
       private_constant :COLLECTIONS
 
       def initialize(entity, where:, pushdown: :auto)
@@ -18,11 +23,28 @@ module LibTmux
         @entity = entity
         @collection = COLLECTIONS.fetch(entity)
         @pushdown = pushdown
-        reasons = pushdown == :never ? [] : ["no tmux predicate compiler has passed differential verification"]
-        @explanation = freeze_tree({entity: entity, requested_pushdown: pushdown,
-          capture: :full_graph, capture_requirements: %i[session window window_link pane] + (entity == :client ? [:client] : []),
-          pushed: nil, residual: @expression.to_h, executable: pushdown != :required,
-          rejected_optimization_reasons: reasons})
+        reasons =
+          (
+            if pushdown == :never
+              []
+            else
+              ["no tmux predicate compiler has passed differential verification"]
+            end
+          )
+        @explanation =
+          freeze_tree(
+            {
+              entity: entity,
+              requested_pushdown: pushdown,
+              capture: :full_graph,
+              capture_requirements:
+                %i[session window window_link pane] + (entity == :client ? [:client] : []),
+              pushed: nil,
+              residual: @expression.to_h,
+              executable: pushdown != :required,
+              rejected_optimization_reasons: reasons
+            }
+          )
         freeze
       end
 
@@ -36,7 +58,10 @@ module LibTmux
 
       def execute(server, **options)
         if @pushdown == :required
-          raise UnsupportedFeatureError.new("required pushdown has no verified exact compiler; use :auto or :never", phase: :plan)
+          raise UnsupportedFeatureError.new(
+                  "required pushdown has no verified exact compiler; use :auto or :never",
+                  phase: :plan
+                )
         end
         options = options.merge(clients: true) if @entity == :client
         server.snapshot(**options).public_send(@collection).where(@expression)
@@ -46,10 +71,14 @@ module LibTmux
 
       def freeze_tree(value)
         case value
-        when Hash then value.to_h { |key, child| [key, freeze_tree(child)] }.freeze
-        when Array then value.map { |child| freeze_tree(child) }.freeze
-        when String then value.dup.freeze
-        else value
+        when Hash
+          value.to_h { |key, child| [key, freeze_tree(child)] }.freeze
+        when Array
+          value.map { |child| freeze_tree(child) }.freeze
+        when String
+          value.dup.freeze
+        else
+          value
         end
       end
     end

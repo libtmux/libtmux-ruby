@@ -7,25 +7,31 @@ if ARGV.delete("--compare-waits")
   requested = 0.05
   measurements = []
   6.times do |sample|
-    backends = sample.even? ? [:condition_variable, :select] : [:select, :condition_variable]
+    backends = sample.even? ? %i[condition_variable select] : %i[select condition_variable]
     backends.each do |backend|
       reader, writer = IO.pipe
       mutex, changed = Mutex.new, ConditionVariable.new
-      worker = Thread.new do
-        Thread.handle_interrupt(Exception => :never) do
-          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          if backend == :condition_variable
-            mutex.synchronize { changed.wait(mutex, requested) }
-          else
-            IO.select([reader], nil, nil, requested)
+      worker =
+        Thread.new do
+          Thread.handle_interrupt(Exception => :never) do
+            started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            if backend == :condition_variable
+              mutex.synchronize { changed.wait(mutex, requested) }
+            else
+              IO.select([reader], nil, nil, requested)
+            end
+            Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
           end
-          Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
         end
-      end
       begin
         completed = !!worker.join(0.5)
-        measurements << {sample: sample + 1, backend: backend, requested_seconds: requested,
-          completed: completed, elapsed_seconds: completed ? worker.value : nil}
+        measurements << {
+          sample: sample + 1,
+          backend: backend,
+          requested_seconds: requested,
+          completed: completed,
+          elapsed_seconds: completed ? worker.value : nil
+        }
       ensure
         worker.kill if worker.alive?
         worker.join(0.5)
@@ -34,8 +40,12 @@ if ARGV.delete("--compare-waits")
       end
     end
   end
-  puts JSON.pretty_generate(ruby: RUBY_DESCRIPTION, platform: RUBY_PLATFORM,
-    clock: "CLOCK_MONOTONIC", measurements: measurements)
+  puts JSON.pretty_generate(
+         ruby: RUBY_DESCRIPTION,
+         platform: RUBY_PLATFORM,
+         clock: "CLOCK_MONOTONIC",
+         measurements: measurements
+       )
   exit
 end
 
@@ -48,47 +58,62 @@ module NativeChildTrace
   EVENTS = []
 
   def self.record(phase, owner, detail = nil)
-    event = {seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - STARTED,
-      thread: Thread.current.object_id, owner: owner.object_id, phase: phase, detail: detail}
+    event = {
+      seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - STARTED,
+      thread: Thread.current.object_id,
+      owner: owner.object_id,
+      phase: phase,
+      detail: detail
+    }
     LOCK.synchronize { EVENTS << event }
   end
 end
 
-LibTmux::Internal::OwnedChild.prepend(Module.new do
-  [:spawned, :signal, :wait_observed, :finish_signalling, :join].each do |name|
-    define_method(name) do |*arguments, &block|
-      NativeChildTrace.record("#{name}:enter", self, arguments)
-      result = super(*arguments, &block)
-      NativeChildTrace.record("#{name}:leave", self, !!result)
-      result
-    rescue Exception => error
-      NativeChildTrace.record("#{name}:error", self, error.class.name)
-      raise
+LibTmux::Internal::OwnedChild.prepend(
+  Module.new do
+    %i[spawned signal wait_observed finish_signalling join].each do |name|
+      define_method(name) do |*arguments, &block|
+        NativeChildTrace.record("#{name}:enter", self, arguments)
+        result = super(*arguments, &block)
+        NativeChildTrace.record("#{name}:leave", self, !!result)
+        result
+      rescue Exception => error
+        NativeChildTrace.record("#{name}:error", self, error.class.name)
+        raise
+      end
     end
   end
-end)
+)
 
-LibTmux::Internal::ProcessWait.prepend(Module.new do
-  def observe(pid)
-    NativeChildTrace.record("waitid:enter", self, pid)
-    super
-  ensure
-    NativeChildTrace.record("waitid:leave", self, pid)
+LibTmux::Internal::ProcessWait.prepend(
+  Module.new do
+    def observe(pid)
+      NativeChildTrace.record("waitid:enter", self, pid)
+      super
+    ensure
+      NativeChildTrace.record("waitid:leave", self, pid)
+    end
   end
-end)
+)
 
-Process.singleton_class.prepend(Module.new do
-  def wait2(*arguments)
-    NativeChildTrace.record("wait2:enter", self, arguments)
-    super
-  ensure
-    NativeChildTrace.record("wait2:leave", self, arguments)
+Process.singleton_class.prepend(
+  Module.new do
+    def wait2(*arguments)
+      NativeChildTrace.record("wait2:enter", self, arguments)
+      super
+    ensure
+      NativeChildTrace.record("wait2:leave", self, arguments)
+    end
   end
-end)
+)
 
 Minitest.after_run do
-  report = {ruby: RUBY_DESCRIPTION, platform: RUBY_PLATFORM, clock: "CLOCK_MONOTONIC",
+  report = {
+    ruby: RUBY_DESCRIPTION,
+    platform: RUBY_PLATFORM,
+    clock: "CLOCK_MONOTONIC",
     elapsed_seconds: Process.clock_gettime(Process::CLOCK_MONOTONIC) - NativeChildTrace::STARTED,
-    events: NativeChildTrace::LOCK.synchronize { NativeChildTrace::EVENTS.dup }}
+    events: NativeChildTrace::LOCK.synchronize { NativeChildTrace::EVENTS.dup }
+  }
   File.write(ENV.fetch("CHILD_TRACE"), JSON.pretty_generate(report))
 end

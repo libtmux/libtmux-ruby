@@ -10,15 +10,28 @@ class MCPTransportTest < Minitest::Test
     Async do |parent|
       %w[2024-11-05 2025-03-26 2025-06-18 2025-11-25].each do |version|
         with_transport(parent) do |transport, input, output|
-          send_frame(input, request(1, "initialize", protocolVersion: version, capabilities: {}, clientInfo: {name: "legacy", version: "1"}))
+          send_frame(
+            input,
+            request(
+              1,
+              "initialize",
+              protocolVersion: version,
+              capabilities: {
+              },
+              clientInfo: {
+                name: "legacy",
+                version: "1"
+              }
+            )
+          )
           assert_equal version, read_frame(parent, output).dig("result", "protocolVersion")
-          send_frame(input, {jsonrpc: "2.0", method: "notifications/initialized"})
+          send_frame(input, { jsonrpc: "2.0", method: "notifications/initialized" })
           send_frame(input, request(2, "custom/echo", value: "legacy"))
           response = read_frame(parent, output)
           assert_equal "legacy", response.dig("result", "value")
           refute response.fetch("result").key?("resultType")
           send_frame(input, request(3, "custom/echo", **modern_params(value: "wrong era")))
-          assert_equal(-32600, read_frame(parent, output).dig("error", "code"))
+          assert_equal(-32_600, read_frame(parent, output).dig("error", "code"))
         end
       end
       with_transport(parent) do |transport, input, output|
@@ -29,11 +42,33 @@ class MCPTransportTest < Minitest::Test
         assert_equal "modern", result.fetch("value")
         assert_equal "complete", result.fetch("resultType")
         send_frame(input, request(3, "custom/echo", value: "missing envelope"))
-        assert_equal(-32602, read_frame(parent, output).dig("error", "code"))
-        send_frame(input, request(4, "initialize", protocolVersion: "2025-11-25", capabilities: {}, clientInfo: {name: "legacy", version: "1"}))
-        assert_equal(-32601, read_frame(parent, output).dig("error", "code"))
-        send_frame(input, request(5, "custom/echo", _meta: {"io.modelcontextprotocol/protocolVersion" => "2026-07-28"}))
-        assert_equal(-32602, read_frame(parent, output).dig("error", "code"))
+        assert_equal(-32_602, read_frame(parent, output).dig("error", "code"))
+        send_frame(
+          input,
+          request(
+            4,
+            "initialize",
+            protocolVersion: "2025-11-25",
+            capabilities: {
+            },
+            clientInfo: {
+              name: "legacy",
+              version: "1"
+            }
+          )
+        )
+        assert_equal(-32_601, read_frame(parent, output).dig("error", "code"))
+        send_frame(
+          input,
+          request(
+            5,
+            "custom/echo",
+            _meta: {
+              "io.modelcontextprotocol/protocolVersion" => "2026-07-28"
+            }
+          )
+        )
+        assert_equal(-32_602, read_frame(parent, output).dig("error", "code"))
       end
     end.wait
   end
@@ -49,8 +84,8 @@ class MCPTransportTest < Minitest::Test
           sdk = sdk_server
           sdk.define_custom_method(method_name: "custom/wait") do |params, server_context:|
             entered << [Thread.current, server_context.cancellation]
-            scope.server.run(["wait-for", "-S", "mcp-ready", ";", "wait-for", "mcp-held"], timeout: 0.5)
-            {finished: true}
+            scope.server.run(%w[wait-for -S mcp-ready ; wait-for mcp-held], timeout: 0.5)
+            { finished: true }
           rescue LibTmux::Cancelled => error
             cancelled << error
             raise
@@ -61,11 +96,20 @@ class MCPTransportTest < Minitest::Test
               read_frame(parent, output)
               send_frame(input, request(2, "custom/wait", **modern_params))
               scope.server.wait_for("mcp-ready", timeout: 0.5)
-              send_frame(input, request(3, "custom/echo", **modern_params(value: "concurrent reader")))
+              send_frame(
+                input,
+                request(3, "custom/echo", **modern_params(value: "concurrent reader"))
+              )
               assert_equal "concurrent reader", read_frame(parent, output).dig("result", "value")
               refute entered.first.last.cancelled?
-              send_frame(input, {jsonrpc: "2.0", method: "notifications/cancelled", params: {requestId: 2}})
-              send_frame(input, request(4, "custom/echo", **modern_params(value: "reader progressed")))
+              send_frame(
+                input,
+                { jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 2 } }
+              )
+              send_frame(
+                input,
+                request(4, "custom/echo", **modern_params(value: "reader progressed"))
+              )
               response = read_frame(parent, output)
               assert_equal 4, response.fetch("id")
               assert_equal "reader progressed", response.dig("result", "value")
@@ -75,9 +119,11 @@ class MCPTransportTest < Minitest::Test
               scope.server.wait_for("mcp-ready", timeout: 0.5)
               input.close
             end
-            assert source.run(["has-session", "-t", "fixture"]).success?
+            assert source.run(%w[has-session -t fixture]).success?
             assert_equal 2, cancelled.length
-            cancelled.each { |error| assert_raises(Errno::ECHILD) { Process.waitpid(error.pid, Process::WNOHANG) } }
+            cancelled.each do |error|
+              assert_raises(Errno::ECHILD) { Process.waitpid(error.pid, Process::WNOHANG) }
+            end
             assert_equal threads_before, Thread.list.length
             assert_equal fds_before, Dir.children("/proc/self/fd").length if fds_before
           ensure
@@ -91,11 +137,29 @@ class MCPTransportTest < Minitest::Test
   def test_first_success_locks_the_era_and_modern_context_is_request_local
     Async do |parent|
       sdk = sdk_server
-      sdk.define_custom_method(method_name: "custom/held") { |_, server_context:| ::Async::Notification.new.wait }
+      sdk.define_custom_method(method_name: "custom/held") do |_, server_context:|
+        ::Async::Notification.new.wait
+      end
       with_transport(parent, server: sdk) do |_, input, output|
         send_frame(input, request(1, "custom/held", **modern_params))
-        send_frame(input, request(2, "initialize", protocolVersion: "2025-11-25", capabilities: {}, clientInfo: {name: "legacy", version: "1"}))
-        send_frame(input, {jsonrpc: "2.0", method: "notifications/cancelled", params: {requestId: 1}})
+        send_frame(
+          input,
+          request(
+            2,
+            "initialize",
+            protocolVersion: "2025-11-25",
+            capabilities: {
+            },
+            clientInfo: {
+              name: "legacy",
+              version: "1"
+            }
+          )
+        )
+        send_frame(
+          input,
+          { jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 1 } }
+        )
         assert_equal "2025-11-25", read_frame(parent, output).dig("result", "protocolVersion")
       end
 
@@ -108,20 +172,27 @@ class MCPTransportTest < Minitest::Test
         else
           release.signal
         end
-        {client: server_context.client_info&.dig(:name), capabilities: server_context.client_capabilities}
+        {
+          client: server_context.client_info&.dig(:name),
+          capabilities: server_context.client_capabilities
+        }
       end
       with_transport(parent, server: sdk) do |_, input, output|
         send_frame(input, request(1, "server/discover"))
         read_frame(parent, output)
         first = modern_params(wait: true)
-        first[:_meta]["io.modelcontextprotocol/clientInfo"] = {name: "first", version: "1"}
-        first[:_meta]["io.modelcontextprotocol/clientCapabilities"] = {first: {}}
+        first[:_meta]["io.modelcontextprotocol/clientInfo"] = { name: "first", version: "1" }
+        first[:_meta]["io.modelcontextprotocol/clientCapabilities"] = { first: {} }
         send_frame(input, request(2, "custom/context", **first))
         parent.with_timeout(0.5) { ready.wait }
         send_frame(input, request(3, "custom/context", **modern_params))
-        replies = 2.times.map { read_frame(parent, output) }.to_h { |entry| [entry.fetch("id"), entry.fetch("result")] }
+        replies =
+          2
+            .times
+            .map { read_frame(parent, output) }
+            .to_h { |entry| [entry.fetch("id"), entry.fetch("result")] }
         assert_equal "first", replies.fetch(2).fetch("client")
-        assert_equal({"first" => {}}, replies.fetch(2).fetch("capabilities"))
+        assert_equal({ "first" => {} }, replies.fetch(2).fetch("capabilities"))
         assert_nil replies.fetch(3).fetch("client")
         assert_equal({}, replies.fetch(3).fetch("capabilities"))
       end
@@ -137,7 +208,13 @@ class MCPTransportTest < Minitest::Test
         ::Async::Notification.new.wait
         {}
       end
-      with_transport(parent, server: sdk, concurrency: 1, max_requests: 2, max_request_bytes: 512) do |transport, input, output|
+      with_transport(
+        parent,
+        server: sdk,
+        concurrency: 1,
+        max_requests: 2,
+        max_request_bytes: 512
+      ) do |transport, input, output|
         send_frame(input, request(1, "server/discover"))
         read_frame(parent, output)
         send_frame(input, request(2, "custom/held", **modern_params))
@@ -145,11 +222,17 @@ class MCPTransportTest < Minitest::Test
         send_frame(input, request(4, "custom/echo", **modern_params(value: "full")))
         refusal = read_frame(parent, output)
         assert_equal 4, refusal.fetch("id")
-        assert_equal(-32000, refusal.dig("error", "code"))
-        send_frame(input, {jsonrpc: "2.0", method: "notifications/cancelled", params: {requestId: 3}})
-        send_frame(input, {jsonrpc: "2.0", method: "notifications/cancelled", params: {requestId: 2}})
+        assert_equal(-32_000, refusal.dig("error", "code"))
+        send_frame(
+          input,
+          { jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 3 } }
+        )
+        send_frame(
+          input,
+          { jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 2 } }
+        )
         send_frame(input, request(5, "custom/echo", **modern_params(value: "x" * 600)))
-        assert_equal(-32000, read_frame(parent, output).dig("error", "code"))
+        assert_equal(-32_000, read_frame(parent, output).dig("error", "code"))
         send_frame(input, request(6, "custom/echo", **modern_params(value: "alive")))
         assert_equal "alive", read_frame(parent, output).dig("result", "value")
         assert_equal 1, entered
@@ -163,24 +246,25 @@ class MCPTransportTest < Minitest::Test
       sdk.define_custom_method(method_name: "custom/held") { |_| ::Async::Notification.new.wait }
       with_transport(parent, server: sdk, request_timeout: 0.02) do |_, input, output|
         send_frame(input, request(1, "custom/held"))
-        assert_equal(-32000, read_frame(parent, output).dig("error", "code"))
+        assert_equal(-32_000, read_frame(parent, output).dig("error", "code"))
         send_frame(input, request(2, "custom/echo", value: "after deadline"))
         assert_equal "after deadline", read_frame(parent, output).dig("result", "value")
       end
       elapsed = 0
-      sdk.define_custom_method(method_name: "custom/clock") { |_| elapsed += 1; {expired: true} }
+      sdk.define_custom_method(method_name: "custom/clock") do |_|
+        elapsed += 1
+        { expired: true }
+      end
       with_transport(parent, server: sdk) do |transport, input, output|
         transport.define_singleton_method(:clock) { super() + elapsed }
         send_frame(input, request(1, "custom/clock"))
-        assert_equal(-32000, read_frame(parent, output).dig("error", "code"))
+        assert_equal(-32_000, read_frame(parent, output).dig("error", "code"))
       end
       with_transport(parent) do |transport, input, output|
         transport.define_singleton_method(:clock) { super() + elapsed }
-        transport.define_singleton_method(:encode) do |message|
-          super(message).tap { elapsed += 1 }
-        end
+        transport.define_singleton_method(:encode) { |message| super(message).tap { elapsed += 1 } }
         send_frame(input, request(1, "custom/echo", value: "encoding crossed deadline"))
-        assert_equal(-32000, read_frame(parent, output).dig("error", "code"))
+        assert_equal(-32_000, read_frame(parent, output).dig("error", "code"))
       end
     end.wait
   end
@@ -189,11 +273,11 @@ class MCPTransportTest < Minitest::Test
     Async do |parent|
       with_transport(parent) do |transport, input, output|
         input.write("{\n")
-        assert_equal(-32700, read_frame(parent, output).dig("error", "code"))
+        assert_equal(-32_700, read_frame(parent, output).dig("error", "code"))
         input.write("\xff\n".b)
-        assert_equal(-32700, read_frame(parent, output).dig("error", "code"))
+        assert_equal(-32_700, read_frame(parent, output).dig("error", "code"))
         send_frame(input, [request(1, "custom/echo", value: "batch")])
-        assert_equal(-32600, read_frame(parent, output).dig("error", "code"))
+        assert_equal(-32_600, read_frame(parent, output).dig("error", "code"))
         send_frame(input, request(2, "custom/echo", value: "survived"))
         assert_equal "survived", read_frame(parent, output).dig("result", "value")
       end
@@ -206,7 +290,7 @@ class MCPTransportTest < Minitest::Test
         with_transport(parent, max_frame_bytes: 64) { |_, input, _| input.write("x" * 65) }
       end
       sdk = sdk_server
-      sdk.define_custom_method(method_name: "custom/large") { |_| {value: "é" * 200_000} }
+      sdk.define_custom_method(method_name: "custom/large") { |_| { value: "é" * 200_000 } }
       assert_raises(LibTmux::CapacityError) do
         with_transport(parent, server: sdk, max_output_bytes: 512) do |_, input, _|
           send_frame(input, request(1, "custom/large"))
@@ -214,7 +298,12 @@ class MCPTransportTest < Minitest::Test
         end
       end
       assert_raises(LibTmux::DeadlineExceeded) do
-        with_transport(parent, server: sdk, max_output_bytes: 1 << 20, write_timeout: 0.02) do |_, input, _, runner|
+        with_transport(
+          parent,
+          server: sdk,
+          max_output_bytes: 1 << 20,
+          write_timeout: 0.02
+        ) do |_, input, _, runner|
           send_frame(input, request(1, "custom/large"))
           error = runner.wait(timeout: 0.5)
           raise error if error.is_a?(Exception)
@@ -225,10 +314,13 @@ class MCPTransportTest < Minitest::Test
 
   def test_readiness_waits_use_the_scheduler_without_helper_threads
     calls = []
-    trace = TracePoint.new(:call, :c_call) do |event|
-      calls << event.method_id if (event.self == IO && event.method_id == :select) ||
-        (event.self == Thread && event.method_id == :new)
-    end
+    trace =
+      TracePoint.new(:call, :c_call) do |event|
+        if (event.self == IO && event.method_id == :select) ||
+             (event.self == Thread && event.method_id == :new)
+          calls << event.method_id
+        end
+      end
     Async do |parent|
       trace.enable do
         with_transport(parent) do |_, input, output|
@@ -242,9 +334,12 @@ class MCPTransportTest < Minitest::Test
 
   def test_encoded_output_limit_is_checked_before_allocating_the_wire_frame
     Async do |parent|
-      [{value: "\u0001" * 30}, Array.new(100, "")].each do |message|
+      [{ value: "\u0001" * 30 }, Array.new(100, "")].each do |message|
         generated = []
-        trace = TracePoint.new(:call, :c_call) { |event| generated << true if event.self == JSON && event.method_id == :generate }
+        trace =
+          TracePoint.new(:call, :c_call) do |event|
+            generated << true if event.self == JSON && event.method_id == :generate
+          end
         assert_raises(LibTmux::CapacityError) do
           with_transport(parent, max_output_bytes: 64) do |transport, _, _|
             trace.enable { transport.send_response(message) }
@@ -264,7 +359,8 @@ class MCPTransportTest < Minitest::Test
       retiring = false
       input, client_input = IO.pipe
       client_output, output = IO.pipe
-      transport = LibTmux::MCP::StdioTransport.new(server: sdk, parent: parent, input: input, output: output)
+      transport =
+        LibTmux::MCP::StdioTransport.new(server: sdk, parent: parent, input: input, output: output)
       transport.define_singleton_method(:read_loop) do
         super()
       ensure
@@ -272,11 +368,12 @@ class MCPTransportTest < Minitest::Test
         entered.signal
         release.wait
       end
-      runner = parent.async do
-        transport.run
-      rescue Exception => error
-        error
-      end
+      runner =
+        parent.async do
+          transport.run
+        rescue Exception => error
+          error
+        end
       begin
         send_frame(client_input, request(1, "custom/echo", value: "started"))
         assert_equal "started", read_frame(parent, client_output).dig("result", "value")
@@ -308,14 +405,25 @@ class MCPTransportTest < Minitest::Test
       input, client_input = IO.pipe
       client_output, output = IO.pipe
       session_class = LibTmux::MCP::StdioTransport.const_get(:Session)
-      trace = TracePoint.new(:call) do |event|
-        raise NoMemoryError, "injected SDK session allocation failure" if event.method_id == :initialize && event.self.is_a?(session_class)
-      end
+      trace =
+        TracePoint.new(:call) do |event|
+          if event.method_id == :initialize && event.self.is_a?(session_class)
+            raise NoMemoryError, "injected SDK session allocation failure"
+          end
+        end
       assert_raises(NoMemoryError) do
-        trace.enable { LibTmux::MCP::StdioTransport.new(server: sdk, parent: parent, input: input, output: output) }
+        trace.enable do
+          LibTmux::MCP::StdioTransport.new(
+            server: sdk,
+            parent: parent,
+            input: input,
+            output: output
+          )
+        end
       end
       assert_same previous, sdk.transport
-      transport = LibTmux::MCP::StdioTransport.new(server: sdk, parent: parent, input: input, output: output)
+      transport =
+        LibTmux::MCP::StdioTransport.new(server: sdk, parent: parent, input: input, output: output)
       count = 0
       transport.define_singleton_method(:child_task) do |&block|
         count += 1
@@ -336,11 +444,13 @@ class MCPTransportTest < Minitest::Test
       assert_raises(NoMemoryError) do
         with_transport(parent) do |candidate, client, _, runner|
           failed = candidate
-          trace = TracePoint.new(:call) do |event|
-            if event.method_id == :run && candidate.instance_variable_get(:@by_task).key?(event.self)
-              raise NoMemoryError, "injected request fiber allocation failure"
+          trace =
+            TracePoint.new(:call) do |event|
+              if event.method_id == :run &&
+                   candidate.instance_variable_get(:@by_task).key?(event.self)
+                raise NoMemoryError, "injected request fiber allocation failure"
+              end
             end
-          end
           trace.enable do
             send_frame(client, request(1, "custom/echo", value: "never dispatched"))
             error = runner.wait(timeout: 0.5)
@@ -375,29 +485,34 @@ class MCPTransportTest < Minitest::Test
         {}
       end
       primary = RuntimeError.new("injected primary failure")
-      observed = assert_raises(RuntimeError) do
-        with_transport(parent, server: sdk, cleanup_timeout: 0.02) do |transport, input, _, runner|
-          send_frame(input, request(1, "custom/cleanup"))
-          parent.with_timeout(0.5) { ready.wait until handler }
-          input.close
-          transport.instance_variable_set(:@failure, primary)
-          error = runner.wait(timeout: 0.5)
-          assert_same primary, error
-          refute_empty error.mcp_cleanup_errors
-          assert error.mcp_cleanup_errors.frozen?
-          refute transport.closed?
-          assert_same transport, sdk.transport
-          release.signal
-          handler.wait(timeout: 0.5)
-          transport.close
-          assert transport.closed?
-          assert_same previous, sdk.transport
-        ensure
-          release.signal
-          parent.yield
-          handler&.cancel
+      observed =
+        assert_raises(RuntimeError) do
+          with_transport(
+            parent,
+            server: sdk,
+            cleanup_timeout: 0.02
+          ) do |transport, input, _, runner|
+            send_frame(input, request(1, "custom/cleanup"))
+            parent.with_timeout(0.5) { ready.wait until handler }
+            input.close
+            transport.instance_variable_set(:@failure, primary)
+            error = runner.wait(timeout: 0.5)
+            assert_same primary, error
+            refute_empty error.mcp_cleanup_errors
+            assert error.mcp_cleanup_errors.frozen?
+            refute transport.closed?
+            assert_same transport, sdk.transport
+            release.signal
+            handler.wait(timeout: 0.5)
+            transport.close
+            assert transport.closed?
+            assert_same previous, sdk.transport
+          ensure
+            release.signal
+            parent.yield
+            handler&.cancel
+          end
         end
-      end
       assert_same primary, observed
     end.wait
   end
@@ -405,21 +520,34 @@ class MCPTransportTest < Minitest::Test
   private
 
   def sdk_server
-    sdk = ::MCP::Server.new(name: "transport-test", configuration: ::MCP::Configuration.new(exception_reporter: ->(*) {}))
-    sdk.define_custom_method(method_name: "custom/echo") { |params, server_context:| {value: params[:value]} }
+    sdk =
+      ::MCP::Server.new(
+        name: "transport-test",
+        configuration: ::MCP::Configuration.new(exception_reporter: ->(*) {})
+      )
+    sdk.define_custom_method(method_name: "custom/echo") do |params, server_context:|
+      { value: params[:value] }
+    end
     sdk
   end
 
   def with_transport(parent, server: sdk_server, **limits)
     input, client_input = IO.pipe
     client_output, output = IO.pipe
-    transport = LibTmux::MCP::StdioTransport.new(server: server, parent: parent, input: input, output: output,
-      **{request_timeout: 0.5}.merge(limits))
-    runner = parent.async do
-      transport.run
-    rescue Exception => error
-      error
-    end
+    transport =
+      LibTmux::MCP::StdioTransport.new(
+        server: server,
+        parent: parent,
+        input: input,
+        output: output,
+        **{ request_timeout: 0.5 }.merge(limits)
+      )
+    runner =
+      parent.async do
+        transport.run
+      rescue Exception => error
+        error
+      end
     failure = nil
     begin
       yield transport, client_input, client_output, runner
@@ -440,11 +568,17 @@ class MCPTransportTest < Minitest::Test
   end
 
   def request(id, method, **params)
-    {jsonrpc: "2.0", id: id, method: method, params: params}
+    { jsonrpc: "2.0", id: id, method: method, params: params }
   end
 
   def modern_params(**params)
-    params.merge(_meta: {"io.modelcontextprotocol/protocolVersion" => "2026-07-28", "io.modelcontextprotocol/clientCapabilities" => {}})
+    params.merge(
+      _meta: {
+        "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities" => {
+        }
+      }
+    )
   end
 
   def send_frame(input, frame)
