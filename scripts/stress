@@ -17,8 +17,8 @@ end.parse!
 abort "--repeat must be positive" unless repeat.positive?
 
 FileUtils.mkdir_p(output)
-files = Dir["test/integration/**/*_test.rb"].sort
-counts = Hash.new { |hash, name| hash[name] = {"runs" => 0, "failures" => 0} }
+files = (Dir["test/integration/**/*_test.rb"] + %w[test/unit/process_test.rb]).sort
+counts = Hash.new { |hash, name| hash[name] = {"runs" => 0, "failures" => 0, "slowest" => 0.0} }
 failed_runs = 0
 repeat.times do |index|
   out, status = Open3.capture2e(Gem.ruby, "-Itest", "-e", "ARGV.shift(#{files.length}).each { |file| require File.expand_path(file) }",
@@ -26,11 +26,12 @@ repeat.times do |index|
   File.write(File.join(output, "run-#{index + 1}.log"), out)
   seen = 0
   out.each_line do |line|
-    next unless (match = line.match(/\A(\S+#\S+) = [\d.]+ s = ([.FES])\s*\z/))
+    next unless (match = line.match(/\A(\S+#\S+) = ([\d.]+) s = ([.FES])\s*\z/))
 
     seen += 1
     counts[match[1]]["runs"] += 1
-    counts[match[1]]["failures"] += 1 if %w[F E].include?(match[2])
+    counts[match[1]]["failures"] += 1 if %w[F E].include?(match[3])
+    counts[match[1]]["slowest"] = [counts[match[1]]["slowest"], match[2].to_f].max
   end
   abort "run #{index + 1} reported no tests" if seen.zero?
   failed_runs += 1 unless status.success?
@@ -39,7 +40,7 @@ end
 
 rows = counts.sort_by { |name, tally| [-tally["failures"], name] }
 File.write(File.join(output, "failures.csv"),
-  (["test,runs,failures"] + rows.map { |name, tally| "#{name},#{tally["runs"]},#{tally["failures"]}" }).join("\n") + "\n")
+  (["test,runs,failures,slowest_seconds"] + rows.map { |name, tally| "#{name},#{tally["runs"]},#{tally["failures"]},#{tally["slowest"]}" }).join("\n") + "\n")
 failing = rows.select { |_, tally| tally["failures"].positive? }
 table = +"### Stress run: #{repeat} repetitions, #{failed_runs} failed, #{rows.length} tests\n\n"
 if failing.empty?
@@ -48,6 +49,8 @@ else
   table << "| Test | Runs | Failures |\n| --- | ---: | ---: |\n"
   failing.each { |name, tally| table << "| `#{name}` | #{tally["runs"]} | #{tally["failures"]} |\n" }
 end
+table << "\n| Slowest test | Seconds |\n| --- | ---: |\n"
+rows.max_by(5) { |_, tally| tally["slowest"] }.each { |name, tally| table << "| `#{name}` | #{tally["slowest"]} |\n" }
 File.write(File.join(output, "summary.md"), table)
 puts table
 exit(failed_runs.zero? ? 0 : 1)
