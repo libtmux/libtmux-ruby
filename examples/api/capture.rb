@@ -4,13 +4,12 @@ require "libtmux"
 
 begin
   LibTmux::Server.start do |server|
+    quiet_shell = { "ENV" => "/dev/null" }
     created =
       server.new_session(
         name: "capture",
         command: ["/bin/sh"],
-        environment: {
-          "ENV" => "/dev/null"
-        },
+        environment: quiet_shell,
         receipt: true
       )
     pane = created.pane
