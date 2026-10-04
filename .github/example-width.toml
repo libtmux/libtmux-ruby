@@ -1,0 +1,15 @@
+width = 80
+markdown = ["**/*.md"]
+sources = ["examples/**/*.rb", "examples/**/*.yaml"]
+allow_ceiling = 1
+shared_digest = "872d3f4cb1eb2b5cd9c5b7adc9cd140a153e4bbed3cb5bd0b7400a905e6dae4d"
+checker_digest = "4bad4d5c5ac2fab90845303ceedd77283063d47ad361ee3a6cbbfb29fef16af4"
+
+[[exclude]]
+glob = "examples/manifest.json"
+reason = "machine-read index whose output strings the example tests compare byte for byte; its line breaks cannot change"
+
+[[allow]]
+path = ".github/WRITING.md"
+line = "  'printf \"%s:%s\" \"$EXAMPLE_CONTEXT\" \"$TMUX_PANE\"; printf \"\\\\000\\\\377\" >&2; exit 9'"
+reason = "the Bad example in the port block; it shows the width problem the Good example fixes"
