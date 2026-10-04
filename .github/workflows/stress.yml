@@ -1,0 +1,91 @@
+name: stress
+
+on:
+  schedule:
+    - cron: '17 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      repeat:
+        type: number
+        description: Repetitions of the real-tmux integration suite per runner
+        default: 10
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stress-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repeat:
+    name: ${{ matrix.runner }} / Ruby 4.0.7 / tmux 3.7c
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        runner: [ubuntu-24.04, macos-15]
+    env:
+      BUNDLE_FROZEN: 'true'
+      TMUX_VERSION: 3.7c
+      TMPDIR: /tmp
+      REPEAT: ${{ inputs.repeat || 10 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+        with:
+          ruby-version: '4.0.7'
+          bundler-cache: true
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config zsh
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install libevent ncurses bison pkg-config jemalloc
+      - name: Build the exact tmux release
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/tmux-$TMUX_VERSION.tar.gz"
+          curl --location --fail --silent --show-error \
+            "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
+            --output "$archive"
+          ruby -rjson -rdigest -e 'expected = JSON.parse(File.read("scripts/tmux-releases.json")).fetch(ENV.fetch("TMUX_VERSION")); abort "tmux archive checksum mismatch" unless Digest::SHA256.file(ARGV.fetch(0)).hexdigest == expected' "$archive"
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          configure_options=(--disable-utf8proc)
+          if [ "$RUNNER_OS" = macOS ]; then
+            PATH="$(brew --prefix bison)/bin:$PATH"
+            PKG_CONFIG_PATH="$(brew --prefix jemalloc)/lib/pkgconfig:$(brew --prefix libevent)/lib/pkgconfig:$(brew --prefix ncurses)/lib/pkgconfig"
+            CPPFLAGS="-I$(brew --prefix jemalloc)/include -I$(brew --prefix libevent)/include -I$(brew --prefix ncurses)/include"
+            LDFLAGS="-L$(brew --prefix jemalloc)/lib -L$(brew --prefix libevent)/lib -L$(brew --prefix ncurses)/lib"
+            configure_options+=(--enable-jemalloc)
+            export PATH PKG_CONFIG_PATH CPPFLAGS LDFLAGS
+          fi
+          cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
+          ./configure --prefix="$RUNNER_TEMP/tmux-install" "${configure_options[@]}"
+          make -j2
+          make install
+          test "$("$RUNNER_TEMP/tmux-install/bin/tmux" -V)" = "tmux $TMUX_VERSION"
+      - name: Repeat the integration suite
+        env:
+          LIBTMUX_TEST_TMUX_DIR: ${{ runner.temp }}/tmux-install/bin
+        run: |
+          export PATH="$LIBTMUX_TEST_TMUX_DIR:$PATH"
+          export LIBTMUX_TEST_TMUX="$LIBTMUX_TEST_TMUX_DIR/tmux"
+          bundle exec scripts/stress --repeat "$REPEAT" --output build/stress
+      - name: Report each test's failure count
+        if: always()
+        run: cat build/stress/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain the CSV and run logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: stress-${{ matrix.runner }}
+          path: build/stress/
+          if-no-files-found: warn
