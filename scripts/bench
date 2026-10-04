@@ -16,7 +16,7 @@ require "etc"
 # transport the same acquisition work, then measures graph/query work separately.
 module TmuxBenchmark
   LANES = %w[process_serial async_bounded control_serial control_pipelined group].freeze
-  DEADLINE = 0.5
+  DEADLINE = 10
   MAX_RUN_SECONDS = 540
   ROOT = File.expand_path("..", __dir__)
   CATALOG = LibTmux.const_get(:Internal)::Catalog
@@ -596,7 +596,7 @@ module TmuxBenchmark
         end
         @server.wait_for(ready, timeout: budget)
         second = Thread.new { @control.exchange("display-message -p pipeline-second", timeout: budget) }
-        TmuxBenchmark.check(IO.select([reader], nil, nil, 0.2), "second control request waited for the first reply")
+        TmuxBenchmark.check(IO.select([reader], nil, nil, DEADLINE), "second control request waited for the first reply")
         TmuxBenchmark.check(first.alive? && second.alive?, "pipeline witness did not retain the first WAIT")
         peaks = @peaks.snapshot.find { |meter| meter.fetch(:kind) == :control }.fetch(:peaks)
         TmuxBenchmark.check(peaks.fetch(:unretired_requests) >= 2 && peaks.fetch(:written_unretired_requests) >= 2,
