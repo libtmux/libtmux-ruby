@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../test_helper"
 require "fileutils"
 require "fiddle"
 require "fcntl"
@@ -37,7 +38,7 @@ module LibTmuxTest
 
       def value
         finish_signalling
-        raise Error, "owned tmux process did not finish reaping" unless join(0.5)
+        raise Error, "owned tmux process did not finish reaping" unless join(HANG_GUARD_SECONDS)
 
         if observation_error && !@error_reported
           @error_reported = true
@@ -51,8 +52,10 @@ module LibTmuxTest
     private_constant :CleanupDetails, :OwnedChild
 
     CLEAN_ENV = {"TMUX" => nil, "TMUX_PANE" => nil}.freeze
-    DEADLINE_SECONDS = 0.5
-    private_constant :CLEAN_ENV, :DEADLINE_SECONDS
+    DEADLINE_SECONDS = HANG_GUARD_SECONDS
+    # Darwin's sockaddr_un.sun_path limit, terminator included.
+    SOCKET_PATH_LIMIT = 104
+    private_constant :CLEAN_ENV, :DEADLINE_SECONDS, :SOCKET_PATH_LIMIT
 
     attr_reader :socket_path, :cleanup_errors, :executable
 
@@ -88,6 +91,10 @@ module LibTmuxTest
       @process_wait = LibTmux::Internal::ProcessWait.new
       @directory = Dir.mktmpdir("libtmux-ruby-")
       @socket_path = File.join(@directory, "socket")
+      if @socket_path.bytesize >= SOCKET_PATH_LIMIT
+        FileUtils.remove_entry(@directory)
+        raise Error, "fixture socket path exceeds the #{SOCKET_PATH_LIMIT - 1}-byte sun_path limit; set TMPDIR to a shorter directory"
+      end
       @clients = {}
       @clients_mutex = Mutex.new
       @retirement_mutex = Mutex.new
@@ -228,7 +235,7 @@ module LibTmuxTest
           ensure
             observer.finish_signalling
           end
-          raise Error, "failed spawn observer did not finish" unless observer.join(0.5)
+          raise Error, "failed spawn observer did not finish" unless observer.join(HANG_GUARD_SECONDS)
 
           observer.value if observer.pid
         ensure
@@ -282,7 +289,7 @@ module LibTmuxTest
           ensure
             waiter.finish_signalling
           end
-          raise Error, "owned tmux process did not exit" unless waiter.join(0.5)
+          raise Error, "owned tmux process did not exit" unless waiter.join(HANG_GUARD_SECONDS)
           waiter.value
         ensure
           waiter.close

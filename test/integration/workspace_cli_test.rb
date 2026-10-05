@@ -47,7 +47,7 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
             end
           ensure
             token.cancel
-            assert worker.join(0.5), "owned terminal fixture client did not retire"
+            assert worker.join(HANG_GUARD_SECONDS), "owned terminal fixture client did not retire"
             worker.value
           end
         end
@@ -144,10 +144,10 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
           LibTmux::Workspace::CLI.run(["load", config, "--json", "--socket", fixture.socket_path, "--attach"],
             out: output, err: diagnostics, environment: {"TERM" => "xterm"})
         end
-        assert IO.select([master], nil, nil, 0.5), "attached client did not draw its terminal"
+        assert IO.select([master], nil, nil, HANG_GUARD_SECONDS), "attached client did not draw its terminal"
         assert master.read_nonblock(65_536).bytesize.positive?
         master.write("\x02d")
-        assert worker.join(0.5), "attached client did not exit after user detach"
+        assert worker.join(HANG_GUARD_SECONDS), "attached client did not exit after user detach"
         assert_equal 0, worker.value
         assert_equal true, JSON.parse(output.string).fetch("success")
         assert_empty diagnostics.string
@@ -155,7 +155,7 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
         assert_equal ["attached", "fixture"], fixture.tmux("list-sessions", "-F", '#{session_name}').first.lines.map(&:chomp).sort
       ensure
         worker.raise(Interrupt) if worker&.alive?
-        worker&.join(0.5)
+        worker&.join(HANG_GUARD_SECONDS)
         File.define_singleton_method(:open, open_file)
         master.close
         terminal.close

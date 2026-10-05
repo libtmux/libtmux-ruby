@@ -134,13 +134,13 @@ class OperationsTest < Minitest::Test
         assert fixture.tmux("link-window", "-k", "-s", replacement.id, "-t", "#{session.id}:8").last.success?
         assert fixture.tmux("set-hook", "-gu", "after-show-options[99]").last.success?
         assert fixture.tmux("wait-for", "-S", "link-release").last.success?
-        assert request.join(0.5), "link guard did not finish"
+        assert request.join(HANG_GUARD_SECONDS), "link guard did not finish"
         assert_instance_of LibTmux::TargetNotFoundError, request.value
         assert_equal replacement.id, session.list_window_links.find { |entry| entry.index == 8 }.id
       ensure
         fixture.tmux("set-hook", "-gu", "after-show-options[99]")
         fixture.tmux("wait-for", "-S", "link-release")
-        request.join(0.5)
+        request.join(HANG_GUARD_SECONDS)
       end
     end
   end
@@ -154,7 +154,7 @@ class OperationsTest < Minitest::Test
       server.options.set("command-alias", "if-shell=", index: 90)
       server.options.set("command-alias", "show-options=show-options -v", index: 91)
       outcome = begin
-        link.unlink(timeout: 0.5)
+        link.unlink(timeout: HANG_GUARD_SECONDS)
       rescue LibTmux::UnsupportedFeatureError => error
         error
       end
@@ -170,7 +170,7 @@ class OperationsTest < Minitest::Test
       initial = session.list_windows.first
       other = session.new_window(name: "other", command: ["/bin/cat"])
       first, second = session.list_window_links
-      assert first.swap(second.ref, timeout: 0.5).success?
+      assert first.swap(second.ref, timeout: HANG_GUARD_SECONDS).success?
       assert_equal [[0, other.id], [1, initial.id]], session.list_window_links.map { |link| [link.index, link.id] }
       assert_raises(LibTmux::TargetNotFoundError) { first.select }
       assert_raises(LibTmux::TargetNotFoundError) { second.select }
@@ -178,7 +178,7 @@ class OperationsTest < Minitest::Test
       assert_equal "#{other.id}\n", other.display('#{window_id}').stdout
 
       left, right = initial.list_panes.first, other.list_panes.first
-      assert left.swap(right.ref, timeout: 0.5).success?
+      assert left.swap(right.ref, timeout: HANG_GUARD_SECONDS).success?
       assert_equal [right.id], initial.list_panes.map(&:id)
       assert_equal [left.id], other.list_panes.map(&:id)
     end
@@ -267,24 +267,24 @@ class OperationsTest < Minitest::Test
     with_server do |server, fixture|
       config = File.join(File.dirname(fixture.socket_path), 'config #{pid};.conf')
       File.write(config, "set-option -g @source-loaded 'literal ; value'\n")
-      assert server.source_file(config, timeout: 0.5).success?
+      assert server.source_file(config, timeout: HANG_GUARD_SECONDS).success?
       assert_equal "literal ; value", server.options(scope: :session).get("@source-loaded").raw
       File.write(config, "set-option -g @source-loaded changed\nset-option -g nonexistent-option invalid\n")
-      failure = assert_raises(LibTmux::CommandError) { server.source_file(config, timeout: 0.5) }
+      failure = assert_raises(LibTmux::CommandError) { server.source_file(config, timeout: HANG_GUARD_SECONDS) }
       assert_equal :observed, failure.delivery
       assert_equal "changed", server.options(scope: :session).get("@source-loaded").raw
 
       channel = 'channel #{pid};'
-      assert server.wait_for(channel, action: :signal, timeout: 0.5).success?
-      assert server.wait_for(channel, timeout: 0.5).success?
-      assert server.wait_for(channel, action: :lock, timeout: 0.5).success?
+      assert server.wait_for(channel, action: :signal, timeout: HANG_GUARD_SECONDS).success?
+      assert server.wait_for(channel, timeout: HANG_GUARD_SECONDS).success?
+      assert server.wait_for(channel, action: :lock, timeout: HANG_GUARD_SECONDS).success?
       blocked = assert_raises(LibTmux::DeadlineExceeded) { server.wait_for(channel, action: :lock, timeout: 0.1) }
       assert_equal :possibly_sent, blocked.delivery
-      assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
+      assert server.wait_for(channel, action: :unlock, timeout: HANG_GUARD_SECONDS).success?
       # The retired client's queued lock still acquires in tmux after unlock.
-      assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
-      assert server.wait_for(channel, action: :lock, timeout: 0.5).success?
-      assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
+      assert server.wait_for(channel, action: :unlock, timeout: HANG_GUARD_SECONDS).success?
+      assert server.wait_for(channel, action: :lock, timeout: HANG_GUARD_SECONDS).success?
+      assert server.wait_for(channel, action: :unlock, timeout: HANG_GUARD_SECONDS).success?
     end
   end
 

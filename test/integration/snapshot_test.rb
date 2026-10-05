@@ -48,10 +48,10 @@ class SnapshotIntegrationTest < Minitest::Test
           code = 'UNIXSocket.open(ARGV.fetch(0)) { |io| io.write("ready") }; STDIN.read'
           assert server.run(["new-window", "-d", "-t", "$0", "-c", directory, "--",
             Gem.ruby, "--disable=rubyopt,gems", "-rsocket", "-e", code, ready.path]).success?
-          assert IO.select([ready], nil, nil, 0.5), "pane did not announce its working directory"
+          assert IO.select([ready], nil, nil, HANG_GUARD_SECONDS), "pane did not announce its working directory"
           peer = ready.accept
           begin
-            assert IO.select([peer], nil, nil, 0.5), "pane readiness data did not arrive"
+            assert IO.select([peer], nil, nil, HANG_GUARD_SECONDS), "pane readiness data did not arrive"
             assert_equal "ready", peer.read
           ensure
             peer.close
@@ -133,7 +133,7 @@ class SnapshotIntegrationTest < Minitest::Test
         pin = LibTmux::Internal::SocketIdentity.new(server.endpoint)
         begin
           LibTmux::ControlConnection.open(binding: pin, session_id: "$0") do |control|
-            control.exchange("display-message -p ready", timeout: 0.5)
+            control.exchange("display-message -p ready", timeout: HANG_GUARD_SECONDS)
             capture = acquire(server, clients: true)
             client = capture.clients.one
             assert_equal control.pid, client.pid

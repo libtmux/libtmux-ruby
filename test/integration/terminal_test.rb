@@ -17,13 +17,13 @@ class TerminalTest < Minitest::Test
         destination.options.set("update-environment", "LIBTMUX_SWITCH_PROOF")
         with_attached_client(server, fixture, source) do |client, _worker|
           assert fixture.tmux("set-option", "-s", "command-alias[199]", "switch-client=display-message -p aliased").last.success?
-          result = server.switch_client(client: client.fetch(:name), session: destination.ref, timeout: 0.5)
+          result = server.switch_client(client: client.fetch(:name), session: destination.ref, timeout: HANG_GUARD_SECONDS)
           assert_instance_of LibTmux::CommandResult, result
           assert result.success?
           assert_empty result.stdout
           assert_equal destination.id, server.list_clients.fetch(0).fetch(:session_id)
           assert_equal "preserved", destination.environment("LIBTMUX_SWITCH_PROOF")
-          assert_raises(LibTmux::CommandError) { server.switch_client(client: "*", session: source.ref, timeout: 0.5) }
+          assert_raises(LibTmux::CommandError) { server.switch_client(client: "*", session: source.ref, timeout: HANG_GUARD_SECONDS) }
           assert_equal destination.id, server.list_clients.fetch(0).fetch(:session_id)
           [nil, "", "invalid\0client", "x" * 1025].each do |selector|
             assert_raises(ArgumentError) { server.switch_client(client: selector, session: source.ref) }
@@ -60,9 +60,9 @@ class TerminalTest < Minitest::Test
         with_attached_client(server, fixture, source) do |gone, worker|
           with_attached_client(server, fixture, source) do |survivor, _other_worker|
             assert fixture.tmux("detach-client", "-t", gone.fetch(:name)).last.success?
-            assert worker.join(0.5), "detached client did not retire"
+            assert worker.join(HANG_GUARD_SECONDS), "detached client did not retire"
             error = assert_raises(LibTmux::CommandError) do
-              server.switch_client(client: gone.fetch(:name), session: destination.ref, timeout: 0.5)
+              server.switch_client(client: gone.fetch(:name), session: destination.ref, timeout: HANG_GUARD_SECONDS)
             end
             assert_equal :observed, error.delivery
             current = server.list_clients
@@ -84,12 +84,12 @@ class TerminalTest < Minitest::Test
           slave.winsize = [24, 80]
           before = slave.echo?
           assert server.run(["set-hook", "-g", "client-attached", "wait-for -S terminal-attached"]).success?
-          worker = Thread.new { server.attach(session: session.ref, terminal: slave, term: "xterm", timeout: 1) }
+          worker = Thread.new { server.attach(session: session.ref, terminal: slave, term: "xterm", timeout: HANG_GUARD_SECONDS) }
           begin
             assert fixture.tmux("wait-for", "terminal-attached").last.success?
             assert_equal 1, server.list_clients.length
             master.write("\x02d")
-            assert worker.join(0.5), "terminal client did not detach"
+            assert worker.join(HANG_GUARD_SECONDS), "terminal client did not detach"
             result = worker.value
             assert_instance_of LibTmux::TerminalResult, result
             assert result.success?
@@ -100,7 +100,7 @@ class TerminalTest < Minitest::Test
             assert_empty server.list_clients
           ensure
             server.close
-            worker.join(0.5)
+            worker.join(HANG_GUARD_SECONDS)
           end
         end
       end
@@ -123,7 +123,7 @@ class TerminalTest < Minitest::Test
         begin
           assert fixture.tmux("wait-for", "terminal-close").last.success?
           server.close
-          assert worker.join(0.5), "closed terminal client did not retire"
+          assert worker.join(HANG_GUARD_SECONDS), "closed terminal client did not retire"
           error = worker.value
           assert_instance_of LibTmux::Cancelled, error
           assert_equal :possibly_sent, error.delivery
@@ -133,7 +133,7 @@ class TerminalTest < Minitest::Test
           refute slave.closed?
         ensure
           server.close
-          worker.join(0.5)
+          worker.join(HANG_GUARD_SECONDS)
         end
       end
     end
@@ -209,7 +209,7 @@ class TerminalTest < Minitest::Test
         yield client, worker
       ensure
         token.cancel
-        assert worker.join(0.5), "owned attached client did not retire"
+        assert worker.join(HANG_GUARD_SECONDS), "owned attached client did not retire"
         worker.value
       end
     end

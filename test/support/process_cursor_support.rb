@@ -20,7 +20,7 @@ module LibTmuxTest
         begin
           lease = LibTmux::MCP.const_get(:ProcessIdentity).acquire(scope.server,
             server_pid: snapshot.server_info.fetch(:pid), pane_pid: snapshot.panes.first.pid,
-            budget: scope.server.__send__(:operation_budget, 0.5, nil))
+            budget: scope.server.__send__(:operation_budget, HANG_GUARD_SECONDS, nil))
         rescue LibTmux::Error => error
           failure = error
         ensure

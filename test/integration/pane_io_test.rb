@@ -37,8 +37,8 @@ class PaneIOTest < Minitest::Test
       begin
         script = 'UNIXSocket.open(ARGV.fetch(0)) { |io| io.write(ARGV.fetch(1) + "\n"); IO.copy_stream(STDIN, io) }'
         command = [Gem.ruby, "--disable=rubyopt,gems", "-rsocket", "-e", script, listener.path].shelljoin + " '\#{pane_id}'"
-        assert pane.pipe(shell_command: command, timeout: 0.5).success?
-        assert IO.select([listener], nil, nil, 0.5), "pipe process did not connect"
+        assert pane.pipe(shell_command: command, timeout: HANG_GUARD_SECONDS).success?
+        assert IO.select([listener], nil, nil, HANG_GUARD_SECONDS), "pipe process did not connect"
         pipe_reader = listener.accept
         assert_equal "#{pane.id}\n".b, read_bytes(pipe_reader, pane.id.bytesize + 1)
         assert_equal "1\n", pane.display('#{pane_pipe}').text
@@ -46,22 +46,22 @@ class PaneIOTest < Minitest::Test
         render(channel, payload)
         assert_equal payload + "\e[6n", read_bytes(pipe_reader, payload.bytesize + 4)
 
-        assert pane.pipe(shell_command: command, only_if_closed: true, timeout: 0.5).success?
+        assert pane.pipe(shell_command: command, only_if_closed: true, timeout: HANG_GUARD_SECONDS).success?
         assert_equal "0\n", pane.display('#{pane_pipe}').text
-        assert IO.select([pipe_reader], nil, nil, 0.5), "closed pipe did not reach EOF"
+        assert IO.select([pipe_reader], nil, nil, HANG_GUARD_SECONDS), "closed pipe did not reach EOF"
         assert_nil pipe_reader.read(1)
         assert_equal :wait_readable, listener.accept_nonblock(exception: false)
 
         input = "input\0\xff\n".b
         writer = [Gem.ruby, "--disable=rubyopt,gems", "-e", 'STDOUT.write([ARGV.fetch(0)].pack("H*"))', input.unpack1("H*")].shelljoin
-        assert pane.pipe(shell_command: writer, input: true, output: false, timeout: 0.5).success?
+        assert pane.pipe(shell_command: writer, input: true, output: false, timeout: HANG_GUARD_SECONDS).success?
         assert_equal input, receive_input(channel, input.bytesize)
 
         duplex = [Gem.ruby, "--disable=rubyopt,gems", "-e", 'STDOUT.sync = true; while (bytes = STDIN.readpartial(1024)); STDOUT.write(bytes); end'].shelljoin
-        assert pane.pipe(shell_command: duplex, input: true, output: true, timeout: 0.5).success?
+        assert pane.pipe(shell_command: duplex, input: true, output: true, timeout: HANG_GUARD_SECONDS).success?
         channel.write("O" + [payload.bytesize].pack("N") + payload)
         assert_equal payload, receive_input(channel, payload.bytesize)
-        assert pane.pipe(timeout: 0.5).success?
+        assert pane.pipe(timeout: HANG_GUARD_SECONDS).success?
         assert_equal "0\n", pane.display('#{pane_pipe}').text
       ensure
         pipe_reader&.close
@@ -81,7 +81,7 @@ class PaneIOTest < Minitest::Test
         LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
           window = server.list_sessions.first.new_window(name: "io", command: program(listener.path))
           pane = window.list_panes.first
-          assert IO.select([listener], nil, nil, 0.5), "pane program did not connect"
+          assert IO.select([listener], nil, nil, HANG_GUARD_SECONDS), "pane program did not connect"
           channel = listener.accept
           yield server, pane, channel, directory
         end
@@ -128,7 +128,7 @@ class PaneIOTest < Minitest::Test
 
   def read_bytes(io, size)
     data = +"".b
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + HANG_GUARD_SECONDS
     while data.bytesize < size
       remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
       assert remaining.positive? && IO.select([io], nil, nil, remaining), "pane I/O did not arrive"

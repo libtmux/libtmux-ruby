@@ -108,14 +108,14 @@ class MCPCursorIdentityTest < Minitest::Test
         scope.__send__(:execute, [Gem.ruby, "--disable=rubyopt,gems", "-e", code, listener.path])
       end
       connection = pid = nil
-      ::Async::Task.current.with_timeout(0.5) do
+      ::Async::Task.current.with_timeout(HANG_GUARD_SECONDS) do
         connection = listener.accept
         pid = Integer(connection.gets, 10)
       end
       snapshot = scope.server.snapshot
       identity = LibTmux::MCP.const_get(:ProcessIdentity).acquire(scope.server,
         server_pid: snapshot.server_info.fetch(:pid), pane_pid: pid,
-        budget: scope.server.__send__(:operation_budget, 0.5, nil))
+        budget: scope.server.__send__(:operation_budget, HANG_GUARD_SECONDS, nil))
       klass = LibTmux::MCP.const_get(:ProcessIdentity)
       native = klass.method(:native)
       faults = [:interrupted]

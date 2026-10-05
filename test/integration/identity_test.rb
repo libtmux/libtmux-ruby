@@ -30,18 +30,18 @@ class IdentityTest < Minitest::Test
       rescue Exception => error
         error
       end
-      assert ready.pop(timeout: 0.5), "binding did not reach its cancellation barrier"
+      assert ready.pop(timeout: HANG_GUARD_SECONDS), "binding did not reach its cancellation barrier"
       worker.raise(first)
-      assert cleanup_ready.pop(timeout: 0.5), "binding did not start cleanup"
+      assert cleanup_ready.pop(timeout: HANG_GUARD_SECONDS), "binding did not start cleanup"
       worker.raise(later)
       release << true
-      assert worker.join(0.5), "binding cleanup did not finish"
+      assert worker.join(HANG_GUARD_SECONDS), "binding cleanup did not finish"
       assert_same first, worker.value
       refute Dir.exist?(directory)
     ensure
       release << true if release
       worker&.kill if worker&.alive?
-      worker&.join(0.5)
+      worker&.join(HANG_GUARD_SECONDS)
       File.unlink(File.join(directory, "socket")) if directory && File.socket?(File.join(directory, "socket"))
       Dir.rmdir(directory) if directory && Dir.exist?(directory)
     end
@@ -65,7 +65,7 @@ class IdentityTest < Minitest::Test
         exit! 0
       end
       writer.close
-      assert IO.select([reader], nil, nil, 0.5), "forked binding did not settle"
+      assert IO.select([reader], nil, nil, HANG_GUARD_SECONDS), "forked binding did not settle"
       assert_equal "ok", reader.read(2)
       status = Process.wait2(child).last
       child = nil

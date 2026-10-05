@@ -115,6 +115,9 @@ class ReleaseTest < Minitest::Test
       RUBY
     end
     git("init", "-q")
+    # Auto maintenance detaches and holds objects/maintenance.lock while the fixture is copied.
+    git("config", "maintenance.auto", "false")
+    git("config", "gc.auto", "0")
     git("add", ".")
     git("-c", "user.name=Release Test", "-c", "user.email=release@example.invalid", "commit", "-qm", "fixture")
   end

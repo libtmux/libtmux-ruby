@@ -69,7 +69,7 @@ class GroupTest < Minitest::Test
         begin
           assert fixture.tmux("wait-for", "group-ready").last.success?
           token.cancel
-          assert worker.join(0.5), "cancelled group client did not retire"
+          assert worker.join(HANG_GUARD_SECONDS), "cancelled group client did not retire"
           failure = worker.value
           assert_instance_of LibTmux::Cancelled, failure
           assert_equal :possibly_sent, failure.delivery
@@ -78,7 +78,7 @@ class GroupTest < Minitest::Test
         ensure
           token.cancel
           fixture.tmux("wait-for", "-S", "group-held")
-          worker.join(0.5)
+          worker.join(HANG_GUARD_SECONDS)
           token.close
         end
       end

@@ -73,14 +73,14 @@ class CreationTest < Minitest::Test
           assert_raises(LibTmux::CommandError) { sibling.respawn(command: ["/bin/cat"]) }
           assert_equal old_pid, sibling.display('#{pane_pid}').text
           sibling.respawn(command: child_command(listener.path), kill: true, cwd: child_directory,
-            environment: {"ROOT" => "pane"}, timeout: 0.5)
+            environment: {"ROOT" => "pane"}, timeout: HANG_GUARD_SECONDS)
           assert_equal [File.realpath(child_directory), "pane", nil, nil], receive(listener)
           refute_equal old_pid, sibling.display('#{pane_pid}').text
           assert_equal [original.id, sibling.id], window.list_panes.map(&:id)
 
           old_pid = original.display('#{pane_pid}').text
           window.respawn(command: child_command(listener.path), kill: true, cwd: directory,
-            environment: {"ROOT" => "window"}, timeout: 0.5)
+            environment: {"ROOT" => "window"}, timeout: HANG_GUARD_SECONDS)
           assert_equal [File.realpath(directory), "window", nil, nil], receive(listener)
           assert_equal [original.id], window.list_panes.map(&:id)
           refute_equal old_pid, original.display('#{pane_pid}').text
@@ -129,10 +129,10 @@ class CreationTest < Minitest::Test
   end
 
   def receive(listener)
-    assert IO.select([listener], nil, nil, 0.5), "created pane did not report its environment"
+    assert IO.select([listener], nil, nil, HANG_GUARD_SECONDS), "created pane did not report its environment"
     client = listener.accept
     begin
-      assert IO.select([client], nil, nil, 0.5), "created pane receipt was empty"
+      assert IO.select([client], nil, nil, HANG_GUARD_SECONDS), "created pane receipt was empty"
       Marshal.load(client.read)
     ensure
       client.close

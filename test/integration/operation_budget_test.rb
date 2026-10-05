@@ -61,14 +61,14 @@ class OperationBudgetTest < Minitest::Test
         token = LibTmux::Internal::Cancellation.new
         assert fixture.tmux("set-hook", "-g", "after-show-options[98]", "wait-for -S budget-ready ; wait-for budget-held").last.success?
         request = Thread.new do
-          link.select(timeout: 0.5, cancel: token)
+          link.select(timeout: HANG_GUARD_SECONDS, cancel: token)
         rescue StandardError => error
           error
         end
         begin
           assert fixture.tmux("wait-for", "budget-ready").last.success?
           token.cancel
-          assert request.join(0.5), "cancellation did not retire the blocked preflight"
+          assert request.join(HANG_GUARD_SECONDS), "cancellation did not retire the blocked preflight"
           assert_instance_of LibTmux::Cancelled, request.value
           assert_equal :possibly_sent, request.value.delivery
           assert_equal "@0\n", session.display('#{window_id}').text

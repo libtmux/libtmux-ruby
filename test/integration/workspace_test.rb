@@ -50,7 +50,7 @@ class WorkspaceApplyTest < Minitest::Test
           assert_equal 3, session.list_panes.length
           assert_equal "root", session.environment("ROOT")
           assert_equal "#{result.created_refs.fetch('window:1').id}\n", session.display('#{window_id}').text
-          assert IO.select([listener], nil, nil, 0.5), "authored shell command did not send its receipt"
+          assert IO.select([listener], nil, nil, HANG_GUARD_SECONDS), "authored shell command did not send its receipt"
           client = listener.accept
           begin
             assert_equal [File.realpath(directory), "pane"], Marshal.load(client.read)

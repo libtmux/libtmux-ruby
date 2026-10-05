@@ -14,7 +14,7 @@ class StartupTest < Minitest::Test
       log_readiness = LibTmux::Internal.const_get(:LogSocketReadiness, false).new(directory)
     end
     path = pid = nil
-    LibTmux::Server.start(timeout: 0.5) do |server|
+    LibTmux::Server.start(timeout: HANG_GUARD_SECONDS) do |server|
       path = File.dirname(server.endpoint.socket_path)
       pid = Integer(server.run(["display-message", "-p", '#{pid}']).text)
       assert log_readiness.stopped?
@@ -43,7 +43,7 @@ class StartupTest < Minitest::Test
         "File.write(#{record.inspect}, Dir.pwd)\n" \
         "File.binwrite(\"tmux-server-\#{Process.pid}.log\", 'x' * ((1 << 20) + 1))\nIO.select([])\n")
       File.chmod(0o700, executable)
-      error = assert_raises(LibTmux::CapacityError) { LibTmux::Server.start(executable: executable, timeout: 0.5) }
+      error = assert_raises(LibTmux::CapacityError) { LibTmux::Server.start(executable: executable, timeout: HANG_GUARD_SECONDS) }
       assert_equal :possibly_sent, error.delivery
       assert_equal :startup, error.phase
       assert_raises(Errno::ECHILD) { Process.waitpid(error.pid, Process::WNOHANG) }
@@ -185,16 +185,16 @@ class StartupTest < Minitest::Test
       error
     end
     begin
-      assert entered.pop(timeout: 0.5), "daemon close was not entered"
+      assert entered.pop(timeout: HANG_GUARD_SECONDS), "daemon close was not entered"
       worker.raise second
       release << true
-      assert worker.join(0.5), "daemon cleanup did not settle"
+      assert worker.join(HANG_GUARD_SECONDS), "daemon cleanup did not settle"
       assert_same first, worker.value
       assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
       refute File.exist?(File.dirname(path))
     ensure
       release << true
-      worker.join(0.5)
+      worker.join(HANG_GUARD_SECONDS)
     end
   end
 
@@ -210,7 +210,7 @@ class StartupTest < Minitest::Test
       end
       writer.close
       begin
-        assert IO.select([reader], nil, nil, 0.5), "fork child did not detach"
+        assert IO.select([reader], nil, nil, HANG_GUARD_SECONDS), "fork child did not detach"
         assert_equal "detached", reader.read
         assert Process.wait2(child).last.success?
         assert server.run(["display-message", "-p", "still-owned"]).success?

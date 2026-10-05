@@ -6,6 +6,17 @@ require "libtmux/process"
 require_relative "../support/tmux_fixture"
 
 class TmuxFixtureTest < Minitest::Test
+  def test_socket_path_beyond_the_darwin_limit_is_refused_by_name
+    Dir.mktmpdir("libtmux-ruby-") do |base|
+      long = File.join(base, "d" * (104 - base.bytesize - "/libtmux-ruby-".bytesize - 8))
+      Dir.mkdir(long)
+      error = with_tmpdir(long) { assert_raises(LibTmuxTest::TmuxFixture::Error) { LibTmuxTest::TmuxFixture.new } }
+      assert_match(/sun_path limit/, error.message)
+      assert_empty Dir.children(long)
+      with_tmpdir(base) { LibTmuxTest::TmuxFixture.new.close }
+    end
+  end
+
   def test_explicit_executable_selects_both_owned_daemon_and_client
     executable = ENV.fetch("LIBTMUX_TEST_TMUX") do
       ENV.fetch("PATH").split(File::PATH_SEPARATOR).map { |part| File.join(part, "tmux") }
@@ -44,7 +55,7 @@ class TmuxFixtureTest < Minitest::Test
     child = fixture.send(:spawn_owned, Gem.ruby, "--disable=rubyopt,gems", "-e",
       'trap("TERM") {}; STDOUT.write("ready\n"); STDOUT.flush; input, output = IO.pipe; input.read(1)')
     fixture.instance_variable_get(:@clients)[child.last.pid] = child
-    assert IO.select([child[1]], nil, nil, 0.5), "owned helper did not start"
+    assert IO.select([child[1]], nil, nil, HANG_GUARD_SECONDS), "owned helper did not start"
     assert_equal "ready\n", child[1].gets
     release << true
     trace.disable
@@ -78,7 +89,7 @@ class TmuxFixtureTest < Minitest::Test
       server = fixture.instance_variable_get(:@server).last
       pid = server.pid
       assert fixture.tmux("kill-server").last.success?
-      assert server.join(0.5), "server exit was not observed"
+      assert server.join(HANG_GUARD_SECONDS), "server exit was not observed"
       LibTmux::Internal::ProcessWait.new.observe(pid)
     end
 
@@ -128,7 +139,7 @@ class TmuxFixtureTest < Minitest::Test
       LibTmuxTest::TmuxFixture.open do |fixture|
         directory = File.dirname(fixture.socket_path)
         pid = server_pid(fixture)
-        identity = LibTmux::Internal::ProcessExecutor.new.run(["ps", "-o", "ppid=", "-p", pid.to_s], timeout: 0.5)
+        identity = LibTmux::Internal::ProcessExecutor.new.run(["ps", "-o", "ppid=", "-p", pid.to_s], timeout: HANG_GUARD_SECONDS)
         assert identity.success?
         parent = Integer(identity.text.strip, 10)
         assert_equal Process.pid, parent, "fixture server must remain an owned child"
@@ -165,7 +176,7 @@ class TmuxFixtureTest < Minitest::Test
     end
     assert_equal 1, clients.length, "expected one dispatched child client"
     worker.raise(Interrupt, "cancel fixture")
-    assert_raises(Interrupt) { worker.join(0.5) }
+    assert_raises(Interrupt) { worker.join(HANG_GUARD_SECONDS) }
     refute worker.alive?, "cancellation did not finish owned cleanup"
     refute File.exist?(File.dirname(fixture.socket_path))
     [pid, *clients].each do |owned_pid|
@@ -175,7 +186,7 @@ class TmuxFixtureTest < Minitest::Test
   ensure
     if worker&.alive?
       worker.kill
-      worker.join(0.5)
+      worker.join(HANG_GUARD_SECONDS)
     end
   end
 
@@ -278,19 +289,19 @@ class TmuxFixtureTest < Minitest::Test
         error
       end
     end
-    fixture = ready.pop(timeout: 0.5)
+    fixture = ready.pop(timeout: HANG_GUARD_SECONDS)
     assert fixture, "fixture did not reach its interruption barrier"
     worker.raise(failure)
-    assert cleaning.pop(timeout: 0.5), "fixture did not begin owned cleanup"
+    assert cleaning.pop(timeout: HANG_GUARD_SECONDS), "fixture did not begin owned cleanup"
     worker.raise(Interrupt, "second cancellation")
     release << true
-    assert worker.join(0.5), "repeated interruption prevented fixture cleanup"
+    assert worker.join(HANG_GUARD_SECONDS), "repeated interruption prevented fixture cleanup"
     assert_same failure, worker.value
     refute File.exist?(File.dirname(fixture.socket_path))
   ensure
     release << true if release
     worker&.kill if worker&.alive?
-    worker&.join(0.5)
+    worker&.join(HANG_GUARD_SECONDS)
   end
 
   private
@@ -299,5 +310,13 @@ class TmuxFixtureTest < Minitest::Test
     output, error, status = fixture.tmux("display-message", "-p", '#{pid}')
     assert status.success?, error
     Integer(output, 10)
+  end
+
+  def with_tmpdir(directory)
+    previous = ENV["TMPDIR"]
+    ENV["TMPDIR"] = directory
+    yield
+  ensure
+    ENV["TMPDIR"] = previous
   end
 end

@@ -10,12 +10,12 @@ Example.run("layout_io") do |server|
   receipt.window.select_layout("tiled")
   Example.check(receipt.window.list_panes.map(&:id).sort == [pane.id, second.id].sort, "assigned pane IDs differ")
   server.open_control(session: receipt.entity.ref) do |control|
-    control.exchange("display-message -p ready", timeout: 0.5)
+    control.exchange("display-message -p ready", timeout: 10)
     output = control.subscribe(pane_id: pane.id, max_bytes: 8192, max_events: 32)
     literal = "literal; #{'#{pane_id}'} $HOME"
     pane.send_text(literal)
     bytes = "".b
-    bytes << output.next(timeout: 0.5).data until bytes.include?(literal)
+    bytes << output.next(timeout: 10).data until bytes.include?(literal)
     Example.check(pane.capture.stdout.include?(literal), "capture lost literal input")
   end
   payload = "NUL\0\xff\n".b

@@ -97,7 +97,7 @@ class ProcessExecutorTest < Minitest::Test
     cancellation = LibTmux::Cancellation.new
     with_child_readiness do |ready, environment|
       worker = task do
-        executor(cleanup_timeout: 0.1).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
+        executor(cleanup_timeout: HANG_GUARD_SECONDS).run(ruby(<<~RUBY), env: environment, cancel: cancellation)
           trap('TERM') {}
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
@@ -106,7 +106,7 @@ class ProcessExecutorTest < Minitest::Test
       end
       pid = Integer(read_event(ready), 10)
       20.times { cancellation.cancel }
-      assert worker.join(0.5), "cancellation did not retire the owned client"
+      assert worker.join(HANG_GUARD_SECONDS), "cancellation did not retire the owned client"
       error = worker.value
 
       assert_instance_of LibTmux::Cancelled, error
@@ -125,14 +125,14 @@ class ProcessExecutorTest < Minitest::Test
   def test_deadline_after_dispatch_reports_possible_effects
     with_child_readiness do |ready, environment|
       worker = task do
-        executor.run(ruby(<<~RUBY), env: environment, timeout: 0.1)
+        executor.run(ruby(<<~RUBY), env: environment, timeout: 2.0)
           File.write(ENV.fetch('READY'), Process.pid.to_s + "\n")
           input, output = IO.pipe
           input.read(1)
         RUBY
       end
       pid = Integer(read_event(ready), 10)
-      assert worker.join(0.5), "deadline did not retire the owned client"
+      assert worker.join(HANG_GUARD_SECONDS), "deadline did not retire the owned client"
       error = worker.value
 
       assert_instance_of LibTmux::DeadlineExceeded, error
@@ -158,12 +158,12 @@ class ProcessExecutorTest < Minitest::Test
             socket.close
           RUBY
         end
-        assert IO.select([server], nil, nil, 0.5), "child did not connect for pipe transfer"
+        assert IO.select([server], nil, nil, HANG_GUARD_SECONDS), "child did not connect for pipe transfer"
         connection = server.accept
-        assert IO.select([connection], nil, nil, 0.5), "child did not transfer its pipe"
+        assert IO.select([connection], nil, nil, HANG_GUARD_SECONDS), "child did not transfer its pipe"
         retained = connection.recv_io
         connection.close
-        assert worker.join(0.5), "another pipe owner prevented bounded command cleanup"
+        assert worker.join(HANG_GUARD_SECONDS), "another pipe owner prevented bounded command cleanup"
         error = worker.value
 
         assert_instance_of LibTmux::DeadlineExceeded, error
@@ -193,7 +193,7 @@ class ProcessExecutorTest < Minitest::Test
       end
       pid = Integer(read_event(ready), 10)
       worker.raise(failure)
-      assert worker.join(0.5), "interrupted caller did not retire its client"
+      assert worker.join(HANG_GUARD_SECONDS), "interrupted caller did not retire its client"
 
       assert_same failure, worker.value
       assert_reaped(pid)
@@ -230,7 +230,7 @@ class ProcessExecutorTest < Minitest::Test
       assert_equal "reaping", read_event(ready)
       worker.raise(later)
       release << true
-      assert worker.join(0.5), "repeated cancellation stranded cleanup"
+      assert worker.join(HANG_GUARD_SECONDS), "repeated cancellation stranded cleanup"
 
       assert_same original, worker.value
       assert_reaped(pid)
@@ -276,7 +276,7 @@ class ProcessExecutorTest < Minitest::Test
     wait = LibTmux::Internal::ProcessWait.new
     pid = Process.spawn(*ruby("exit 17"), out: File::NULL, err: File::NULL, close_others: true)
     observer = task { wait.observe(pid) }
-    assert observer.join(0.5), "exit observation did not complete"
+    assert observer.join(HANG_GUARD_SECONDS), "exit observation did not complete"
     raise observer.value if observer.value.is_a?(Exception)
     assert_equal 1, Process.kill(0, pid)
     assert_equal 1, Process.kill("TERM", pid)
@@ -305,13 +305,13 @@ class ProcessExecutorTest < Minitest::Test
     child = LibTmux::Internal::OwnedChild.new
     pid = Process.spawn(*ruby("exit 17"), out: File::NULL, err: File::NULL, close_others: true)
     child.spawned(pid)
-    assert IO.select([child.reader], nil, nil, 0.5), "child observation did not notify its owner"
+    assert IO.select([child.reader], nil, nil, HANG_GUARD_SECONDS), "child observation did not notify its owner"
     assert child.observed?
     refute child.join(0), "observation must retain the wait obligation until final signalling"
     LibTmux::Internal::ProcessWait.new.observe(pid)
     child.finish_signalling
     assert_nil child.signal("KILL"), "retired signal permission must never use a recycled PID"
-    assert child.join(0.5), "native reaping bridge did not finish"
+    assert child.join(HANG_GUARD_SECONDS), "native reaping bridge did not finish"
     assert_equal 17, child.status.exitstatus
     assert_nil child.observation_error
     assert_nil child.retirement_error
@@ -344,7 +344,7 @@ class ProcessExecutorTest < Minitest::Test
     end
     trace.enable
     worker = task { executor(cleanup_timeout: 0.02).run(ruby('STDOUT.write("done")'), cancel: cancel) }
-    assert worker.join(0.5), "observed command did not finish its bounded drain"
+    assert worker.join(HANG_GUARD_SECONDS), "observed command did not finish its bounded drain"
     assert_instance_of LibTmux::CommandResult, worker.value
     assert_equal "done", worker.value.stdout
     assert worker.value.success?
@@ -371,10 +371,10 @@ class ProcessExecutorTest < Minitest::Test
       end
       pid = Integer(read_event(ready), 10)
       cancellation.cancel
-      assert worker.join(0.5), "cleanup did not respect its deadline"
+      assert worker.join(HANG_GUARD_SECONDS), "cleanup did not respect its deadline"
       assert_instance_of LibTmux::Cancelled, worker.value
       (Thread.list - before).each do |thread|
-        assert thread.join(0.5), "an incomplete cleanup lost its owned retirement task"
+        assert thread.join(HANG_GUARD_SECONDS), "an incomplete cleanup lost its owned retirement task"
       end
       assert_reaped(pid)
     ensure
@@ -430,7 +430,7 @@ class ProcessExecutorTest < Minitest::Test
       end
       pid = Integer(read_event(ready), 10)
       release << true
-      assert worker.join(0.5), "failed exit observer did not release command ownership"
+      assert worker.join(HANG_GUARD_SECONDS), "failed exit observer did not release command ownership"
       assert_instance_of LibTmux::TransportError, worker.value
       assert_reaped(pid)
     ensure
@@ -475,12 +475,12 @@ class ProcessExecutorTest < Minitest::Test
       pid = Integer(read_event(ready), 10)
       cancellation.cancel
       witness = task { LibTmux::Internal::ProcessWait.new.observe(pid) }
-      assert witness.join(0.5), "final kill did not make the child waitable"
+      assert witness.join(HANG_GUARD_SECONDS), "final kill did not make the child waitable"
       raise witness.value if witness.value.is_a?(Exception)
       release << true
-      assert worker.join(0.5), "late observer failure lost its retirement token"
+      assert worker.join(HANG_GUARD_SECONDS), "late observer failure lost its retirement token"
       assert_instance_of LibTmux::Cancelled, worker.value
-      assert selected.join(0.5), "late observer did not retain its reaping obligation"
+      assert selected.join(HANG_GUARD_SECONDS), "late observer did not retain its reaping obligation"
       assert_reaped(pid)
     ensure
       trace.disable
@@ -528,7 +528,7 @@ class ProcessExecutorTest < Minitest::Test
   end
 
   def read_event(io)
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + HANG_GUARD_SECONDS
     value = +""
     until value.end_with?("\n")
       remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)

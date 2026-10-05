@@ -28,10 +28,10 @@ class ServerTest < Minitest::Test
           text = "C-a \#{pane_id};"
           assert pane.send_text(text).success?
           assert pane.send_keys("Enter").success?
-          assert IO.select([receipt], nil, nil, 0.5), "pane did not acknowledge literal input"
+          assert IO.select([receipt], nil, nil, HANG_GUARD_SECONDS), "pane did not acknowledge literal input"
           client = receipt.accept
           begin
-            assert IO.select([client], nil, nil, 0.5), "pane input receipt was empty"
+            assert IO.select([client], nil, nil, HANG_GUARD_SECONDS), "pane input receipt was empty"
             assert_equal "#{text}\n", client.read
           ensure
             client.close
@@ -123,12 +123,12 @@ class ServerTest < Minitest::Test
       begin
         assert fixture.tmux("wait-for", "ruby-ready").last.success?
         server.close
-        assert request.join(0.5), "server close did not retire its client"
+        assert request.join(HANG_GUARD_SECONDS), "server close did not retire its client"
         assert_instance_of LibTmux::Cancelled, request.value
         assert fixture.tmux("has-session", "-t", "fixture").last.success?
       ensure
         server.close
-        request.join(0.5)
+        request.join(HANG_GUARD_SECONDS)
       end
     end
   end
@@ -186,7 +186,7 @@ class ServerTest < Minitest::Test
         assert_equal :not_sent, failure.delivery
         failure = assert_raises(LibTmux::DeadlineExceeded) { server.close }
         assert_equal :retire, failure.phase
-        requests.each { |request| assert request.join(0.5), "cancelled client did not retire" }
+        requests.each { |request| assert request.join(HANG_GUARD_SECONDS), "cancelled client did not retire" }
         server.close
         assert server.diagnostics.fetch(:closed)
         assert_equal 0, server.diagnostics.fetch(:admitted_requests)
@@ -199,7 +199,7 @@ class ServerTest < Minitest::Test
         rescue LibTmux::DeadlineExceeded
           nil
         end
-        requests.each { |request| request.join(0.5) }
+        requests.each { |request| request.join(HANG_GUARD_SECONDS) }
         server.close
       end
     end
@@ -227,11 +227,11 @@ class ServerTest < Minitest::Test
         entered.pop
         worker.raise(deferred)
         release << true
-        assert worker.join(0.5), "cleanup did not finish"
+        assert worker.join(HANG_GUARD_SECONDS), "cleanup did not finish"
         assert_same original, worker.value
       ensure
         release << true
-        worker.join(0.5)
+        worker.join(HANG_GUARD_SECONDS)
       end
     end
   end
@@ -260,13 +260,13 @@ class ServerTest < Minitest::Test
           end
         end
         writer.close
-        assert IO.select([reader], nil, nil, 0.5), "fork close blocked on parent requests"
+        assert IO.select([reader], nil, nil, HANG_GUARD_SECONDS), "fork close blocked on parent requests"
         assert_equal "closed", reader.read
         _, status = Process.wait2(child)
         child = nil
         assert status.success?
         assert fixture.tmux("wait-for", "-S", "fork-held").last.success?
-        assert request.join(0.5), "parent request did not finish"
+        assert request.join(HANG_GUARD_SECONDS), "parent request did not finish"
         assert_instance_of LibTmux::CommandResult, request.value
         assert request.value.success?
       ensure
@@ -277,7 +277,7 @@ class ServerTest < Minitest::Test
         reader.close
         writer.close unless writer.closed?
         server.close
-        request.join(0.5)
+        request.join(HANG_GUARD_SECONDS)
       end
     end
   end

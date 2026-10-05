@@ -10,15 +10,15 @@ begin
     )
     pane = created.pane
     server.open_control(session: created.entity.ref) do |control|
-      control.exchange("display-message -p ready", timeout: 1)
+      control.exchange("display-message -p ready", timeout: 10)
       output = control.subscribe(pane_id: pane.id, max_bytes: 8192, max_events: 32)
       pane.send_text("printf '\\nlibtmux capture ready\\n'")
       pane.send_keys("Enter")
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 10
       bytes = "".b
       until bytes.lines(chomp: true).include?("libtmux capture ready")
         remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        raise "Output did not arrive within five seconds" unless remaining.positive?
+        raise "Output did not arrive within ten seconds" unless remaining.positive?
         bytes << output.next(timeout: remaining).data
       end
       captured = pane.capture.stdout.lines(chomp: true)
