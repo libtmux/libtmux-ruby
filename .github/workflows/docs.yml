@@ -219,7 +219,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: libtmux/docs
-          ref: a73151575047f571d03a3179f6647c402c6d7e6f # main
+          ref: d4d232dcede5979c50079be06bc1f314d79954b0 # main
           path: docs
           persist-credentials: false
 
@@ -309,7 +309,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@a73151575047f571d03a3179f6647c402c6d7e6f # main
+    uses: libtmux/docs/.github/workflows/reusable-deploy.yml@d4d232dcede5979c50079be06bc1f314d79954b0 # main
     with:
       path-prefix: ruby/${{ matrix.version }}
       artifact: docs-ruby-${{ matrix.version }}
