@@ -77,10 +77,16 @@ class ReleaseTest < Minitest::Test
       FileUtils.cp_r(File.join(self.class.source_fixture, "."), @root)
     else
       build_source_fixture
-      self.class.source_fixture = Dir.mktmpdir("libtmux-ruby-release-source-")
-      self.class.source_commit = git("rev-parse", "HEAD").strip
-      FileUtils.cp_r(File.join(@root, "."), self.class.source_fixture)
-      fixture = self.class.source_fixture
+      commit = git("rev-parse", "HEAD").strip
+      fixture = Dir.mktmpdir("libtmux-ruby-release-source-")
+      begin
+        FileUtils.cp_r(File.join(@root, "."), fixture)
+      rescue StandardError
+        FileUtils.remove_entry(fixture)
+        raise
+      end
+      self.class.source_fixture = fixture
+      self.class.source_commit = commit
       Minitest.after_run { FileUtils.remove_entry(fixture) }
     end
     @commit = self.class.source_commit
@@ -374,7 +380,10 @@ class ReleaseTest < Minitest::Test
   end
 
   def git(*arguments)
-    output, status = Open3.capture2e("git", *arguments, chdir: @root)
+    # Git 2.46+ detaches `git maintenance run --auto` after commit. Its
+    # objects/maintenance.lock disappears while FileUtils copies .git.
+    output, status =
+      Open3.capture2e("git", "-c", "maintenance.auto=false", *arguments, chdir: @root)
     raise output unless status.success?
     output
   end
