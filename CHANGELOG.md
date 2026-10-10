@@ -2,6 +2,23 @@
 
 ## 0.1.0.alpha.2 (unreleased)
 
+- Check cancellation at adoption and find-or-create handoff. Cancelled reuse preserves borrowed resources; cancelled adoption after receipt acceptance destroys the owned target and retains a recovery owner if cleanup fails. Cancellation also interrupts a wait for the find-or-create gate.
+
+- Add explicit ownership blocks and retryable cleanup for servers, sessions, windows and panes, bounded no-start discovery, and created/reused find-or-create results. Preserve receipt and rollback failures and guard daemon destruction with reserved generation metadata. `with_session` now uses the receipt-backed scope.
+
+- Let ordinary server constructors resolve explicit selectors, then
+  `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET_NAME`, `TMUX` and the default socket.
+  Require absolute paths, preserve filesystem components and comma-containing
+  TMUX paths, and reject malformed PID/session fields without fallback.
+- Capture the complete child environment and executable at construction. Pass
+  `env: ENV.to_h.merge(...)` for overrides; later host edits no longer affect
+  an existing handle. Empty selector environment values count as absent.
+- Add `with_session` blocks with observable body and cleanup failures, an
+  ordinary default example, and an external isolated execution harness.
+- Allow `Server.start(endpoint:)` to publish a newly owned daemon at a selected
+  socket without replacing an existing endpoint. Validate named UID
+  directories and preserve filesystem traversal for socket roots.
+
 ## 0.1.0.alpha.1 (2026-09-20)
 
 Initial alpha of the Ruby tmux suite.

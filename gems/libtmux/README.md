@@ -12,7 +12,8 @@
 # libtmux
 
 Ruby tmux orchestration core. `Server.open` borrows an
-existing explicit endpoint. Closing it retires owned clients and preserves
+existing endpoint selected from explicit options or captured environment
+defaults. Closing it retires owned clients and preserves
 the daemon; `kill` explicitly terminates the daemon. `Server.start` creates a
 private owned foreground daemon whose lifetime ends with its server handle.
 Owned startup uses Linux and Darwin readiness backends. The
@@ -25,6 +26,30 @@ Install the alpha with `gem install libtmux --pre`, then require `libtmux`.
 Imports do not
 start tmux, a scheduler or an MCP server. See the repository's contribution
 guide for local build and verification commands.
+
+Use `Server.open` with a running tmux daemon. `with_session` owns the session
+it creates and removes it when the block exits:
+
+<!-- example: default_session -->
+```ruby
+# frozen_string_literal: true
+
+require "libtmux"
+require "securerandom"
+
+LibTmux::Server.open do |server|
+  server.with_session(name: "ruby-example-#{SecureRandom.hex(4)}", command: ["/bin/cat"]) do |session|
+    puts "session windows: #{session.list_windows.length}"
+  end
+end
+```
+<!-- /example -->
+
+Pass `env: ENV.to_h.merge(...)` to choose a complete child environment without
+changing host ENV. The handle captures it, the endpoint and the executable
+at construction. See [endpoint defaults](../../docs/reference/behavior.md#endpoints)
+and [session scopes](../../docs/reference/behavior.md#session-scopes) for
+precedence and paired body/cleanup errors.
 
 Handles carry immutable refs bound to one open server binding. IDs and refs
 are local readers; `list_*`, `snapshot` and command methods perform explicit

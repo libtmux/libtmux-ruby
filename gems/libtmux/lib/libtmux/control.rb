@@ -386,7 +386,7 @@ module LibTmux
           begin
             process_wait = Internal::ProcessWait.new
             prefix = binding.command_prefix
-            @pin = Internal::SocketIdentity.new(Endpoint.new(socket_path: prefix.last, executable: prefix.first))
+            @pin = Internal::SocketIdentity.new(Endpoint.new(socket_path: prefix.last, executable: prefix.first, env: binding.environment))
             @wake_reader, @wake_writer = pipe
             input_reader, @input = pipe
             @output, output_writer = pipe
@@ -395,9 +395,9 @@ module LibTmux
             @exit_reader = @child.reader
             @resources << @exit_reader
             begin
-              @pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil},
+              @pid = Process.spawn(binding.environment,
                 *@pin.command_prefix, "-C", "attach-session", "-t", session_id,
-                in: input_reader, out: output_writer, err: error_writer, close_others: true)
+                in: input_reader, out: output_writer, err: error_writer, close_others: true, unsetenv_others: true)
             ensure
               @child.spawned(@pid)
             end

@@ -12,6 +12,16 @@ with `Server.start` owns its daemon and temporary directory as well. Handles,
 Async tasks and subscriptions cannot be transferred to another process or
 scheduler as if their ownership were unchanged.
 
+`Server#with_session` owns a newly created session. Call
+`server.with_session(name:, command:)` with a block.
+It captures the session ID and attempts removal after normal return or an
+exception. A lookup or `new_session` without that block scope returns a
+borrowed handle. If the block and teardown both fail, inspect `CleanupError`'s
+`body_error` and `cleanup_error`; both retain the original exception objects.
+The [ordinary example](../examples/default_session.rb) uses this scope with
+the default endpoint. The [behavior contract](reference/behavior.md#session-scopes)
+describes retries and deadlines.
+
 | Failure or empty value | Meaning |
 | --- | --- |
 | Empty `Selection` / `one_or_nil` returns `nil` | A valid complete local selection has no matching record |

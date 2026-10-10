@@ -17,7 +17,7 @@ module LibTmux
         validate_argv(argv)
         raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
 
-        @scope.__send__(:execute, @pin.command_prefix + argv, input: input, timeout: timeout, cancel: cancel)
+        @scope.__send__(:execute, @pin.command_prefix + argv, input: input, timeout: timeout, cancel: cancel, env: @endpoint.environment)
       end
 
       def close
@@ -62,7 +62,60 @@ module LibTmux
         raise UnsupportedFeatureError.new("create an owned core server before opening its Async scope", phase: :admission)
       end
 
+      def self.find_or_create(**)
+        raise UnsupportedFeatureError.new("find or create a core server before opening its Async scope", phase: :admission)
+      end
+
+      def self.discover(**options)
+        LibTmux::Server.discover(**options)
+      end
+
       private
+
+      # Core ownership retains the same pinned binding. Async cancellation waits
+      # for receipt handoff; cleanup can still run after this scope was cancelled.
+      def lifecycle_execute(program, names, budget)
+        @source.__send__(:lifecycle_execute, program, names, budget)
+      end
+
+      def destroy_owned(receipt, timeout:)
+        ::Async::Task.current.defer_cancel do
+          @source.__send__(:destroy_owned, receipt, timeout: timeout)
+        end
+      end
+
+      def acquire_owned(*arguments, **options, &block)
+        owner = nil
+        begin
+          ::Async::Task.current.defer_cancel { owner = super(*arguments, **options, &nil) }
+        rescue Exception => failure
+          rollback_owner(owner, failure) if owner
+          raise
+        end
+        block ? owner.use(&block) : owner
+      end
+
+      def adopt_resource(*arguments, **options, &block)
+        owner = nil
+        begin
+          ::Async::Task.current.defer_cancel { owner = super(*arguments, **options, &nil) }
+        rescue Exception => failure
+          rollback_owner(owner, failure) if owner
+          raise
+        end
+        block ? owner.use(&block) : owner
+      end
+
+      def find_or_create_entity(*arguments, **options)
+        acquisition = nil
+        begin
+          ::Async::Task.current.defer_cancel { acquisition = super }
+        rescue Exception => failure
+          rollback_owner(acquisition.owner, failure) if acquisition&.owner
+          raise
+        end
+        acquisition
+      end
 
       def ensure_owner
         @scope.__send__(:ensure_owner)

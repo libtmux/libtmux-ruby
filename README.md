@@ -59,6 +59,40 @@ results for your revision before relying on a particular combination.
 
 ## Quick start
 
+Open your running tmux server and create a session for the block. The default
+endpoint comes from `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET_NAME`, `TMUX`, then
+tmux's named default socket. `with_session` removes its session when the block
+returns or raises; `Server.open` closes the client binding.
+
+<!-- example: default_session -->
+```ruby
+# frozen_string_literal: true
+
+require "libtmux"
+require "securerandom"
+
+LibTmux::Server.open do |server|
+  server.with_session(name: "ruby-example-#{SecureRandom.hex(4)}", command: ["/bin/cat"]) do |session|
+    puts "session windows: #{session.list_windows.length}"
+  end
+end
+```
+<!-- /example -->
+
+Run the [complete ordinary example](examples/default_session.rb) with a
+running tmux daemon:
+
+```console
+$ mise exec -- bundle exec ruby examples/default_session.rb
+```
+
+It prints `session windows: 1`. The [test harness](test/support/default_example_harness.rb)
+passes a private endpoint through the child's environment and runs this file
+unchanged. See [endpoint defaults](docs/reference/behavior.md#endpoints) for
+explicit selectors and immutable child environment maps.
+
+### Own a private daemon
+
 Create a session and split its `logs` window. `Server.start` owns a private
 tmux server and closes it when the block exits. The snapshot remains readable
 afterward.
@@ -94,9 +128,11 @@ main: %0
 logs: %1, %2
 ```
 
-Pane commands take argument arrays. To use an existing server, open an explicit
-endpoint with `LibTmux::Server.open(socket_path: ...)`; closing that binding
+Pane commands take argument arrays. To select an existing daemon explicitly,
+pass `socket_path:` or `socket_name:` to `Server.open`; closing that binding
 leaves the daemon running. See [ownership and errors](docs/ownership-errors.md).
+
+For explicit adoption, receipt-backed ownership, bounded discovery and created/reused results, see [lifecycle operations](docs/lifecycle.md).
 
 ## Query a snapshot
 

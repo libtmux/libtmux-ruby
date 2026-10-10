@@ -60,15 +60,16 @@ module LibTmux
       argv = @pin.command_prefix + ["attach-session", "-E", *(read_only ? ["-r"] : []), "-t", session_id]
       perform_request(cancel: cancel) do |view|
         Internal.const_get(:TerminalExecution, false).new(argv, terminal, term,
-          timeout && timeout - (monotonic - started), view).call
+          timeout && timeout - (monotonic - started), view, @endpoint.environment).call
       end
     end
   end
 
   module Internal
     class TerminalExecution
-      def initialize(argv, terminal, term, timeout, cancel)
+      def initialize(argv, terminal, term, timeout, cancel, environment)
         @argv, @terminal, @term, @cancel = argv, terminal, term.dup.freeze, cancel
+        @environment = environment
         @started = clock
         @deadline = timeout && @started + timeout
       end
@@ -85,8 +86,8 @@ module LibTmux
               @mode = @tty.console_mode
               @child = OwnedChild.new
               begin
-                @pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil, "TERM" => @term},
-                  *@argv, in: @tty, out: @tty, err: @tty, close_others: true)
+                @pid = Process.spawn(@environment.merge("TERM" => @term),
+                  *@argv, in: @tty, out: @tty, err: @tty, close_others: true, unsetenv_others: true)
               rescue SystemCallError, IOError => error
                 raise TransportError.new("terminal client could not start (#{error.class})", **details(:spawn)), cause: nil
               ensure

@@ -35,10 +35,19 @@ module LibTmuxTest
       destination = File.join(directory, "examples")
       FileUtils.cp_r(File.join(root, "examples"), destination) unless File.directory?(destination)
       manifest.fetch("programs").select { |entry| entry.fetch("gem") == package }.each do |entry|
-        output, status = Open3.capture2e(environment.merge("LIBTMUX_EXAMPLE_INSTALLED" => "1"),
-          Gem.ruby, "-W:no-experimental", File.join(directory, entry.fetch("path")), chdir: directory)
+        if entry["endpoint"] == "borrowed"
+          require_relative "default_example_harness"
+          evidence = DefaultExampleHarness.run(example: File.join(directory, entry.fetch("path")),
+            environment: ENV.to_h.merge(environment), ruby_options: ["-W:no-experimental"])
+          output, status = evidence.fetch(:stdout) + evidence.fetch(:stderr), evidence.fetch(:status)
+          assert_equal ["fixture"], evidence.fetch(:sessions)
+          assert evidence.fetch(:retired_before_removal)
+        else
+          output, status = Open3.capture2e(environment.merge("LIBTMUX_EXAMPLE_INSTALLED" => "1"),
+            Gem.ruby, "-W:no-experimental", File.join(directory, entry.fetch("path")), chdir: directory)
+        end
         assert status.success?, "installed example #{entry.fetch('id')} failed: #{output}"
-        assert_equal entry.dig("api", "output") || "PASS #{entry.fetch('id')}\n", output
+        assert_equal entry["output"] || entry.dig("api", "output") || "PASS #{entry.fetch('id')}\n", output
       end
     end
 

@@ -1,7 +1,79 @@
 module LibTmux
   class Server
-    def self.start: (?executable: String, ?config: String?, ?timeout: Numeric, ?cancel: untyped, **untyped) -> Server
-                  | [T] (?executable: String, ?config: String?, ?timeout: Numeric, ?cancel: untyped, **untyped) { (Server) -> T } -> T
+    def self.start: (?endpoint: Endpoint?, ?env: Hash[String, String?]?, ?executable: String, ?config: String?, ?timeout: Numeric, ?cancel: untyped, **untyped) -> Server
+                  | [T] (?endpoint: Endpoint?, ?env: Hash[String, String?]?, ?executable: String, ?config: String?, ?timeout: Numeric, ?cancel: untyped, **untyped) { (Server) -> T } -> T
     def owned?: () -> bool
+    def adopt: (?timeout: Numeric, ?cancel: untyped) -> OwnedResource[Server]
+             | [T] (?timeout: Numeric, ?cancel: untyped) { (Server) -> T } -> T
+    def owned_session: (name: String, command: Array[String], **untyped) -> OwnedResource[Session]
+                     | [T] (name: String, command: Array[String], **untyped) { (Session) -> T } -> T
+    def find_or_create_session: (name: String, command: Array[String], ?timeout: Numeric, **untyped) -> Acquisition[Session]
+    def self.find_or_create: (?endpoint: Endpoint?, ?timeout: Numeric, ?config: String?, **untyped) -> Acquisition[Server]
+    def self.discover: (?roots: Array[String]?, ?env: untyped, ?executable: String, ?max_entries: Integer, ?max_probes: Integer, ?timeout: Numeric, ?probe_timeout: Numeric) -> DiscoveryResult
+  end
+
+  class Entity
+    def adopt: (?timeout: Numeric, ?cancel: untyped) -> OwnedResource[Entity]
+             | [T] (?timeout: Numeric, ?cancel: untyped) { (Entity) -> T } -> T
+  end
+
+  class Session
+    def owned_window: (name: String, command: Array[String], **untyped) -> OwnedResource[Window]
+                    | [T] (name: String, command: Array[String], **untyped) { (Window) -> T } -> T
+    def find_or_create_window: (name: String, command: Array[String], ?timeout: Numeric, **untyped) -> Acquisition[Window]
+  end
+
+  class Window
+    def owned_pane: (direction: Symbol, command: Array[String], **untyped) -> OwnedResource[Pane]
+                  | [T] (direction: Symbol, command: Array[String], **untyped) { (Pane) -> T } -> T
+    def find_or_create_pane: (identity: String, direction: Symbol, command: Array[String], ?timeout: Numeric, **untyped) -> Acquisition[Pane]
+  end
+
+  class Pane
+    def owned_pane: (direction: Symbol, command: Array[String], **untyped) -> OwnedResource[Pane]
+                  | [T] (direction: Symbol, command: Array[String], **untyped) { (Pane) -> T } -> T
+  end
+
+  class OwnershipReceipt
+    private def self.new: (*untyped, **untyped) -> instance
+    attr_reader kind: Symbol
+    attr_reader id: String?
+    attr_reader pid: Integer
+    attr_reader started_at: Integer
+    attr_reader generation: String
+  end
+
+  class OwnedResource[A]
+    private def self.new: (*untyped, **untyped) -> instance
+    attr_reader resource: A
+    attr_reader receipt: OwnershipReceipt
+    attr_reader cleanup_error: Exception?
+    def closed?: () -> bool
+    def close: (?timeout: Numeric) -> nil
+    def use: [T] () { (A) -> T } -> T
+  end
+
+  class Acquisition[A]
+    private def self.new: (*untyped, **untyped) -> instance
+    attr_reader resource: A
+    attr_reader owner: OwnedResource[A]?
+    def created?: () -> bool
+    def use: [T] () { (A) -> T } -> T
+  end
+
+  class DiscoveredServer
+    private def self.new: (*untyped, **untyped) -> instance
+    attr_reader endpoint: Endpoint
+    attr_reader pid: Integer
+    attr_reader started_at: Integer
+  end
+
+  class DiscoveryResult
+    private def self.new: (*untyped, **untyped) -> instance
+    attr_reader servers: Array[DiscoveredServer]
+    attr_reader diagnostics: Array[Hash[Symbol, String | Symbol]]
+    attr_reader entries: Integer
+    attr_reader probes: Integer
+    def truncated?: () -> bool
   end
 end

@@ -19,6 +19,12 @@ module LibTmux
     attr_reader expected: String?
     def initialize: (String, ?delivery: Symbol, ?phase: Symbol?, ?pid: Integer?, ?cleanup_errors: Array[String], ?entity: Symbol?, ?path: String?, ?expected: String?) -> void
   end
+  class CleanupError < Error
+    attr_reader body_error: Exception
+    attr_reader cleanup_error: Exception
+    attr_reader recovery: untyped
+    def initialize: (body_error: Exception, cleanup_error: Exception, ?recovery: untyped) -> void
+  end
   class InvalidFilterError < Error
     def initialize: (?String, ?entity: Symbol?, ?path: String, ?expected: String?, **untyped) -> void
   end
@@ -58,7 +64,8 @@ module LibTmux
   class Endpoint
     attr_reader executable: String
     attr_reader socket_path: String
-    def initialize: (?socket_path: String?, ?socket_name: String?, ?executable: String, ?socket_directory: String?) -> void
+    attr_reader environment: Hash[String, String]
+    def initialize: (?socket_path: String?, ?socket_name: String?, ?executable: String, ?socket_directory: String?, ?env: Hash[String, String?]) -> void
     def self.from_env: (?untyped, **untyped) -> Endpoint
     def ==: (untyped) -> bool
     alias eql? ==
@@ -141,15 +148,16 @@ module LibTmux
 
   class Server
     attr_reader endpoint: Endpoint
-    def self.open: [T] (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) { (Server) -> T } -> T
-                 | (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> Server
-    def initialize: (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> void
+    def self.open: [T] (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?env: Hash[String, String?]?, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) { (Server) -> T } -> T
+                 | (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?env: Hash[String, String?]?, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> Server
+    def initialize: (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?env: Hash[String, String?]?, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> void
     def run: (Array[String], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def close: () -> nil
     def diagnostics: () -> {admitted_requests: Integer, reserved_process_slots: Integer, control_connections: Integer, closed: bool, limits: {max_requests: Integer, max_controls: Integer, close_timeout: Numeric}}
     def kill: (?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def new_session: (name: String, command: Array[String], receipt: true, ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> CreationReceipt
                    | (name: String, command: Array[String], ?receipt: false, ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) -> Session
+    def with_session: [T] (name: String, command: Array[String], ?width: Integer?, ?height: Integer?, ?window_name: String?, ?cwd: String?, ?environment: Hash[String, String], ?timeout: Numeric, ?cancel: untyped) { (Session) -> T } -> T
     def list_sessions: (?timeout: Numeric, ?cancel: untyped) -> Array[Session]
     def list_windows: (?timeout: Numeric, ?cancel: untyped) -> Array[Window]
     def list_panes: (?timeout: Numeric, ?cancel: untyped) -> Array[Pane]
