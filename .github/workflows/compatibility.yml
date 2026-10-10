@@ -142,7 +142,7 @@ jobs:
           --output build/matrix
       - name: Retain the cell report and failure output
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: matrix-${{ matrix.platform.system }}-${{ matrix.ruby }}-${{ matrix.tmux }}
           path: build/matrix/
@@ -150,7 +150,7 @@ jobs:
       - name: Retain every native child retirement sample
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-process-trace
           path: build/native-process-trace/
@@ -171,7 +171,7 @@ jobs:
         run: printf '%s\n' "$TMATE_SSH_ADDRESS" > "$RUNNER_TEMP/tmate-ssh-address.txt"
       - name: Retain the restricted debug connection
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && steps.debug.outputs.ssh-address != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tmate-connection
           path: ${{ runner.temp }}/tmate-ssh-address.txt
@@ -200,7 +200,7 @@ jobs:
         run: scripts/matrix --merge build/matrix-input --require-all --output build/matrix
       - name: Retain the combined report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: compatibility-report
           path: build/matrix/matrix.json
