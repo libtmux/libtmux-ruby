@@ -38,6 +38,7 @@ Gem::Specification.new do |spec|
     lib/libtmux/control.rb
     lib/libtmux/group.rb
     lib/libtmux/owned.rb
+    lib/libtmux/lifecycle.rb
     lib/libtmux/socket_readiness.rb
     lib/libtmux/terminal.rb
     lib/libtmux/criteria.rb

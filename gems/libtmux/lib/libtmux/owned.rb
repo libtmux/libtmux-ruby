@@ -22,7 +22,7 @@ module LibTmux
     class OwnedDaemon
       attr_reader :endpoint
 
-      def initialize(executable:, config:, timeout:, cancel:)
+      def initialize(executable:, config:, timeout:, cancel:, env:, endpoint: nil)
         unless timeout.is_a?(Numeric) && timeout.finite? && timeout.positive?
           raise ArgumentError, "startup timeout must be positive and finite"
         end
@@ -44,9 +44,18 @@ module LibTmux
           Thread.handle_interrupt(Exception => :never) do
             begin
               check_cancel(cancel)
-              @directory = Dir.mktmpdir("libtmux-ruby-server-")
-              @endpoint = Endpoint.new(socket_path: File.join(@directory, "socket"), executable: executable)
-              if @endpoint.socket_path.bytesize > 103
+              if endpoint
+                endpoint.__send__(:prepare_directory)
+                directory = File.join(File.dirname(endpoint.socket_path), ".libtmux-#{SecureRandom.hex(5)}")
+                Dir.mkdir(directory, 0o700)
+                @directory = directory
+              else
+                @directory = Dir.mktmpdir("libtmux-ruby-server-")
+              end
+              @launch_endpoint = Endpoint.new(socket_path: File.join(@directory, "socket"),
+                executable: endpoint ? endpoint.executable : executable, env: endpoint ? endpoint.environment : env)
+              @endpoint = endpoint || @launch_endpoint
+              if @launch_endpoint.socket_path.bytesize > 103 || @endpoint.socket_path.bytesize > 103
                 raise UnsupportedFeatureError.new("owned Unix socket path exceeds the platform limit", phase: :startup)
               end
               @readiness = SocketReadiness.new(@directory)
@@ -55,9 +64,9 @@ module LibTmux
               begin
                 check_cancel(cancel)
                 check_deadline(deadline)
-                pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil},
-                  @endpoint.executable, "-u", "-D", *@readiness.arguments, "-S", @endpoint.socket_path, "-f", config,
-                  in: File::NULL, out: File::NULL, err: File::NULL, close_others: true, **@readiness.spawn_options)
+                pid = Process.spawn(@endpoint.environment,
+                  @endpoint.executable, "-u", "-D", *@readiness.arguments, "-S", @launch_endpoint.socket_path, "-f", config,
+                  in: File::NULL, out: File::NULL, err: File::NULL, close_others: true, unsetenv_others: true, **@readiness.spawn_options)
               rescue SystemCallError, IOError => error
                 raise TransportError.new("owned daemon could not start (#{error.class})", phase: :spawn), cause: nil
               ensure
@@ -66,12 +75,19 @@ module LibTmux
               Thread.handle_interrupt(Exception => :immediate) { await_ready(deadline, cancel) }
               @readiness.close
               @readiness.remove_files(@child.pid)
+              @socket_stat = File.lstat(@launch_endpoint.socket_path)
+              # Keep the inode allocated until published-path cleanup finishes.
+              @retained_socket = File.join(@directory, "identity")
+              File.link(@launch_endpoint.socket_path, @retained_socket)
+              # Atomic publication refuses existing endpoints, including concurrent owners.
+              File.link(@launch_endpoint.socket_path, @endpoint.socket_path) if endpoint
+              @published = true
             rescue Exception => error
               failure = error
               begin
                 close
               rescue Exception => cleanup
-                attach_cleanup(failure, cleanup)
+                failure = CleanupError.new(body_error: failure, cleanup_error: cleanup, recovery: self)
               end
             end
           end
@@ -82,7 +98,7 @@ module LibTmux
           begin
             Thread.handle_interrupt(Exception => :never) { close }
           rescue Exception => cleanup
-            attach_cleanup(failure, cleanup)
+            failure = CleanupError.new(body_error: failure, cleanup_error: cleanup, recovery: self)
           end
           raise failure
         end
@@ -121,7 +137,9 @@ module LibTmux
             if !@child || @child.complete?
               attempt(errors, "startup log removal") { @readiness&.remove_files(@child&.pid) }
               attempt(errors, "socket removal") do
-                File.unlink(@endpoint.socket_path) if @endpoint && File.exist?(@endpoint.socket_path)
+                remove_socket(@endpoint.socket_path) if @published
+                remove_socket(@launch_endpoint.socket_path) if @launch_endpoint
+                remove_socket(@retained_socket) if @retained_socket
               end
               attempt(errors, "owned directory removal") do
                 Dir.rmdir(@directory) if @directory && File.exist?(@directory)
@@ -144,6 +162,15 @@ module LibTmux
       end
 
       private
+
+      def remove_socket(path)
+        stat = File.lstat(path)
+        return if @socket_stat && [stat.dev, stat.ino] != [@socket_stat.dev, @socket_stat.ino]
+
+        File.unlink(path)
+      rescue Errno::ENOENT
+        nil
+      end
 
       def await_ready(deadline, cancel)
         loop do
@@ -197,13 +224,18 @@ module LibTmux
           failure.__send__(:attach_cleanup_errors, ["owned daemon close failed (#{cleanup.class})"])
         end
       end
+
     end
 
     class OwnedServer < Server
-      def initialize(executable: "tmux", config: nil, timeout: 5.0, cancel: nil, **options)
+      def initialize(executable: "tmux", config: nil, timeout: 5.0, cancel: nil, env: nil, endpoint: nil, **options)
+        raise ArgumentError, "endpoint must be an Endpoint" if endpoint && !endpoint.is_a?(Endpoint)
+        if endpoint && (executable != "tmux" || env)
+          raise ArgumentError, "endpoint cannot be combined with executable or env options"
+        end
         begin
           Thread.handle_interrupt(Exception => :never) do
-            @daemon = OwnedDaemon.new(executable: executable, config: config, timeout: timeout, cancel: cancel)
+            @daemon = OwnedDaemon.new(executable: executable, config: config, timeout: timeout, cancel: cancel, env: env || ENV, endpoint: endpoint)
             super(endpoint: @daemon.endpoint, **options)
             @binding_ready = true
             Thread.handle_interrupt(Exception => :immediate) { nil }
@@ -212,7 +244,7 @@ module LibTmux
           begin
             Thread.handle_interrupt(Exception => :never) { close }
           rescue Exception => cleanup
-            failure.__send__(:attach_cleanup_errors, ["owned daemon close failed (#{cleanup.class})"]) if failure.is_a?(Error)
+            failure = CleanupError.new(body_error: failure, cleanup_error: cleanup, recovery: self)
           end
           raise failure
         end
@@ -234,8 +266,7 @@ module LibTmux
               begin
                 @daemon&.close
               rescue Exception => cleanup
-                failure.__send__(:attach_cleanup_errors, ["owned daemon close failed (#{cleanup.class})"]) if failure.is_a?(Error)
-                failure ||= cleanup
+                failure = failure ? CleanupError.new(body_error: failure, cleanup_error: cleanup, recovery: self) : cleanup
               end
             end
           end

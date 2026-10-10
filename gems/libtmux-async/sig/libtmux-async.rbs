@@ -39,6 +39,8 @@ module LibTmux
                       | (session: EntityRef, ?reconnect: LibTmux::ControlConnection?, **Integer) -> ControlConnection
       def attach: (**untyped) -> bot
       def self.start: (**untyped) -> bot
+      def self.find_or_create: (**untyped) -> bot
+      def self.discover: (**untyped) -> LibTmux::DiscoveryResult
     end
 
     class ControlConnection < LibTmux::ControlConnection

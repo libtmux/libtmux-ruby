@@ -27,10 +27,7 @@ module LibTmux
             begin
               server&.close
             rescue Exception => cleanup
-              if failure.is_a?(Error)
-                failure.__send__(:attach_cleanup_errors, ["server close failed (#{cleanup.class})"])
-              end
-              failure ||= cleanup
+              failure = failure ? CleanupError.new(body_error: failure, cleanup_error: cleanup) : cleanup
             end
           end
         end
@@ -42,9 +39,9 @@ module LibTmux
       result
     end
 
-    def initialize(endpoint: nil, socket_path: nil, socket_name: nil, executable: "tmux", max_requests: 32, max_controls: 4, close_timeout: 0.5)
-      if endpoint && (socket_path || socket_name || executable != "tmux")
-        raise ArgumentError, "endpoint cannot be combined with socket or executable options"
+    def initialize(endpoint: nil, socket_path: nil, socket_name: nil, executable: "tmux", env: nil, max_requests: 32, max_controls: 4, close_timeout: 0.5)
+      if endpoint && (socket_path || socket_name || executable != "tmux" || env)
+        raise ArgumentError, "endpoint cannot be combined with socket, executable or env options"
       end
       raise ArgumentError, "endpoint must be an Endpoint" if endpoint && !endpoint.is_a?(Endpoint)
       unless max_requests.is_a?(Integer) && max_requests.positive?
@@ -57,7 +54,7 @@ module LibTmux
         raise ArgumentError, "close_timeout must be positive and finite"
       end
 
-      @endpoint = endpoint || Endpoint.new(socket_path: socket_path, socket_name: socket_name, executable: executable)
+      @endpoint = endpoint || Endpoint.new(socket_path: socket_path, socket_name: socket_name, executable: executable, env: env || ENV)
       @owner_pid = Process.pid
       @max_requests = max_requests
       @max_controls = max_controls
@@ -78,9 +75,9 @@ module LibTmux
       validate_argv(argv)
       raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
       raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
-      perform_request(cancel: cancel) do |view|
+      perform_request(cancel: cancel, interruptible: !Thread.current[:libtmux_lifecycle_cleanup]) do |view|
         @executor.run(@pin.command_prefix + argv, input: input,
-          timeout: timeout - (monotonic - started), cancel: view)
+          env: @endpoint.environment, timeout: timeout - (monotonic - started), cancel: view)
       end
     end
 
@@ -149,6 +146,13 @@ module LibTmux
       end
       arguments.concat(creation_options(cwd: cwd, environment: environment))
       create_entity(:session, arguments + ["--"] + pane_command(command), receipt: receipt, **budget.options)
+    end
+
+    def with_session(name:, command:, **options)
+      raise ArgumentError, "with_session requires a block" unless block_given?
+      raise ArgumentError, "with_session does not return a creation receipt" if options.key?(:receipt)
+
+      owned_session(name: name, command: command, **options) { |session| yield session }
     end
 
     def list_sessions(timeout: 5.0, cancel: nil)
@@ -302,7 +306,7 @@ module LibTmux
       end
     end
 
-    def perform_request(cancel:)
+    def perform_request(cancel:, interruptible: true)
       ensure_owner
       if cancel && (!cancel.respond_to?(:reader) || !cancel.respond_to?(:cancelled?))
         raise ArgumentError, "cancel must provide a cancellation reader and state"
@@ -333,7 +337,7 @@ module LibTmux
               end
             end
             view = CancellationView.new(owned, cancel)
-            Thread.handle_interrupt(Exception => :immediate) do
+            Thread.handle_interrupt(Exception => (interruptible ? :immediate : :never)) do
               result = yield view
             end
           rescue Exception => error

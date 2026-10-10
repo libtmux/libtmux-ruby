@@ -64,7 +64,7 @@ module LibTmux
         @startup_changed = ::Async::Notification.new
         @exchanges, @exchange_changed = {}, ::Async::Notification.new
         initialize_state(binding_key: binding.key, session_id: session_id, reconnect: reconnect, **limits)
-        @driver = ControlDriver.new(self, scope, binding.command_prefix + ["-C", "attach-session", "-t", session_id])
+        @driver = ControlDriver.new(self, scope, binding.command_prefix + ["-C", "attach-session", "-t", session_id], binding.environment)
         @worker = ::Async::Task.new(scope.__send__(:parent)) { @driver.call }
       end
 
@@ -245,9 +245,9 @@ module LibTmux
       end
 
       class ControlDriver < ProcessDriver
-        def initialize(connection, scope, argv)
+        def initialize(connection, scope, argv, environment)
           super(scope, nil, argv.freeze, "".b, Float::INFINITY, nil,
-            {cleanup_timeout: 0.4, drain_timeout: 0.1})
+            {cleanup_timeout: 0.4, drain_timeout: 0.1}, environment)
           @connection = connection
         end
 

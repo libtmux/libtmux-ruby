@@ -16,6 +16,15 @@ This inventory checks declaration presence and visibility. The installed
 signature consumers check exercised calls; neither is whole-program static
 type checking. See [signature proof](behavior.md#signature-proof).
 
+## LibTmux::Acquisition
+
+| Method | Declared return | Contract |
+| --- | --- | --- |
+| [#created?](../../gems/libtmux/lib/libtmux/lifecycle.rb#L99) | `bool` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#owner](../../gems/libtmux/lib/libtmux/lifecycle.rb#L91) | `::LibTmux::OwnedResource[A]?` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#resource](../../gems/libtmux/lib/libtmux/lifecycle.rb#L91) | `A` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#use](../../gems/libtmux/lib/libtmux/lifecycle.rb#L103) | `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+
 ## LibTmux::Async
 
 | Method | Declared return | Contract |
@@ -70,6 +79,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
+| [#adopt](../../gems/libtmux/lib/libtmux/lifecycle.rb#L262) | `::LibTmux::OwnedResource[::LibTmux::Server]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#attach](../../gems/libtmux-async/lib/libtmux/async/server.rb#L57) | `bot` | [Async unsupported operations](behavior.md#async-unsupported-operations) |
 | [#close](../../gems/libtmux-async/lib/libtmux/async/server.rb#L23) | `nil` | [Async scope](behavior.md#async-scope) |
 | [#delete_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L62) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
@@ -77,34 +87,39 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L18) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#endpoint](../../gems/libtmux/lib/libtmux/server.rb#L11) | `::LibTmux::Endpoint` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#environment](../../gems/libtmux/lib/libtmux/operations.rb#L85) | `::String?` | [Environment](behavior.md#environment) |
-| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L235) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
+| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L239) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
+| [#find_or_create_session](../../gems/libtmux/lib/libtmux/lifecycle.rb#L272) | `::LibTmux::Acquisition[::LibTmux::Session]` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#hooks](../../gems/libtmux/lib/libtmux/operations.rb#L11) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L136) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
+| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L133) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
 | [#list_buffers](../../gems/libtmux/lib/libtmux/operations.rb#L66) | `::Array[{ name: ::String, size: ::Integer }]` | [Buffers](behavior.md#buffers) |
 | [#list_clients](../../gems/libtmux/lib/libtmux/operations.rb#L93) | `::Array[{ name: ::String, pid: ::Integer, created: ::Integer, tty: ::String?, session_id: ::String?, control: bool }]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L162) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L154) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L166) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L158) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#list_window_links](../../gems/libtmux/lib/libtmux/operations.rb#L73) | `::Array[::LibTmux::WindowLink]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L158) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L140) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
+| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L162) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L137) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
 | [#open_control](../../gems/libtmux-async/lib/libtmux/async/server.rb#L32) | `T` / `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L7) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L16) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L174) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
+| [#owned_session](../../gems/libtmux/lib/libtmux/lifecycle.rb#L266) | `::LibTmux::OwnedResource[::LibTmux::Session]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L178) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
 | [#read_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L58) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [#run](../../gems/libtmux-async/lib/libtmux/async/server.rb#L14) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
 | [#run_group](../../gems/libtmux/lib/libtmux/group.rb#L32) | `::LibTmux::GroupResult` | [Command groups](behavior.md#command-groups) |
-| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L231) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
-| [#session](../../gems/libtmux/lib/libtmux/server.rb#L166) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
+| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L235) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
+| [#session](../../gems/libtmux/lib/libtmux/server.rb#L170) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
 | [#set_environment](../../gems/libtmux/lib/libtmux/operations.rb#L81) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
-| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L225) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
+| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L229) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
 | [#source_file](../../gems/libtmux/lib/libtmux/operations.rb#L42) | `::LibTmux::CommandResult` | [Source files](behavior.md#source-files) |
 | [#switch_client](../../gems/libtmux/lib/libtmux/terminal.rb#L34) | `::LibTmux::CommandResult` | [Client switching](behavior.md#client-switching) |
 | [#unset_environment](../../gems/libtmux/lib/libtmux/operations.rb#L89) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
 | [#wait_for](../../gems/libtmux/lib/libtmux/operations.rb#L47) | `::LibTmux::CommandResult` | [Wait channels](behavior.md#wait-channels) |
-| [#window](../../gems/libtmux/lib/libtmux/server.rb#L170) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
+| [#window](../../gems/libtmux/lib/libtmux/server.rb#L174) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
 | [#window_link](../../gems/libtmux/lib/libtmux/operations.rb#L77) | `::LibTmux::WindowLink` | [Live handles](behavior.md#live-handles) |
+| [#with_session](../../gems/libtmux/lib/libtmux/server.rb#L151) | `T` | [Session scopes](behavior.md#session-scopes) |
 | [#write_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L54) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
+| [.discover](../../gems/libtmux-async/lib/libtmux/async/server.rb#L69) | `::LibTmux::DiscoveryResult` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [.find_or_create](../../gems/libtmux-async/lib/libtmux/async/server.rb#L65) | `bot` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [.new](../../gems/libtmux-async/lib/libtmux/async/server.rb#L6) | `::LibTmux::Async::Server` | [Async scope](behavior.md#async-scope) |
 | [.open](../../gems/libtmux/lib/libtmux/server.rb#L13) | `T` / `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [.start](../../gems/libtmux-async/lib/libtmux/async/server.rb#L61) | `bot` | [Async unsupported operations](behavior.md#async-unsupported-operations) |
@@ -156,6 +171,22 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#inspect](../../gems/libtmux/lib/libtmux/snapshot.rb#L50) | `::String` | [Captured records](behavior.md#captured-records) |
 | [#raw](../../gems/libtmux/lib/libtmux/snapshot.rb#L34) | `::String?` | [Captured records](behavior.md#captured-records) |
 | [#ref](../../gems/libtmux/lib/libtmux/snapshot.rb#L26) | `::LibTmux::EntityRef` | [Captured records](behavior.md#captured-records) |
+
+## LibTmux::CleanupError
+
+| Method | Declared return | Contract |
+| --- | --- | --- |
+| [#body_error](../../gems/libtmux/lib/libtmux/errors.rb#L27) | `::Exception` | [Errors](behavior.md#errors) |
+| [#cleanup_error](../../gems/libtmux/lib/libtmux/errors.rb#L27) | `::Exception` | [Errors](behavior.md#errors) |
+| [#cleanup_errors](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Array[::String]` | [Errors](behavior.md#errors) |
+| [#delivery](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Symbol` | [Errors](behavior.md#errors) |
+| [#entity](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Symbol?` | [Errors](behavior.md#errors) |
+| [#expected](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::String?` | [Errors](behavior.md#errors) |
+| [#path](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::String?` | [Errors](behavior.md#errors) |
+| [#phase](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Symbol?` | [Errors](behavior.md#errors) |
+| [#pid](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Integer?` | [Errors](behavior.md#errors) |
+| [#recovery](../../gems/libtmux/lib/libtmux/errors.rb#L27) | `untyped` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [.new](../../gems/libtmux/lib/libtmux/errors.rb#L29) | `::LibTmux::CleanupError` | [Errors](behavior.md#errors) |
 
 ## LibTmux::ClientSnapshot
 
@@ -213,8 +244,8 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#path](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::String?` | [Errors](behavior.md#errors) |
 | [#phase](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Symbol?` | [Errors](behavior.md#errors) |
 | [#pid](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Integer?` | [Errors](behavior.md#errors) |
-| [#result](../../gems/libtmux/lib/libtmux/errors.rb#L47) | `::LibTmux::CommandResult?` | [Errors](behavior.md#errors) |
-| [.new](../../gems/libtmux/lib/libtmux/errors.rb#L49) | `::LibTmux::CommandError` | [Errors](behavior.md#errors) |
+| [#result](../../gems/libtmux/lib/libtmux/errors.rb#L58) | `::LibTmux::CommandResult?` | [Errors](behavior.md#errors) |
+| [.new](../../gems/libtmux/lib/libtmux/errors.rb#L60) | `::LibTmux::CommandError` | [Errors](behavior.md#errors) |
 
 ## LibTmux::CommandResult
 
@@ -306,17 +337,36 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#pid](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Integer?` | [Errors](behavior.md#errors) |
 | [.new](../../gems/libtmux/lib/libtmux/errors.rb#L7) | `::LibTmux::DeadlineExceeded` | [Errors](behavior.md#errors) |
 
+## LibTmux::DiscoveredServer
+
+| Method | Declared return | Contract |
+| --- | --- | --- |
+| [#endpoint](../../gems/libtmux/lib/libtmux/lifecycle.rb#L111) | `::LibTmux::Endpoint` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#pid](../../gems/libtmux/lib/libtmux/lifecycle.rb#L111) | `::Integer` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#started_at](../../gems/libtmux/lib/libtmux/lifecycle.rb#L111) | `::Integer` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+
+## LibTmux::DiscoveryResult
+
+| Method | Declared return | Contract |
+| --- | --- | --- |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/lifecycle.rb#L121) | `::Array[::Hash[::Symbol, ::String \| ::Symbol]]` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#entries](../../gems/libtmux/lib/libtmux/lifecycle.rb#L121) | `::Integer` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#probes](../../gems/libtmux/lib/libtmux/lifecycle.rb#L121) | `::Integer` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#servers](../../gems/libtmux/lib/libtmux/lifecycle.rb#L121) | `::Array[::LibTmux::DiscoveredServer]` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#truncated?](../../gems/libtmux/lib/libtmux/lifecycle.rb#L131) | `bool` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+
 ## LibTmux::Endpoint
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#==](../../gems/libtmux/lib/libtmux/endpoint.rb#L42) | `bool` | [Endpoints](behavior.md#endpoints) |
-| [#eql?](../../gems/libtmux/lib/libtmux/endpoint.rb#L42) | `bool` | [Endpoints](behavior.md#endpoints) |
+| [#==](../../gems/libtmux/lib/libtmux/endpoint.rb#L54) | `bool` | [Endpoints](behavior.md#endpoints) |
+| [#environment](../../gems/libtmux/lib/libtmux/endpoint.rb#L10) | `::Hash[::String, ::String]` | [Endpoints](behavior.md#endpoints) |
+| [#eql?](../../gems/libtmux/lib/libtmux/endpoint.rb#L54) | `bool` | [Endpoints](behavior.md#endpoints) |
 | [#executable](../../gems/libtmux/lib/libtmux/endpoint.rb#L10) | `::String` | [Endpoints](behavior.md#endpoints) |
-| [#hash](../../gems/libtmux/lib/libtmux/endpoint.rb#L47) | `::Integer` | [Endpoints](behavior.md#endpoints) |
-| [#inspect](../../gems/libtmux/lib/libtmux/endpoint.rb#L51) | `::String` | [Endpoints](behavior.md#endpoints) |
+| [#hash](../../gems/libtmux/lib/libtmux/endpoint.rb#L59) | `::Integer` | [Endpoints](behavior.md#endpoints) |
+| [#inspect](../../gems/libtmux/lib/libtmux/endpoint.rb#L63) | `::String` | [Endpoints](behavior.md#endpoints) |
 | [#socket_path](../../gems/libtmux/lib/libtmux/endpoint.rb#L10) | `::String` | [Endpoints](behavior.md#endpoints) |
-| [.from_env](../../gems/libtmux/lib/libtmux/endpoint.rb#L34) | `::LibTmux::Endpoint` | [Endpoints](behavior.md#endpoints) |
+| [.from_env](../../gems/libtmux/lib/libtmux/endpoint.rb#L50) | `::LibTmux::Endpoint` | [Endpoints](behavior.md#endpoints) |
 | [.new](../../gems/libtmux/lib/libtmux/endpoint.rb#L12) | `::LibTmux::Endpoint` | [Endpoints](behavior.md#endpoints) |
 
 ## LibTmux::Entity
@@ -324,6 +374,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
+| [#adopt](../../gems/libtmux/lib/libtmux/lifecycle.rb#L139) | `::LibTmux::OwnedResource[::LibTmux::Entity]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L247) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#eql?](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
 | [#hash](../../gems/libtmux/lib/libtmux/entity.rb#L83) | `::Integer` | [Live handles](behavior.md#live-handles) |
@@ -476,7 +527,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#path](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::String?` | [Errors](behavior.md#errors) |
 | [#phase](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Symbol?` | [Errors](behavior.md#errors) |
 | [#pid](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Integer?` | [Errors](behavior.md#errors) |
-| [.new](../../gems/libtmux/lib/libtmux/errors.rb#L26) | `::LibTmux::InvalidFilterError` | [Errors](behavior.md#errors) |
+| [.new](../../gems/libtmux/lib/libtmux/errors.rb#L37) | `::LibTmux::InvalidFilterError` | [Errors](behavior.md#errors) |
 
 ## LibTmux::MCP::Application
 
@@ -570,11 +621,33 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#pid](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Integer?` | [Errors](behavior.md#errors) |
 | [.new](../../gems/libtmux/lib/libtmux/errors.rb#L7) | `::LibTmux::OutcomeUnknown` | [Errors](behavior.md#errors) |
 
+## LibTmux::OwnedResource
+
+| Method | Declared return | Contract |
+| --- | --- | --- |
+| [#cleanup_error](../../gems/libtmux/lib/libtmux/lifecycle.rb#L22) | `::Exception?` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#close](../../gems/libtmux/lib/libtmux/lifecycle.rb#L37) | `nil` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#closed?](../../gems/libtmux/lib/libtmux/lifecycle.rb#L33) | `bool` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#receipt](../../gems/libtmux/lib/libtmux/lifecycle.rb#L22) | `::LibTmux::OwnershipReceipt` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#resource](../../gems/libtmux/lib/libtmux/lifecycle.rb#L22) | `A` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#use](../../gems/libtmux/lib/libtmux/lifecycle.rb#L66) | `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+
+## LibTmux::OwnershipReceipt
+
+| Method | Declared return | Contract |
+| --- | --- | --- |
+| [#generation](../../gems/libtmux/lib/libtmux/lifecycle.rb#L9) | `::String` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#id](../../gems/libtmux/lib/libtmux/lifecycle.rb#L9) | `::String?` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#kind](../../gems/libtmux/lib/libtmux/lifecycle.rb#L9) | `::Symbol` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#pid](../../gems/libtmux/lib/libtmux/lifecycle.rb#L9) | `::Integer` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#started_at](../../gems/libtmux/lib/libtmux/lifecycle.rb#L9) | `::Integer` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+
 ## LibTmux::Pane
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
+| [#adopt](../../gems/libtmux/lib/libtmux/lifecycle.rb#L139) | `::LibTmux::OwnedResource[::LibTmux::Entity]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#break_out](../../gems/libtmux/lib/libtmux/operations.rb#L348) | `::LibTmux::Window` | [Entity mutation](behavior.md#entity-mutation) |
 | [#capture](../../gems/libtmux/lib/libtmux/entity.rb#L169) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
 | [#copy_command](../../gems/libtmux/lib/libtmux/operations.rb#L399) | `::LibTmux::CommandResult` | [Copy mode](behavior.md#copy-mode) |
@@ -589,6 +662,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#kill](../../gems/libtmux/lib/libtmux/entity.rb#L87) | `::LibTmux::CommandResult` | [Entity removal](behavior.md#entity-removal) |
 | [#move](../../gems/libtmux/lib/libtmux/operations.rb#L344) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L239) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
+| [#owned_pane](../../gems/libtmux/lib/libtmux/lifecycle.rb#L169) | `::LibTmux::OwnedResource[::LibTmux::Pane]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#paste](../../gems/libtmux/lib/libtmux/operations.rb#L361) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
 | [#pipe](../../gems/libtmux/lib/libtmux/operations.rb#L371) | `::LibTmux::CommandResult` | [Pane pipes](behavior.md#pane-pipes) |
 | [#ref](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::EntityRef` | [Live handles](behavior.md#live-handles) |
@@ -671,42 +745,48 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
+| [#adopt](../../gems/libtmux/lib/libtmux/lifecycle.rb#L262) | `::LibTmux::OwnedResource[::LibTmux::Server]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#attach](../../gems/libtmux/lib/libtmux/terminal.rb#L47) | `::LibTmux::TerminalResult` | [Terminal attachment](behavior.md#terminal-attachment) |
-| [#close](../../gems/libtmux/lib/libtmux/server.rb#L87) | `nil` | [Closing bindings](behavior.md#closing-bindings) |
+| [#close](../../gems/libtmux/lib/libtmux/server.rb#L84) | `nil` | [Closing bindings](behavior.md#closing-bindings) |
 | [#delete_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L62) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/server.rb#L126) | `{ admitted_requests: ::Integer, reserved_process_slots: ::Integer, control_connections: ::Integer, closed: bool, limits: { max_requests: ::Integer, max_controls: ::Integer, close_timeout: ::Numeric } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/server.rb#L123) | `{ admitted_requests: ::Integer, reserved_process_slots: ::Integer, control_connections: ::Integer, closed: bool, limits: { max_requests: ::Integer, max_controls: ::Integer, close_timeout: ::Numeric } }` | [Diagnostics](behavior.md#diagnostics) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L18) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#endpoint](../../gems/libtmux/lib/libtmux/server.rb#L11) | `::LibTmux::Endpoint` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#environment](../../gems/libtmux/lib/libtmux/operations.rb#L85) | `::String?` | [Environment](behavior.md#environment) |
-| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L235) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
+| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L239) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
+| [#find_or_create_session](../../gems/libtmux/lib/libtmux/lifecycle.rb#L272) | `::LibTmux::Acquisition[::LibTmux::Session]` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#hooks](../../gems/libtmux/lib/libtmux/operations.rb#L11) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L136) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
+| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L133) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
 | [#list_buffers](../../gems/libtmux/lib/libtmux/operations.rb#L66) | `::Array[{ name: ::String, size: ::Integer }]` | [Buffers](behavior.md#buffers) |
 | [#list_clients](../../gems/libtmux/lib/libtmux/operations.rb#L93) | `::Array[{ name: ::String, pid: ::Integer, created: ::Integer, tty: ::String?, session_id: ::String?, control: bool }]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L162) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L154) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L166) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L158) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#list_window_links](../../gems/libtmux/lib/libtmux/operations.rb#L73) | `::Array[::LibTmux::WindowLink]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L158) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L140) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
-| [#open_control](../../gems/libtmux/lib/libtmux/server.rb#L178) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L162) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L137) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
+| [#open_control](../../gems/libtmux/lib/libtmux/server.rb#L182) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L7) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L16) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L174) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
+| [#owned_session](../../gems/libtmux/lib/libtmux/lifecycle.rb#L266) | `::LibTmux::OwnedResource[::LibTmux::Session]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L178) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
 | [#read_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L58) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [#run](../../gems/libtmux/lib/libtmux/server.rb#L75) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
+| [#run](../../gems/libtmux/lib/libtmux/server.rb#L72) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
 | [#run_group](../../gems/libtmux/lib/libtmux/group.rb#L32) | `::LibTmux::GroupResult` | [Command groups](behavior.md#command-groups) |
-| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L231) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
-| [#session](../../gems/libtmux/lib/libtmux/server.rb#L166) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
+| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L235) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
+| [#session](../../gems/libtmux/lib/libtmux/server.rb#L170) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
 | [#set_environment](../../gems/libtmux/lib/libtmux/operations.rb#L81) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
-| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L225) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
+| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L229) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
 | [#source_file](../../gems/libtmux/lib/libtmux/operations.rb#L42) | `::LibTmux::CommandResult` | [Source files](behavior.md#source-files) |
 | [#switch_client](../../gems/libtmux/lib/libtmux/terminal.rb#L34) | `::LibTmux::CommandResult` | [Client switching](behavior.md#client-switching) |
 | [#unset_environment](../../gems/libtmux/lib/libtmux/operations.rb#L89) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
 | [#wait_for](../../gems/libtmux/lib/libtmux/operations.rb#L47) | `::LibTmux::CommandResult` | [Wait channels](behavior.md#wait-channels) |
-| [#window](../../gems/libtmux/lib/libtmux/server.rb#L170) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
+| [#window](../../gems/libtmux/lib/libtmux/server.rb#L174) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
 | [#window_link](../../gems/libtmux/lib/libtmux/operations.rb#L77) | `::LibTmux::WindowLink` | [Live handles](behavior.md#live-handles) |
+| [#with_session](../../gems/libtmux/lib/libtmux/server.rb#L151) | `T` | [Session scopes](behavior.md#session-scopes) |
 | [#write_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L54) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [.new](../../gems/libtmux/lib/libtmux/server.rb#L45) | `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [.discover](../../gems/libtmux/lib/libtmux/lifecycle.rb#L178) | `::LibTmux::DiscoveryResult` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [.find_or_create](../../gems/libtmux/lib/libtmux/lifecycle.rb#L278) | `::LibTmux::Acquisition[::LibTmux::Server]` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
+| [.new](../../gems/libtmux/lib/libtmux/server.rb#L42) | `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [.open](../../gems/libtmux/lib/libtmux/server.rb#L13) | `T` / `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [.start](../../gems/libtmux/lib/libtmux/owned.rb#L12) | `::LibTmux::Server` / `T` | [Owned daemons](behavior.md#owned-daemons) |
 
@@ -715,9 +795,11 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
+| [#adopt](../../gems/libtmux/lib/libtmux/lifecycle.rb#L139) | `::LibTmux::OwnedResource[::LibTmux::Entity]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L247) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#environment](../../gems/libtmux/lib/libtmux/operations.rb#L279) | `::String?` | [Environment](behavior.md#environment) |
 | [#eql?](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
+| [#find_or_create_window](../../gems/libtmux/lib/libtmux/lifecycle.rb#L150) | `::LibTmux::Acquisition[::LibTmux::Window]` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#hash](../../gems/libtmux/lib/libtmux/entity.rb#L83) | `::Integer` | [Live handles](behavior.md#live-handles) |
 | [#hooks](../../gems/libtmux/lib/libtmux/operations.rb#L243) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#id](../../gems/libtmux/lib/libtmux/entity.rb#L70) | `::String` | [Live handles](behavior.md#live-handles) |
@@ -729,6 +811,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#list_windows](../../gems/libtmux/lib/libtmux/entity.rb#L108) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#new_window](../../gems/libtmux/lib/libtmux/entity.rb#L103) | `::LibTmux::CreationReceipt` / `::LibTmux::Window` | [Creation](behavior.md#creation) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L239) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
+| [#owned_window](../../gems/libtmux/lib/libtmux/lifecycle.rb#L145) | `::LibTmux::OwnedResource[::LibTmux::Window]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#ref](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::EntityRef` | [Live handles](behavior.md#live-handles) |
 | [#rename](../../gems/libtmux/lib/libtmux/operations.rb#L260) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#server](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::Server` | [Live handles](behavior.md#live-handles) |
@@ -851,8 +934,10 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
+| [#adopt](../../gems/libtmux/lib/libtmux/lifecycle.rb#L139) | `::LibTmux::OwnedResource[::LibTmux::Entity]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L247) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#eql?](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
+| [#find_or_create_pane](../../gems/libtmux/lib/libtmux/lifecycle.rb#L162) | `::LibTmux::Acquisition[::LibTmux::Pane]` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#hash](../../gems/libtmux/lib/libtmux/entity.rb#L83) | `::Integer` | [Live handles](behavior.md#live-handles) |
 | [#hooks](../../gems/libtmux/lib/libtmux/operations.rb#L243) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#id](../../gems/libtmux/lib/libtmux/entity.rb#L70) | `::String` | [Live handles](behavior.md#live-handles) |
@@ -860,6 +945,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#kill](../../gems/libtmux/lib/libtmux/entity.rb#L87) | `::LibTmux::CommandResult` | [Entity removal](behavior.md#entity-removal) |
 | [#list_panes](../../gems/libtmux/lib/libtmux/entity.rb#L122) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L239) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
+| [#owned_pane](../../gems/libtmux/lib/libtmux/lifecycle.rb#L156) | `::LibTmux::OwnedResource[::LibTmux::Pane]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#ref](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::EntityRef` | [Live handles](behavior.md#live-handles) |
 | [#rename](../../gems/libtmux/lib/libtmux/operations.rb#L289) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#resize](../../gems/libtmux/lib/libtmux/operations.rb#L300) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
@@ -874,6 +960,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
+| [#adopt](../../gems/libtmux/lib/libtmux/lifecycle.rb#L139) | `::LibTmux::OwnedResource[::LibTmux::Entity]` / `T` | [Lifecycle ownership and discovery](behavior.md#lifecycle-ownership-and-discovery) |
 | [#display](../../gems/libtmux/lib/libtmux/entity.rb#L244) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#eql?](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
 | [#hash](../../gems/libtmux/lib/libtmux/entity.rb#L83) | `::Integer` | [Live handles](behavior.md#live-handles) |

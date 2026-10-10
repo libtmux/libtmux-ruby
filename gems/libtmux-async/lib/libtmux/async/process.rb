@@ -11,9 +11,10 @@ module LibTmux
 
       attr_reader :pid, :result
 
-      def initialize(scope, ticket, argv, input, deadline, cancel, limits)
+      def initialize(scope, ticket, argv, input, deadline, cancel, limits, environment)
         @scope, @ticket, @argv, @input = scope, ticket, argv, input
         @deadline, @cancel, @limits = deadline, cancel, limits
+        @environment = environment
         @started = clock
         @changed = ::Async::Notification.new
         @tasks, @streams = [], []
@@ -171,8 +172,8 @@ module LibTmux
           @stderr, error = pipe
           @child = Internal::OwnedChild.new
           begin
-            @pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil}, [@argv.first, @argv.first], *@argv.drop(1),
-              in: input, out: output, err: error, close_others: true)
+            @pid = Process.spawn(@environment, [@argv.first, @argv.first], *@argv.drop(1),
+              in: input, out: output, err: error, close_others: true, unsetenv_others: true)
           ensure
             @child.spawned(@pid)
           end

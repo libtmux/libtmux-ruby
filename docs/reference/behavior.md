@@ -17,16 +17,34 @@ caller data even when diagnostic inspection omits it.
 
 ## Endpoints
 
-`Endpoint.new` requires exactly one explicit socket path or socket name. It
-expands the path and resolves `executable: "tmux"` through PATH without
-starting a client. Socket names use `socket_directory`, then `TMUX_TMPDIR`,
-then `/tmp`, with tmux's per-user directory. Invalid paths/names or an
-unavailable executable raise `ArgumentError`.
+`Endpoint.new`, `Server.new` and `Server.open` select one endpoint at
+construction. Precedence is an explicit `socket_path` or `socket_name`, then
+nonempty `LIBTMUX_SOCKET_PATH`, nonempty `LIBTMUX_SOCKET_NAME`, nonempty `TMUX`,
+then tmux's named `default` socket. Supplying both explicit selectors raises
+`ArgumentError`. Empty environment selectors count as absent. Invalid
+selected values fail without trying lower-precedence selectors.
 
-`Endpoint.from_env` is the explicit opt-in to environment discovery: it uses
-the socket from `TMUX`, or tmux's `default` socket name when absent. The
-ordinary constructor does not infer that choice. Descriptor equality compares
-resolved executable and socket path; it does not establish server identity.
+Paths must be absolute. Names reject separators, NUL, empty strings, `.` and
+`..`. Named sockets use `socket_directory`, captured nonempty `TMUX_TMPDIR`,
+then `/tmp`, followed by `tmux-UID`. Filesystem traversal preserves missing
+components and symlink parents. The TMUX parser splits its final two commas,
+retains commas in the path, and accepts a positive ASCII decimal PID with a
+nonnegative session ID (optional `$`) or the job sentinel `-1`.
+
+`env:` supplies the complete child environment. Omit it to snapshot the host;
+pass `ENV.to_h.merge(...)` for overrides. Nil values remove keys, and empty
+string values remain empty. Construction freezes copied keys and values,
+resolves the executable through that map's PATH (or `/usr/bin:/bin` when
+absent), and removes TMUX and TMUX_PANE from child launches. Later host or map
+changes cannot redirect clients or change their environment. `environment`
+returns the frozen child map; it can contain secrets. Core subprocesses,
+control clients, Async clients and terminal attachment use this snapshot.
+Terminal attachment replaces TERM with its explicit `term:` value.
+
+`Endpoint.from_env` delegates to the same constructor. Endpoint equality
+compares executable and socket path; it does not establish daemon identity.
+The `environment:` option on session/window/pane creation changes tmux's pane
+environment, separate from the client's `env:` map. No API changes host ENV.
 
 ## Borrowed bindings
 
@@ -57,6 +75,22 @@ leaving the block retires those resources. Startup errors and cancellation
 clean up partially established ownership. `owned?` distinguishes this case
 from a borrowed binding; it does not grant ownership of another daemon.
 
+An explicit `endpoint:` publishes that owned daemon at the selected path. The
+library starts the daemon in a private subdirectory beside the endpoint and
+uses an atomic hard link to publish its socket. An occupied path raises
+`Errno::EEXIST`, including a competing library startup, without replacing the
+existing endpoint. tmux reports its private startup path in `socket_path`.
+Callers must control the selected directory; same-user tampering with that
+private directory remains outside the ownership contract.
+
+For named endpoints, startup creates only the `tmux-UID` directory with mode
+0700. Its parent must exist. An existing UID directory must be a real
+directory owned by the current UID with no other-user permission bits; group
+permissions are allowed. Explicit paths never create parents. A missing or
+removed root fails without choosing `/tmp`. Close checks socket identity
+before removing a published path and reaps its owned child before removing
+its private directory. It retains caller-provided parent directories.
+
 ## Closing bindings
 
 `Server#close` stops admission, requests cancellation of owned clients and
@@ -73,6 +107,19 @@ without killing the parent's processes or removing its files.
 a command result. It can destroy a borrowed daemon and all of its sessions;
 this mutation is separate from closing the local binding. Successful client
 status is command evidence, not a substitute for closing local resources.
+
+## Session scopes
+
+`Server#with_session` creates a session, yields it, then kills that captured
+session ID on normal return or an exception. It returns the block result and
+requires a block. It accepts the creation options of `new_session` except
+`receipt:`. The cleanup uses a fresh default command deadline and no cancelled
+body token. It leaves other sessions and the borrowed daemon running.
+
+If both the body and cleanup raise, `CleanupError` retains their exception
+objects as `body_error` and `cleanup_error`. A cleanup failure alone propagates
+as its original exception. `Server.open` uses the same paired-error outcome
+if its block and binding close both fail. A paired lifecycle failure also exposes the receipt-backed owner through `CleanupError#recovery`; retry its `close`. Successful owner close is idempotent. A caller retaining only a borrowed session handle can still call its raw `kill`; repeating that raw command reports that the session is absent.
 
 ## Entity references
 
@@ -692,3 +739,9 @@ Checker-only dependencies are installed after each artifact's minimal
 runtime import and executable recipes, so they cannot hide runtime dependency
 omissions. Behavioral tests, real-tmux fixtures and the platform matrix remain
 separate evidence.
+
+## Lifecycle ownership and discovery
+
+[Ownership, discovery and find or create](../lifecycle.md) documents receipt-backed server/session/window/pane ownership, created/reused results and bounded discovery with executable examples. `OwnedResource#use` closes at block exit, successful repeated close is harmless, and failed close retains `cleanup_error` for retry. `CleanupError#recovery` exposes the owner after a paired failure. Keep the client binding open until ownership cleanup completes. New APIs preserve the existing Ruby 3.3 minimum and add no dependencies.
+
+Find-or-create calls serialize across handles in one Ruby process with deadline-bounded admission. Raw commands and other processes remain outside that gate. Discovery scans direct entries in explicit or captured current-user roots, reports per-path failures and exhausted bounds, skips symlinks and deduplicates hard links. Its clients use no-start mode. The Async facade uses the bound core transport for ownership and its native deferred-cancellation hook for receipt handoff; repeated forced task cancellation and runner crashes require outer fixture ownership.

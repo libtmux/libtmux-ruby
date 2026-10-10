@@ -334,7 +334,8 @@
         "LibTmux::Endpoint#inspect",
         "LibTmux::Endpoint#socket_path",
         "LibTmux::Endpoint.from_env",
-        "LibTmux::Endpoint.new"
+        "LibTmux::Endpoint.new",
+        "LibTmux::Endpoint#environment"
       ]
     },
     {
@@ -411,7 +412,10 @@
         "LibTmux::Error.new",
         "LibTmux::InvalidFilterError.new",
         "LibTmux::SubscriptionOverflow#sequence",
-        "LibTmux::SubscriptionOverflow.new"
+        "LibTmux::SubscriptionOverflow.new",
+        "LibTmux::CleanupError.new",
+        "LibTmux::CleanupError#body_error",
+        "LibTmux::CleanupError#cleanup_error"
       ]
     },
     {
@@ -714,6 +718,56 @@
         "LibTmux::Workspace::ApplyResult::Effect.inspect",
         "LibTmux::Workspace::ApplyResult::Effect.members",
         "LibTmux::Workspace::ApplyResult::Effect.new"
+      ]
+    },
+    {
+      "id": "session-scopes",
+      "title": "Session scopes",
+      "methods": [
+        "LibTmux::Server#with_session"
+      ]
+    },
+    {
+      "id": "lifecycle-ownership-and-discovery",
+      "title": "Lifecycle ownership and discovery",
+      "methods": [
+        "LibTmux::Acquisition#created?",
+        "LibTmux::Acquisition#owner",
+        "LibTmux::Acquisition#resource",
+        "LibTmux::Acquisition#use",
+        "LibTmux::Async::Server.discover",
+        "LibTmux::Async::Server.find_or_create",
+        "LibTmux::CleanupError#recovery",
+        "LibTmux::DiscoveredServer#endpoint",
+        "LibTmux::DiscoveredServer#pid",
+        "LibTmux::DiscoveredServer#started_at",
+        "LibTmux::DiscoveryResult#diagnostics",
+        "LibTmux::DiscoveryResult#entries",
+        "LibTmux::DiscoveryResult#probes",
+        "LibTmux::DiscoveryResult#servers",
+        "LibTmux::DiscoveryResult#truncated?",
+        "LibTmux::Entity#adopt",
+        "LibTmux::OwnedResource#cleanup_error",
+        "LibTmux::OwnedResource#close",
+        "LibTmux::OwnedResource#closed?",
+        "LibTmux::OwnedResource#receipt",
+        "LibTmux::OwnedResource#resource",
+        "LibTmux::OwnedResource#use",
+        "LibTmux::OwnershipReceipt#generation",
+        "LibTmux::OwnershipReceipt#id",
+        "LibTmux::OwnershipReceipt#kind",
+        "LibTmux::OwnershipReceipt#pid",
+        "LibTmux::OwnershipReceipt#started_at",
+        "LibTmux::Pane#owned_pane",
+        "LibTmux::Server#adopt",
+        "LibTmux::Server#find_or_create_session",
+        "LibTmux::Server#owned_session",
+        "LibTmux::Server.discover",
+        "LibTmux::Server.find_or_create",
+        "LibTmux::Session#find_or_create_window",
+        "LibTmux::Session#owned_window",
+        "LibTmux::Window#find_or_create_pane",
+        "LibTmux::Window#owned_pane"
       ]
     }
   ]

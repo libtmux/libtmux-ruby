@@ -2,6 +2,13 @@
   "version": 1,
   "programs": [
     {
+      "id": "default_session",
+      "path": "examples/default_session.rb",
+      "gem": "libtmux",
+      "endpoint": "borrowed",
+      "output": "session windows: 1\n"
+    },
+    {
       "id": "quickstart",
       "path": "examples/quickstart.rb",
       "gem": "libtmux"
@@ -157,6 +164,25 @@
         "description": "Send a command to a shell, wait for its output notification, then capture the pane. Match a whole output line so the echoed command cannot satisfy the check.",
         "output": "libtmux capture ready\n"
       }
+    },
+    {
+      "id": "lifecycle",
+      "path": "examples/lifecycle.rb",
+      "gem": "libtmux",
+      "endpoint": "borrowed",
+      "output": "session reused: true\npane created: true\nadopted panes: 1\n"
+    },
+    {
+      "id": "lifecycle_discovery",
+      "path": "examples/lifecycle_discovery.rb",
+      "gem": "libtmux",
+      "endpoint": "borrowed",
+      "output": "servers: 1\n"
+    },
+    {
+      "id": "lifecycle_server",
+      "path": "examples/lifecycle_server.rb",
+      "gem": "libtmux"
     }
   ],
   "support": [
@@ -178,7 +204,8 @@
     "gems/libtmux-async/README.md",
     "gems/libtmux-mcp/README.md",
     "gems/libtmux-workspace/README.md",
-    "gems/libtmux/README.md"
+    "gems/libtmux/README.md",
+    "docs/lifecycle.md"
   ],
   "snippets": [
     {
@@ -256,6 +283,26 @@
       "id": "mcp_protocol/cli",
       "source": "examples/mcp_protocol.rb",
       "region": "cli",
+      "language": "ruby"
+    },
+    {
+      "id": "default_session",
+      "source": "examples/default_session.rb",
+      "language": "ruby"
+    },
+    {
+      "id": "lifecycle",
+      "source": "examples/lifecycle.rb",
+      "language": "ruby"
+    },
+    {
+      "id": "lifecycle_discovery",
+      "source": "examples/lifecycle_discovery.rb",
+      "language": "ruby"
+    },
+    {
+      "id": "lifecycle_server",
+      "source": "examples/lifecycle_server.rb",
       "language": "ruby"
     }
   ]

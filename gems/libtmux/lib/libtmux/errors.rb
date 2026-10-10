@@ -22,6 +22,17 @@ module LibTmux
     end
   end
 
+  # Retains both exceptions when a resource block and its cleanup fail.
+  class CleanupError < Error
+    attr_reader :body_error, :cleanup_error, :recovery
+
+    def initialize(body_error:, cleanup_error:, recovery: nil)
+      @body_error, @cleanup_error, @recovery = body_error, cleanup_error, recovery
+      super("resource body and cleanup failed", phase: :retire, delivery: :possibly_sent,
+        cleanup_errors: ["resource cleanup failed (#{cleanup_error.class})"])
+    end
+  end
+
   class InvalidFilterError < Error
     def initialize(message = "invalid filter", entity: nil, path: "$", expected: nil, **details)
       super("#{message} at #{path}#{expected ? "; expected #{expected}" : ""}",

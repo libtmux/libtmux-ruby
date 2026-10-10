@@ -104,7 +104,7 @@ module LibTmux
         @drain_timeout = drain_timeout
       end
 
-      def run(argv, input: "".b, env: {}, timeout: 5.0, cancel: nil)
+      def run(argv, input: "".b, env: ENV.to_h, timeout: 5.0, cancel: nil)
         Execution.new(argv, input, env, timeout, cancel, @limits, @cleanup_timeout, @drain_timeout).call
       end
 
@@ -187,7 +187,7 @@ module LibTmux
           @owned << @exit_reader
           begin
             @pid = Process.spawn(@env, [@argv.first, @argv.first], *@argv.drop(1),
-              in: child_input, out: child_output, err: child_error, close_others: true)
+              in: child_input, out: child_output, err: child_error, close_others: true, unsetenv_others: true)
           ensure
             @child.spawned(@pid)
           end

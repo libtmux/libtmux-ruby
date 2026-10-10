@@ -54,7 +54,7 @@ module LibTmuxTest
     DEADLINE_SECONDS = 0.5
     private_constant :CLEAN_ENV, :DEADLINE_SECONDS
 
-    attr_reader :socket_path, :cleanup_errors, :executable
+    attr_reader :socket_path, :cleanup_errors, :executable, :daemon_pid, :daemon_status, :retired_before_removal
 
     def self.open
       fixture = error = result = nil
@@ -103,6 +103,7 @@ module LibTmuxTest
         # -D keeps the daemon as our child; its exit can be observed and reaped.
         @server = spawn_owned(@executable, "-D", *readiness.arguments, "-S", @socket_path,
           "-f", config_path, **readiness.spawn_options)
+        @daemon_pid = @server.last.pid
         @server.first.close
       end
       _, error, status = capture("new-session", "-d", "-s", "fixture", "-x", "80", "-y", "24", "cat")
@@ -134,8 +135,12 @@ module LibTmuxTest
               end
             end
             attempt_cleanup(errors, "server retirement") { retire(@server) } if @server
-            attempt_cleanup(errors, "temporary directory removal") do
-              FileUtils.remove_entry(@directory) if File.exist?(@directory)
+            if !@server || @server.last.complete?
+              @daemon_status = @server.last.status if @server
+              @retired_before_removal = !@server || @daemon_status.is_a?(Process::Status)
+              attempt_cleanup(errors, "temporary directory removal") do
+                FileUtils.remove_entry(@directory) if File.exist?(@directory)
+              end
             end
             @cleanup_errors = errors.freeze
             @cleanup_complete = errors.empty?

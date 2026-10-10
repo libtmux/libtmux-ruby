@@ -70,6 +70,25 @@ consumer = SignatureConsumer.new
 LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |server|
   case package
   when "libtmux"
+    endpoint = consumer.call("singleton(::LibTmux::Endpoint)", LibTmux::Endpoint, :new,
+      env: {"LIBTMUX_SOCKET_PATH" => server.endpoint.socket_path}, executable: server.endpoint.executable,
+      expected: "::LibTmux::Endpoint")
+    consumer.call("::LibTmux::Endpoint", endpoint, :environment, expected: "Hash[String, String]")
+    consumer.verify_rejects_wrong_return(42)
+    consumer.call("::LibTmux::Server", server, :with_session, name: "types-scope", command: ["/bin/cat"],
+      expected: "String") { |owned_session| owned_session.id }
+    owner = consumer.call("::LibTmux::Server", server, :owned_session, name: "owned-types", command: ["/bin/cat"],
+      expected: "::LibTmux::OwnedResource[::LibTmux::Session]")
+    owned_session = consumer.call("::LibTmux::OwnedResource[::LibTmux::Session]", owner, :resource, expected: "::LibTmux::Session")
+    consumer.call("::LibTmux::OwnedResource[::LibTmux::Session]", owner, :receipt, expected: "::LibTmux::OwnershipReceipt")
+    consumer.verify_rejects_wrong_return(42)
+    acquisition = consumer.call("::LibTmux::Session", owned_session, :find_or_create_window, name: "types-worker", command: ["/bin/cat"],
+      expected: "::LibTmux::Acquisition[::LibTmux::Window]")
+    consumer.call("::LibTmux::Acquisition[::LibTmux::Window]", acquisition, :created?, expected: "bool")
+    consumer.call("::LibTmux::OwnedResource[::LibTmux::Session]", owner, :close, expected: "nil")
+    discovery = consumer.call("singleton(::LibTmux::Server)", LibTmux::Server, :discover,
+      roots: [File.dirname(server.endpoint.socket_path)], expected: "::LibTmux::DiscoveryResult")
+    consumer.call("::LibTmux::DiscoveryResult", discovery, :servers, expected: "Array[::LibTmux::DiscoveredServer]")
     consumer.call("::LibTmux::Server", server, :diagnostics,
       expected: "{admitted_requests: Integer, reserved_process_slots: Integer, control_connections: Integer, closed: bool, limits: Hash[Symbol, Numeric]}")
     receipt = consumer.call("::LibTmux::Server", server, :new_session, name: "types", command: ["/bin/cat"], receipt: true,

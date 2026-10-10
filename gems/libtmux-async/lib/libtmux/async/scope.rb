@@ -278,7 +278,7 @@ module LibTmux
         raise ClosedError.new("Async scope is closed", phase: :admission) if @closed || @parent.finished?
       end
 
-      def execute(argv, input: "".b, timeout: 5.0, cancel: nil)
+      def execute(argv, input: "".b, timeout: 5.0, cancel: nil, env: @server.endpoint.environment)
         ensure_open
         deadline = clock + timeout if timeout.is_a?(Numeric) && timeout.finite?
         raise ArgumentError, "timeout must be finite" unless deadline
@@ -303,7 +303,7 @@ module LibTmux
         @waiting << ticket
         @queued_bytes += bytes
         ticket.execution = ProcessDriver.new(self, ticket, argv.map { |arg| arg.dup.freeze }.freeze,
-          input.b.freeze, deadline, cancel, @limits)
+          input.b.freeze, deadline, cancel, @limits, env)
         ticket.task = ::Async::Task.new(@parent) do
           begin
             ticket.result = ticket.execution.call
