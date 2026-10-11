@@ -2,6 +2,11 @@
 
 ## 0.1.0.alpha.2 (unreleased)
 
+### libtmux-mcp
+
+- Declare tool output schemas as objects for clients using MCP 2025-11-25.
+  Success and error response shapes are unchanged.
+
 ## 0.1.0.alpha.1 (2026-09-20)
 
 Initial alpha of the Ruby tmux suite.
