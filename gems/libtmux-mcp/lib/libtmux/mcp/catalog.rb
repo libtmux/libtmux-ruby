@@ -183,7 +183,7 @@ module LibTmux
             "truncated" => {"type" => "boolean"}, "next_cursor" => text},
             %w[capture_id server_identity entity items coverage interval truncated])
         end
-        {"oneOf" => [object({"ok" => {"const" => true}, "data" => payload}),
+        {"type" => "object", "oneOf" => [object({"ok" => {"const" => true}, "data" => payload}),
           object({"ok" => {"const" => false}, "error" => object({"code" => text,
             "message" => text, "delivery" => {"enum" => %w[not_sent possibly_sent observed]},
             "effects" => name == "tmux_run" ? run_effects : effects}, %w[code message delivery])})]}
