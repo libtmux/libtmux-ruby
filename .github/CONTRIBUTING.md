@@ -88,6 +88,31 @@ availability is separate.
 The full support matrix, benchmarks and implementation type coverage remain
 separate required gates; one local outer pass does not establish them.
 
+Format Ruby with syntax_tree at 100 columns, or 80 under `examples/`, then
+re-sync the example excerpts and the API reference that quote moved lines:
+
+```console
+$ mise exec -- bundle exec scripts/format
+```
+
+CI runs the read-only form, which fails on any file the formatter would change:
+
+```console
+$ mise exec -- bundle exec scripts/format --check
+```
+
+Check that examples and documentation code blocks stay within 80 columns.
+`.github/example-width.toml` names the files it reads and the few lines
+allowed to run wider. The self-test proves the check can fail:
+
+```console
+$ python3 scripts/check_example_width.py --self-test
+```
+
+```console
+$ python3 scripts/check_example_width.py
+```
+
 Check unstaged changes for whitespace errors:
 
 ```console

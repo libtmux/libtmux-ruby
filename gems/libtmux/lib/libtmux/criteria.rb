@@ -9,25 +9,44 @@ module LibTmux
   class FilterExpr
     # Runtime validation also enforces byte, node, depth and duplicate-key limits.
     def self.json_schema
-      JSON.parse(File.binread(File.expand_path("../../schema/where-v1.json", __dir__)), freeze: true)
+      JSON.parse(
+        File.binread(File.expand_path("../../schema/where-v1.json", __dir__)),
+        freeze: true
+      )
     end
 
     PROFILE = "libtmux-ruby.where"
     VERSION = 1
     OMITTED = Object.new.freeze
     OPERATORS = {
-      equals: "equals", not: "not", in: "in", lt: "lt", lte: "lte",
-      gt: "gt", gte: "gte", contains: "contains", starts_with: "startsWith",
-      ends_with: "endsWith", some: "some", every: "every", none: "none",
-      is: "is", is_not: "isNot"
+      equals: "equals",
+      not: "not",
+      in: "in",
+      lt: "lt",
+      lte: "lte",
+      gt: "gt",
+      gte: "gte",
+      contains: "contains",
+      starts_with: "startsWith",
+      ends_with: "endsWith",
+      some: "some",
+      every: "every",
+      none: "none",
+      is: "is",
+      is_not: "isNot"
     }.freeze
     MAX_DEPTH = 32
     MAX_NODES = 2048
     MAX_MEMBERS = 1024
     MAX_STRING_BYTES = 65_536
     MAX_BYTES = 262_144
-    private_constant :OMITTED, :OPERATORS, :MAX_DEPTH, :MAX_NODES, :MAX_MEMBERS,
-      :MAX_STRING_BYTES, :MAX_BYTES
+    private_constant :OMITTED,
+                     :OPERATORS,
+                     :MAX_DEPTH,
+                     :MAX_NODES,
+                     :MAX_MEMBERS,
+                     :MAX_STRING_BYTES,
+                     :MAX_BYTES
 
     attr_reader :entity
 
@@ -55,16 +74,22 @@ module LibTmux
       unless input.is_a?(String) && input.bytesize <= MAX_BYTES
         raise InvalidFilterError.new(expected: "JSON string of at most #{MAX_BYTES} bytes")
       end
-      data = JSON.parse(input, max_nesting: MAX_DEPTH * 2 + 4,
-        allow_nan: false, allow_duplicate_key: false)
+      data =
+        JSON.parse(
+          input,
+          max_nesting: MAX_DEPTH * 2 + 4,
+          allow_nan: false,
+          allow_duplicate_key: false
+        )
       required = %w[profile version entity where]
-      unless data.is_a?(Hash) && data.keys.sort == required.sort &&
-          data["profile"] == PROFILE && data["version"].is_a?(Integer) && data["version"] == VERSION
+      unless data.is_a?(Hash) && data.keys.sort == required.sort && data["profile"] == PROFILE &&
+               data["version"].is_a?(Integer) && data["version"] == VERSION
         raise InvalidFilterError.new(expected: "#{PROFILE} version #{VERSION} envelope")
       end
-      entity = %i[session window pane window_link client].find do |kind|
-        Internal::Catalog.entity(kind).wire_entity == data["entity"]
-      end
+      entity =
+        %i[session window pane window_link client].find do |kind|
+          Internal::Catalog.entity(kind).wire_entity == data["entity"]
+        end
       raise InvalidFilterError.new(path: "$.entity", expected: "declared entity") unless entity
 
       schema = Internal::Catalog.entity(entity)
@@ -103,15 +128,22 @@ module LibTmux
     end
 
     def to_h
-      {"profile" => PROFILE, "version" => VERSION,
-       "entity" => Internal::Catalog.entity(entity).wire_entity,
-       "where" => wire_tree(Internal::Catalog.entity(entity), @tree)}
+      {
+        "profile" => PROFILE,
+        "version" => VERSION,
+        "entity" => Internal::Catalog.entity(entity).wire_entity,
+        "where" => wire_tree(Internal::Catalog.entity(entity), @tree)
+      }
     end
 
     def to_json(*arguments)
       output = JSON.generate(to_h, *arguments)
       if output.bytesize > MAX_BYTES
-        raise InvalidFilterError.new(entity: entity, expected: "wire envelope of at most #{MAX_BYTES} bytes", phase: :serialize)
+        raise InvalidFilterError.new(
+                entity: entity,
+                expected: "wire envelope of at most #{MAX_BYTES} bytes",
+                phase: :serialize
+              )
       end
       output
     end
@@ -148,7 +180,9 @@ module LibTmux
         child_path = "#{path}.#{name}"
         case name
         when :and, :or
-          condition.each_with_index { |child, index| preflight_tree(record, schema, child, "#{child_path}[#{index}]") }
+          condition.each_with_index do |child, index|
+            preflight_tree(record, schema, child, "#{child_path}[#{index}]")
+          end
         when :not
           preflight_tree(record, schema, condition, child_path)
         else
@@ -157,8 +191,13 @@ module LibTmux
             begin
               record.__send__(:read_field, name)
             rescue FieldDecodeError
-              raise FieldDecodeError.new("captured field cannot be decoded at #{child_path}",
-                entity: entity, path: child_path, expected: "valid captured #{schema.fields.fetch(name).type}", phase: :evaluate)
+              raise FieldDecodeError.new(
+                      "captured field cannot be decoded at #{child_path}",
+                      entity: entity,
+                      path: child_path,
+                      expected: "valid captured #{schema.fields.fetch(name).type}",
+                      phase: :evaluate
+                    )
             end
           else
             relation = schema.relations.fetch(name)
@@ -169,7 +208,12 @@ module LibTmux
               next if child_tree.nil?
 
               children.each do |child|
-                preflight_tree(child, Internal::Catalog.entity(relation.target), child_tree, "#{child_path}.#{operator}")
+                preflight_tree(
+                  child,
+                  Internal::Catalog.entity(relation.target),
+                  child_tree,
+                  "#{child_path}.#{operator}"
+                )
               end
             end
           end
@@ -180,17 +224,25 @@ module LibTmux
     def require_complete(record, category, name, path)
       return if record.__send__(:"#{category}_coverage", name) == :complete
 
-      raise IncompleteSnapshotError.new("required #{category} was not completely captured at #{path}",
-        entity: entity, path: path, expected: "complete captured #{category}", phase: :evaluate)
+      raise IncompleteSnapshotError.new(
+              "required #{category} was not completely captured at #{path}",
+              entity: entity,
+              path: path,
+              expected: "complete captured #{category}",
+              phase: :evaluate
+            )
     end
 
     def matches(record, tree)
       schema = Internal::Catalog.entity(record.__send__(:entity_kind))
       tree.all? do |name, condition|
         case name
-        when :and then condition.all? { |child| matches(record, child) }
-        when :or then condition.any? { |child| matches(record, child) }
-        when :not then !matches(record, condition)
+        when :and
+          condition.all? { |child| matches(record, child) }
+        when :or
+          condition.any? { |child| matches(record, child) }
+        when :not
+          !matches(record, condition)
         else
           if schema.fields.key?(name)
             scalar_matches(record.__send__(:read_field, name), condition)
@@ -198,11 +250,16 @@ module LibTmux
             value = record.__send__(:read_relation, name)
             condition.all? do |operator, child|
               case operator
-              when :some then value.any? { |item| matches(item, child) }
-              when :every then value.all? { |item| matches(item, child) }
-              when :none then value.none? { |item| matches(item, child) }
-              when :is then child.nil? ? value.nil? : !value.nil? && matches(value, child)
-              when :is_not then child.nil? ? !value.nil? : value.nil? || !matches(value, child)
+              when :some
+                value.any? { |item| matches(item, child) }
+              when :every
+                value.all? { |item| matches(item, child) }
+              when :none
+                value.none? { |item| matches(item, child) }
+              when :is
+                child.nil? ? value.nil? : !value.nil? && matches(value, child)
+              when :is_not
+                child.nil? ? !value.nil? : value.nil? || !matches(value, child)
               end
             end
           end
@@ -213,16 +270,26 @@ module LibTmux
     def scalar_matches(value, condition)
       condition.all? do |operator, expected|
         case operator
-        when :equals then value == expected
-        when :not then !scalar_matches(value, expected)
-        when :in then expected.include?(value)
-        when :lt then !value.nil? && value < expected
-        when :lte then !value.nil? && value <= expected
-        when :gt then !value.nil? && value > expected
-        when :gte then !value.nil? && value >= expected
-        when :contains then !value.nil? && value.include?(expected)
-        when :starts_with then !value.nil? && value.start_with?(expected)
-        when :ends_with then !value.nil? && value.end_with?(expected)
+        when :equals
+          value == expected
+        when :not
+          !scalar_matches(value, expected)
+        when :in
+          expected.include?(value)
+        when :lt
+          !value.nil? && value < expected
+        when :lte
+          !value.nil? && value <= expected
+        when :gt
+          !value.nil? && value > expected
+        when :gte
+          !value.nil? && value >= expected
+        when :contains
+          !value.nil? && value.include?(expected)
+        when :starts_with
+          !value.nil? && value.start_with?(expected)
+        when :ends_with
+          !value.nil? && value.end_with?(expected)
         end
       end
     end
@@ -230,29 +297,41 @@ module LibTmux
     def wire_tree(schema, tree)
       tree.to_h do |name, condition|
         case name
-        when :and, :or then [name.to_s, condition.map { |child| wire_tree(schema, child) }]
-        when :not then ["not", wire_tree(schema, condition)]
+        when :and, :or
+          [name.to_s, condition.map { |child| wire_tree(schema, child) }]
+        when :not
+          ["not", wire_tree(schema, condition)]
         else
           if (field = schema.fields[name])
             [field.wire_name, wire_scalar(condition)]
           else
             relation = schema.relations.fetch(name)
             child_schema = Internal::Catalog.entity(relation.target)
-            [relation.wire_name, condition.to_h { |op, child| [OPERATORS.fetch(op), child.nil? ? nil : wire_tree(child_schema, child)] }]
+            [
+              relation.wire_name,
+              condition.to_h do |op, child|
+                [OPERATORS.fetch(op), child.nil? ? nil : wire_tree(child_schema, child)]
+              end
+            ]
           end
         end
       end
     end
 
     def wire_scalar(condition)
-      condition.to_h { |op, value| [OPERATORS.fetch(op), op == :not ? wire_scalar(value) : duplicate_value(value)] }
+      condition.to_h do |op, value|
+        [OPERATORS.fetch(op), op == :not ? wire_scalar(value) : duplicate_value(value)]
+      end
     end
 
     def duplicate_value(value)
       case value
-      when Array then value.map { |item| duplicate_value(item) }
-      when String then value.dup
-      else value
+      when Array
+        value.map { |item| duplicate_value(item) }
+      when String
+        value.dup
+      else
+        value
       end
     end
 
@@ -277,8 +356,12 @@ module LibTmux
           when :and, :or
             fail_at(child_path, "array of criteria") unless value.is_a?(Array)
             fail_at(child_path, "bounded criteria array") if value.length > MAX_NODES
-            value.each_with_index.map { |child, index| normalize(schema, child, "#{child_path}[#{index}]", depth + 1) }.freeze
-          when :not then normalize(schema, value, child_path, depth + 1)
+            value
+              .each_with_index
+              .map { |child, index| normalize(schema, child, "#{child_path}[#{index}]", depth + 1) }
+              .freeze
+          when :not
+            normalize(schema, value, child_path, depth + 1)
           else
             if (field = schema.fields[name])
               scalar(field, value, child_path, depth + 1)
@@ -294,7 +377,9 @@ module LibTmux
 
       def visit(path, depth)
         @nodes += 1
-        fail_at(path, "depth <= #{MAX_DEPTH} and nodes <= #{MAX_NODES}") if depth > MAX_DEPTH || @nodes > MAX_NODES
+        if depth > MAX_DEPTH || @nodes > MAX_NODES
+          fail_at(path, "depth <= #{MAX_DEPTH} and nodes <= #{MAX_NODES}")
+        end
       end
 
       def lookup(key, schema)
@@ -307,14 +392,16 @@ module LibTmux
           return field.name if (!@wire && text == field.name.to_s) || text == field.wire_name
         end
         schema.relations.each_value do |relation|
-          return relation.name if (!@wire && text == relation.name.to_s) || text == relation.wire_name
+          if (!@wire && text == relation.name.to_s) || text == relation.wire_name
+            return relation.name
+          end
         end
         nil
       end
 
       def scalar(field, input, path, depth)
         visit(path, depth)
-        input = {equals: input} unless input.is_a?(Hash)
+        input = { equals: input } unless input.is_a?(Hash)
         fail_at(path, "nonempty scalar operator object") if input.empty?
         output = {}
         input.each do |key, value|
@@ -323,13 +410,20 @@ module LibTmux
           current_path = "#{path}.#{op}"
           fail_at(current_path, "one spelling of each operator") if output.key?(op)
           output[op] = case op
-          when :not then scalar(field, value, current_path, depth + 1)
+          when :not
+            scalar(field, value, current_path, depth + 1)
           when :in
             unless value.is_a?(Array) && value.length <= MAX_MEMBERS
               fail_at(current_path, "array of at most #{MAX_MEMBERS} members")
             end
-            value.each_with_index.map { |item, index| literal(field, item, "#{current_path}[#{index}]", nullable: true) }.freeze
-          else literal(field, value, current_path, nullable: op == :equals)
+            value
+              .each_with_index
+              .map do |item, index|
+                literal(field, item, "#{current_path}[#{index}]", nullable: true)
+              end
+              .freeze
+          else
+            literal(field, value, current_path, nullable: op == :equals)
           end
         end
         output.freeze
@@ -346,10 +440,17 @@ module LibTmux
           child_path = "#{path}.#{op}"
           fail_at(child_path, "one spelling of each operator") if output.key?(op)
           if value.nil?
-            fail_at(child_path, "criteria object for nonnullable relation") unless relation.nullable && relation.cardinality == :one
+            unless relation.nullable && relation.cardinality == :one
+              fail_at(child_path, "criteria object for nonnullable relation")
+            end
             output[op] = nil
           else
-            output[op] = normalize(Internal::Catalog.entity(relation.target), value, child_path, depth + 1)
+            output[op] = normalize(
+              Internal::Catalog.entity(relation.target),
+              value,
+              child_path,
+              depth + 1
+            )
           end
         end
         output.freeze
@@ -371,7 +472,8 @@ module LibTmux
 
         case field.type
         when :integer
-          unless value.is_a?(Integer) && (!field.min || value >= field.min) && (!field.max || value <= field.max)
+          unless value.is_a?(Integer) && (!field.min || value >= field.min) &&
+                   (!field.max || value <= field.max)
             fail_at(path, "integer within catalog bounds")
           end
           value
@@ -399,8 +501,13 @@ module LibTmux
     private_constant :Normalizer
   end
 
-  {SessionWhere: :session, WindowWhere: :window, PaneWhere: :pane,
-   WindowLinkWhere: :window_link, ClientWhere: :client}.each do |name, entity|
+  {
+    SessionWhere: :session,
+    WindowWhere: :window,
+    PaneWhere: :pane,
+    WindowLinkWhere: :window_link,
+    ClientWhere: :client
+  }.each do |name, entity|
     builder = Module.new
     builder.define_singleton_method(:build) do |*arguments, **keywords, &block|
       FilterExpr.build(entity, *arguments, **keywords, &block)

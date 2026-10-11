@@ -7,7 +7,8 @@ Gem::Specification.new do |spec|
   spec.version = LibTmux::Async::VERSION
   spec.authors = ["libtmux contributors"]
   spec.summary = "Optional Async integration for libtmux"
-  spec.description = "Run concurrent libtmux commands and bounded control subscriptions inside application-owned Async tasks."
+  spec.description =
+    "Run concurrent libtmux commands and bounded control subscriptions inside application-owned Async tasks."
   spec.homepage = "https://github.com/libtmux/libtmux-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
@@ -17,8 +18,10 @@ Gem::Specification.new do |spec|
   }
   spec.require_paths = ["lib"]
   spec.files = %w[
-    LICENSE README.md
-    assets/logo.svg assets/logo.png
+    LICENSE
+    README.md
+    assets/logo.svg
+    assets/logo.png
     lib/libtmux/async.rb
     lib/libtmux/async/version.rb
     lib/libtmux/async/process.rb

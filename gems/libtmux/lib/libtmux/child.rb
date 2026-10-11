@@ -73,7 +73,9 @@ module LibTmux
 
       def signal(name)
         @mutex.synchronize do
-          return nil unless @pid && !@signalling_finished && !@observation_error.is_a?(Errno::ECHILD)
+          unless @pid && !@signalling_finished && !@observation_error.is_a?(Errno::ECHILD)
+            return nil
+          end
 
           Process.kill(name, @pid)
         end
@@ -98,7 +100,9 @@ module LibTmux
       end
 
       def detach
-        raise ArgumentError, "only a forked child may detach its observer" if Process.pid == @creator_pid
+        if Process.pid == @creator_pid
+          raise ArgumentError, "only a forked child may detach its observer"
+        end
 
         [@reader, @writer].each { |io| io.close unless io.closed? }
       end

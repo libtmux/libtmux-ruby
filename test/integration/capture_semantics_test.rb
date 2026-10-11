@@ -17,9 +17,14 @@ class CaptureSemanticsTest < Minitest::Test
 
       name, usage = LibTmux::Internal::Metadata.decode(result.stdout, fields: 2, quoted: true).first
       usage = usage.delete("MT")
-      LibTmux::CommandResult.new(stdout: "#{name.bytesize}:#{name}#{usage.bytesize}:#{usage}\n",
-        stderr: result.stderr, status: result.status, elapsed_seconds: result.elapsed_seconds,
-        pid: result.pid, argv: result.argv)
+      LibTmux::CommandResult.new(
+        stdout: "#{name.bytesize}:#{name}#{usage.bytesize}:#{usage}\n",
+        stderr: result.stderr,
+        status: result.status,
+        elapsed_seconds: result.elapsed_seconds,
+        pid: result.pid,
+        argv: result.argv
+      )
     end
   end
 
@@ -29,30 +34,63 @@ class CaptureSemanticsTest < Minitest::Test
       channel = nil
       begin
         LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
-          session = server.new_session(name: "screens", command: screen_program(listener.path), width: 20, height: 8)
+          session =
+            server.new_session(
+              name: "screens",
+              command: screen_program(listener.path),
+              width: 20,
+              height: 8
+            )
           window = session.list_windows.first
           window.resize(width: 20, height: 8)
           pane = window.list_panes.first
           assert_equal "20:8\n", pane.display('#{pane_width}:#{pane_height}').text
-          usage = server.run(["list-commands", "-F", '#{command_list_usage}', "capture-pane"]).text
+          usage = server.run(%w[list-commands -F #{command_list_usage} capture-pane]).text
           flags = usage.scan(/\[-([A-Za-z]+)(?:\]|\s)/).flatten.join
           assert IO.select([listener], nil, nil, 0.5), "screen program did not connect"
           channel = listener.accept
           render(channel, "zero\r\n\e[31mRED\e[0m  \r\nabcdefghijklmnopqrstUV\r\ntail\r\n")
-          assert_equal "zero\nRED\nabcdefghijklmnopqrst\nUV\ntail\n", pane.capture(start: 0, finish: 4).stdout
+          assert_equal "zero\nRED\nabcdefghijklmnopqrst\nUV\ntail\n",
+                       pane.capture(start: 0, finish: 4).stdout
           joined = pane.capture(start: 2, finish: 3, join: true).stdout
           assert_match(/\AabcdefghijklmnopqrstUV *\n\z/, joined)
-          physical = pane.capture(start: 2, finish: 3, preserve_trailing: true,
-            trim_trailing: flags.include?("T")).stdout.lines.map(&:chomp)
-          assert_equal physical.join + "\n", pane.capture(start: 2, finish: 3, join: true, preserve_trailing: true).stdout
+          physical =
+            pane
+              .capture(
+                start: 2,
+                finish: 3,
+                preserve_trailing: true,
+                trim_trailing: flags.include?("T")
+              )
+              .stdout
+              .lines
+              .map(&:chomp)
+          assert_equal physical.join + "\n",
+                       pane.capture(start: 2, finish: 3, join: true, preserve_trailing: true).stdout
           if flags.include?("T")
-            assert_equal "RED  \n", pane.capture(start: 1, finish: 1, preserve_trailing: true, trim_trailing: true).stdout
+            assert_equal "RED  \n",
+                         pane.capture(
+                           start: 1,
+                           finish: 1,
+                           preserve_trailing: true,
+                           trim_trailing: true
+                         ).stdout
           else
             assert_raises(LibTmux::UnsupportedFeatureError) { pane.capture(trim_trailing: true) }
-            assert_equal "RED  ", pane.capture(start: 1, finish: 1, preserve_trailing: true).stdout.byteslice(0, 5)
+            assert_equal "RED  ",
+                         pane
+                           .capture(start: 1, finish: 1, preserve_trailing: true)
+                           .stdout
+                           .byteslice(0, 5)
           end
           assert_includes pane.capture(start: 1, finish: 1, escapes: true).stdout, "\e[31mRED"
-          assert_includes pane.capture(start: 1, finish: 1, escapes: true, escape_bytes: true).stdout, '\033[31mRED'
+          assert_includes pane.capture(
+                            start: 1,
+                            finish: 1,
+                            escapes: true,
+                            escape_bytes: true
+                          ).stdout,
+                          '\033[31mRED'
           assert_raises(LibTmux::CommandError) { pane.capture(alternate: true) }
 
           pane.copy_mode
@@ -100,8 +138,9 @@ class CaptureSemanticsTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       LimitedCaptureServer.open(socket_path: fixture.socket_path) do |server|
         pane = server.list_panes.first
-        [:mode_screen, :trim_trailing].each do |option|
-          error = assert_raises(LibTmux::UnsupportedFeatureError) { pane.capture(**{option => true}) }
+        %i[mode_screen trim_trailing].each do |option|
+          error =
+            assert_raises(LibTmux::UnsupportedFeatureError) { pane.capture(**{ option => true }) }
           assert_equal :not_sent, error.delivery
         end
         assert_nil server.capture_calls
@@ -119,7 +158,13 @@ class CaptureSemanticsTest < Minitest::Test
       channel = nil
       begin
         LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
-          session = server.new_session(name: "copy-source", command: screen_program(listener.path), width: 20, height: 8)
+          session =
+            server.new_session(
+              name: "copy-source",
+              command: screen_program(listener.path),
+              width: 20,
+              height: 8
+            )
           source = session.list_panes.first
           target = session.new_window(name: "copy-target", command: ["/bin/cat"]).list_panes.first
           server.run(["set-option", "-w", "-t", target.id, "mode-keys", "vi"])
@@ -135,12 +180,13 @@ class CaptureSemanticsTest < Minitest::Test
           target.copy_command("copy-selection")
           assert_equal "line00\n", server.read_buffer(server.list_buffers.first.fetch(:name)).stdout
 
-          usage = server.run(["list-commands", "-F", '#{command_list_usage}', "copy-mode"]).text
+          usage = server.run(%w[list-commands -F #{command_list_usage} copy-mode]).text
           if usage.scan(/\[-([A-Za-z]+)(?:\]|\s)/).flatten.join.include?("d")
             target.copy_mode(page_down: true)
             assert_operator target.display('#{scroll_position}').text.to_i, :<, top
           else
-            failure = assert_raises(LibTmux::UnsupportedFeatureError) { target.copy_mode(page_down: true) }
+            failure =
+              assert_raises(LibTmux::UnsupportedFeatureError) { target.copy_mode(page_down: true) }
             assert_equal :not_sent, failure.delivery
             assert_equal top, target.display('#{scroll_position}').text.to_i
           end

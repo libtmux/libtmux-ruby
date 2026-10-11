@@ -35,8 +35,11 @@ class PaneIOTest < Minitest::Test
       listener = UNIXServer.new(File.join(directory, "pipe"))
       pipe_reader = nil
       begin
-        script = 'UNIXSocket.open(ARGV.fetch(0)) { |io| io.write(ARGV.fetch(1) + "\n"); IO.copy_stream(STDIN, io) }'
-        command = [Gem.ruby, "--disable=rubyopt,gems", "-rsocket", "-e", script, listener.path].shelljoin + " '\#{pane_id}'"
+        script =
+          'UNIXSocket.open(ARGV.fetch(0)) { |io| io.write(ARGV.fetch(1) + "\n"); IO.copy_stream(STDIN, io) }'
+        command =
+          [Gem.ruby, "--disable=rubyopt,gems", "-rsocket", "-e", script, listener.path].shelljoin +
+            " '\#{pane_id}'"
         assert pane.pipe(shell_command: command, timeout: 0.5).success?
         assert IO.select([listener], nil, nil, 0.5), "pipe process did not connect"
         pipe_reader = listener.accept
@@ -53,11 +56,22 @@ class PaneIOTest < Minitest::Test
         assert_equal :wait_readable, listener.accept_nonblock(exception: false)
 
         input = "input\0\xff\n".b
-        writer = [Gem.ruby, "--disable=rubyopt,gems", "-e", 'STDOUT.write([ARGV.fetch(0)].pack("H*"))', input.unpack1("H*")].shelljoin
+        writer = [
+          Gem.ruby,
+          "--disable=rubyopt,gems",
+          "-e",
+          'STDOUT.write([ARGV.fetch(0)].pack("H*"))',
+          input.unpack1("H*")
+        ].shelljoin
         assert pane.pipe(shell_command: writer, input: true, output: false, timeout: 0.5).success?
         assert_equal input, receive_input(channel, input.bytesize)
 
-        duplex = [Gem.ruby, "--disable=rubyopt,gems", "-e", 'STDOUT.sync = true; while (bytes = STDIN.readpartial(1024)); STDOUT.write(bytes); end'].shelljoin
+        duplex = [
+          Gem.ruby,
+          "--disable=rubyopt,gems",
+          "-e",
+          "STDOUT.sync = true; while (bytes = STDIN.readpartial(1024)); STDOUT.write(bytes); end"
+        ].shelljoin
         assert pane.pipe(shell_command: duplex, input: true, output: true, timeout: 0.5).success?
         channel.write("O" + [payload.bytesize].pack("N") + payload)
         assert_equal payload, receive_input(channel, payload.bytesize)
@@ -79,7 +93,8 @@ class PaneIOTest < Minitest::Test
       channel = nil
       begin
         LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
-          window = server.list_sessions.first.new_window(name: "io", command: program(listener.path))
+          window =
+            server.list_sessions.first.new_window(name: "io", command: program(listener.path))
           pane = window.list_panes.first
           assert IO.select([listener], nil, nil, 0.5), "pane program did not connect"
           channel = listener.accept

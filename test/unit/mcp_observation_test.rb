@@ -24,6 +24,8 @@ class MCPObservationTest < Minitest::Test
     observation.const_set(:RUBY_PLATFORM, "x64-mingw32")
     assert_equal "unsupported", observation.capabilities("3.7c").fetch("process_cursor")
   ensure
-    observation.send(:remove_const, :RUBY_PLATFORM) if observation&.const_defined?(:RUBY_PLATFORM, false)
+    if observation&.const_defined?(:RUBY_PLATFORM, false)
+      observation.send(:remove_const, :RUBY_PLATFORM)
+    end
   end
 end

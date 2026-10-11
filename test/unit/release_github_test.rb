@@ -14,15 +14,16 @@ class GitHubReleaseTest < Minitest::Test
     @root = File.realpath(Dir.mktmpdir("libtmux-ruby-github-release-"))
     @directory = File.join(@root, "pkg/release")
     FileUtils.mkdir_p(@directory)
-    artifacts = %w[libtmux libtmux-async libtmux-mcp libtmux-workspace].map do |name|
-      filename = "#{name}-0.1.0.alpha.1.gem"
-      File.write(File.join(@directory, filename), name)
-      {"filename" => filename, "sha256" => Digest::SHA256.hexdigest(name)}
-    end
-    @manifest = {"tag" => TAG, "commit" => COMMIT, "artifacts" => artifacts}
+    artifacts =
+      %w[libtmux libtmux-async libtmux-mcp libtmux-workspace].map do |name|
+        filename = "#{name}-0.1.0.alpha.1.gem"
+        File.write(File.join(@directory, filename), name)
+        { "filename" => filename, "sha256" => Digest::SHA256.hexdigest(name) }
+      end
+    @manifest = { "tag" => TAG, "commit" => COMMIT, "artifacts" => artifacts }
     File.write(File.join(@directory, "release.json"), JSON.generate(@manifest))
     @expected = Dir.children(@directory).sort.map { |name| asset(name) }
-    @remote = {"id" => 42, "tag_name" => TAG, "prerelease" => true, "draft" => false}
+    @remote = { "id" => 42, "tag_name" => TAG, "prerelease" => true, "draft" => false }
     @assets = @expected.map(&:dup)
     @commit = COMMIT
     @calls = []
@@ -40,7 +41,7 @@ class GitHubReleaseTest < Minitest::Test
 
   def test_complete_retry_verifies_source_tag_and_all_assets_without_writes
     assert_equal @manifest, publish
-    assert_equal [{tag: TAG, commit: COMMIT}], @verifications
+    assert_equal [{ tag: TAG, commit: COMMIT }], @verifications
     assert_empty @writes
     assert @calls.any? { |args| args.include?("--paginate") && args.include?("--slurp") }
   end
@@ -55,7 +56,7 @@ class GitHubReleaseTest < Minitest::Test
   end
 
   def test_conflicts_are_checked_before_any_missing_asset_is_uploaded
-    conflicts = [nil, "sha256:#{'f' * 64}", "sha512:#{'a' * 64}"]
+    conflicts = [nil, "sha256:#{"f" * 64}", "sha512:#{"a" * 64}"]
     conflicts.each do |digest|
       @assets = @expected.drop(1).map(&:dup)
       @assets.last["digest"] = digest
@@ -63,7 +64,7 @@ class GitHubReleaseTest < Minitest::Test
       assert_match(/asset.*SHA-256/, error.message)
       assert_empty @writes
     end
-    ["draft", "prerelease", "tag_name"].each do |key|
+    %w[draft prerelease tag_name].each do |key|
       original = @remote[key]
       @remote[key] = key == "tag_name" ? "vwrong" : !original
       assert_raises(GitHubRelease::Error) { publish }
@@ -90,7 +91,7 @@ class GitHubReleaseTest < Minitest::Test
   def test_tag_404_checks_later_pages_for_a_draft_before_attempting_creation
     @remote["draft"] = true
     @lookup_failure = 404
-    @release_pages = [[{"tag_name" => "v0.0.0"}], [@remote]]
+    @release_pages = [[{ "tag_name" => "v0.0.0" }], [@remote]]
     error = assert_raises(GitHubRelease::Error) { publish }
     refute @calls.any? { |args| args[1] == "release" }, "existing draft reached release creation"
     assert_match(/draft/, error.message)
@@ -160,7 +161,7 @@ class GitHubReleaseTest < Minitest::Test
 
   def test_successful_upload_still_requires_complete_matching_confirmation
     @assets = []
-    @after_upload = -> { @assets.last["digest"] = "sha256:#{'f' * 64}" }
+    @after_upload = -> { @assets.last["digest"] = "sha256:#{"f" * 64}" }
     assert_raises(GitHubRelease::Error) { publish }
     assert_equal 1, @writes.length
     @assets = []
@@ -181,7 +182,11 @@ class GitHubReleaseTest < Minitest::Test
 
   def asset(name)
     path = File.join(@directory, name)
-    {"name" => name, "state" => "uploaded", "digest" => "sha256:#{File.file?(path) ? Digest::SHA256.file(path).hexdigest : 'f' * 64}"}
+    {
+      "name" => name,
+      "state" => "uploaded",
+      "digest" => "sha256:#{File.file?(path) ? Digest::SHA256.file(path).hexdigest : "f" * 64}"
+    }
   end
 
   def response(body, success: true, errors: "") = [JSON.generate(body), errors, Status.new(success)]
@@ -195,15 +200,21 @@ class GitHubReleaseTest < Minitest::Test
       path = args[2]
       if path.include?("/commits/")
         sha = path.end_with?("/commits/#{TAG}") ? (@branch_commit || @commit) : @commit
-        response({"sha" => sha})
+        response({ "sha" => sha })
       elsif path.include?("/releases/tags/")
-        return ["", "connection failed", Status.new(false)] if @lookup_failure == :connection
+        return "", "connection failed", Status.new(false) if @lookup_failure == :connection
         code = @lookup_failure || (@remote ? 200 : 404)
-        body = code == 200 ? @remote : {"message" => "Not Found", "status" => "404"}
+        body = code == 200 ? @remote : { "message" => "Not Found", "status" => "404" }
         json = @invalid_lookup ? "{" : JSON.generate(body)
-        ["HTTP/2.0 #{code} Test\r\nContent-Type: application/json\r\n\r\n#{json}", "", Status.new(code == 200)]
+        [
+          "HTTP/2.0 #{code} Test\r\nContent-Type: application/json\r\n\r\n#{json}",
+          "",
+          Status.new(code == 200)
+        ]
       elsif path.include?("/releases?")
-        return response({}, success: false, errors: "release list unavailable") if @release_pages == :failure
+        if @release_pages == :failure
+          return response({}, success: false, errors: "release list unavailable")
+        end
         response(@release_pages || [[]])
       elsif path.include?("/assets?")
         response(@invalid_assets || [@assets.first(2), @assets.drop(2)])
@@ -214,18 +225,26 @@ class GitHubReleaseTest < Minitest::Test
       assert_equal "github.com/libtmux/libtmux-ruby", args[args.index("--repo") + 1]
       refute_includes args, "--clobber"
       operation = args[2]
-      return response({"message" => "release already exists"}, success: false) if operation == "create" && @remote
-      @remote ||= {"id" => 42, "tag_name" => TAG, "prerelease" => true, "draft" => false}
+      if operation == "create" && @remote
+        return response({ "message" => "release already exists" }, success: false)
+      end
+      @remote ||= { "id" => 42, "tag_name" => TAG, "prerelease" => true, "draft" => false }
       paths = args[4...args.index("--repo")]
       names = paths.map { |path| File.basename(path) }
       @writes << [operation, names.sort]
       if @fail_upload
         @assets << asset(names.first)
-        return response({"message" => "upload interrupted"}, success: false, errors: "fixture upload interrupted\n")
+        return(
+          response(
+            { "message" => "upload interrupted" },
+            success: false,
+            errors: "fixture upload interrupted\n"
+          )
+        )
       end
       @assets += names.map { |name| asset(name) }
       @after_upload&.call
-      response({"ok" => true})
+      response({ "ok" => true })
     end
   end
 end

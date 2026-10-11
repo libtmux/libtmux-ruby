@@ -11,26 +11,49 @@ class ExampleManifestTest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-api-manifest-") do |root|
       FileUtils.mkdir_p(File.join(root, "examples"))
       File.write(File.join(root, "examples", "one.rb"), "require 'libtmux'\nputs :one\n")
-      manifest = {"version" => 1,
-        "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux",
-          "api" => {"symbols" => ["LibTmux::Server", "LibTmux::Server.new"],
-                    "description" => "Connect to a server.", "output" => "one\n"}}],
-        "support" => [], "documents" => [], "snippets" => []}
+      manifest = {
+        "version" => 1,
+        "programs" => [
+          {
+            "id" => "one",
+            "path" => "examples/one.rb",
+            "gem" => "libtmux",
+            "api" => {
+              "symbols" => %w[LibTmux::Server LibTmux::Server.new],
+              "description" => "Connect to a server.",
+              "output" => "one\n"
+            }
+          }
+        ],
+        "support" => [],
+        "documents" => [],
+        "snippets" => []
+      }
       File.write(File.join(root, "examples", "manifest.json"), JSON.generate(manifest))
       checker = ExampleManifest.new(root)
       assert checker.check
       original = checker.data.fetch("programs").first.fetch("api")
-      [nil, {}, original.merge("symbols" => []), original.merge("symbols" => [" "]),
-        original.merge("symbols" => ["LibTmux::Server", "LibTmux::Server"]),
-        original.merge("description" => " "), original.merge("output" => ""),
-        original.merge("output" => "one")].each do |invalid|
+      [
+        nil,
+        {},
+        original.merge("symbols" => []),
+        original.merge("symbols" => [" "]),
+        original.merge("symbols" => %w[LibTmux::Server LibTmux::Server]),
+        original.merge("description" => " "),
+        original.merge("output" => ""),
+        original.merge("output" => "one")
+      ].each do |invalid|
         checker.data.fetch("programs").first["api"] = invalid
         assert_raises(ExampleManifest::Error) { checker.check }
       end
       checker.data.fetch("programs").first["api"] = original
       File.write(File.join(root, "examples", "two.rb"), "puts :two\n")
-      checker.data.fetch("programs") << {"id" => "two", "path" => "examples/two.rb",
-        "gem" => "libtmux", "api" => original}
+      checker.data.fetch("programs") << {
+        "id" => "two",
+        "path" => "examples/two.rb",
+        "gem" => "libtmux",
+        "api" => original
+      }
       failure = assert_raises(ExampleManifest::Error) { checker.check }
       assert_match(/duplicate API targets/, failure.message)
     end
@@ -58,10 +81,28 @@ class ExampleManifestTest < Minitest::Test
     load path unless defined?(ExampleManifest)
     Dir.mktmpdir("libtmux-ruby-manifest-") do |root|
       FileUtils.mkdir_p(File.join(root, "examples"))
-      File.write(File.join(root, "examples", "one.rb"), "# docs:begin main\nputs :one\n# docs:end main\n")
-      File.write(File.join(root, "README.md"), "<!-- example: one/main -->\n```ruby\nputs :one\n```\n<!-- /example -->\n")
-      manifest = {"version" => 1, "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux"}],
-        "support" => [], "documents" => ["README.md"], "snippets" => [{"id" => "one/main", "source" => "examples/one.rb", "region" => "main", "language" => "ruby"}]}
+      File.write(
+        File.join(root, "examples", "one.rb"),
+        "# docs:begin main\nputs :one\n# docs:end main\n"
+      )
+      File.write(
+        File.join(root, "README.md"),
+        "<!-- example: one/main -->\n```ruby\nputs :one\n```\n<!-- /example -->\n"
+      )
+      manifest = {
+        "version" => 1,
+        "programs" => [{ "id" => "one", "path" => "examples/one.rb", "gem" => "libtmux" }],
+        "support" => [],
+        "documents" => ["README.md"],
+        "snippets" => [
+          {
+            "id" => "one/main",
+            "source" => "examples/one.rb",
+            "region" => "main",
+            "language" => "ruby"
+          }
+        ]
+      }
       File.write(File.join(root, "examples", "manifest.json"), JSON.generate(manifest))
       checker = ExampleManifest.new(root)
       assert checker.check
@@ -73,7 +114,10 @@ class ExampleManifestTest < Minitest::Test
       failure = assert_raises(ExampleManifest::Error) { checker.check }
       assert_match(/unlisted/, failure.message)
       File.unlink(File.join(root, "examples", "forgotten.rb"))
-      File.write(File.join(root, "README.md"), "<!-- example: one/main -->\n```ruby\nputs :different\n```\n<!-- /example -->\n")
+      File.write(
+        File.join(root, "README.md"),
+        "<!-- example: one/main -->\n```ruby\nputs :different\n```\n<!-- /example -->\n"
+      )
       failure = assert_raises(ExampleManifest::Error) { checker.check }
       assert_match(/excerpt differs/, failure.message)
     end

@@ -13,7 +13,10 @@ module LibTmux
 
       def initialize
         unless Fiddle::SIZEOF_INT == 4
-          raise UnsupportedFeatureError.new("native process waiting requires a 32-bit C int", phase: :admission)
+          raise UnsupportedFeatureError.new(
+                  "native process waiting requires a 32-bit C int",
+                  phase: :admission
+                )
         end
 
         # Native wait.h values differ: Linux WNOWAIT=0x01000000, Darwin=0x20.
@@ -23,21 +26,32 @@ module LibTmux
           @information_size = 128 # Linux siginfo_t has a fixed 128-byte ABI.
         when /darwin/
           @options = WEXITED | 0x00000020
-          @information_size = 6 * Fiddle::SIZEOF_INT + 2 * Fiddle::SIZEOF_VOIDP + 8 * Fiddle::SIZEOF_LONG
+          @information_size =
+            6 * Fiddle::SIZEOF_INT + 2 * Fiddle::SIZEOF_VOIDP + 8 * Fiddle::SIZEOF_LONG
         else
-          raise UnsupportedFeatureError.new("native process waiting is unavailable on this platform", phase: :admission)
+          raise UnsupportedFeatureError.new(
+                  "native process waiting is unavailable on this platform",
+                  phase: :admission
+                )
         end
 
-        @waitid = Fiddle::Function.new(Fiddle::Handle::DEFAULT["waitid"],
-          [Fiddle::TYPE_INT, Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT],
-          Fiddle::TYPE_INT, need_gvl: false)
+        @waitid =
+          Fiddle::Function.new(
+            Fiddle::Handle::DEFAULT["waitid"],
+            [Fiddle::TYPE_INT, Fiddle::TYPE_INT, Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT],
+            Fiddle::TYPE_INT,
+            need_gvl: false
+          )
         verify_available
       rescue Fiddle::DLError
-        raise UnsupportedFeatureError.new("native waitid is unavailable", phase: :admission), cause: nil
+        raise UnsupportedFeatureError.new("native waitid is unavailable", phase: :admission),
+              cause: nil
       end
 
       def observe(pid)
-        raise ArgumentError, "child PID must be a positive integer" unless pid.is_a?(Integer) && pid.positive?
+        unless pid.is_a?(Integer) && pid.positive?
+          raise ArgumentError, "child PID must be a positive integer"
+        end
 
         Fiddle::Pointer.malloc(@information_size, Fiddle::RUBY_FREE) do |information|
           loop do
@@ -59,7 +73,10 @@ module LibTmux
           status = @waitid.call(P_PID, Process.pid, information, @options | WNOHANG)
           return if status == -1 && Fiddle.last_error == Errno::ECHILD::Errno
         end
-        raise UnsupportedFeatureError.new("native non-reaping process observation is unavailable", phase: :admission)
+        raise UnsupportedFeatureError.new(
+                "native non-reaping process observation is unavailable",
+                phase: :admission
+              )
       end
     end
   end

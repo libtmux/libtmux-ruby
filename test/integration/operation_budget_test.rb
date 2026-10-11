@@ -38,13 +38,16 @@ class OperationBudgetTest < Minitest::Test
       AdvancingServer.open(socket_path: fixture.socket_path) do |server|
         pane = server.list_panes.first
         server.advance_after = "list-commands"
-        assert_raises(LibTmux::DeadlineExceeded) { pane.copy_mode(scroll_up: true, page_down: true, timeout: 0.5) }
+        assert_raises(LibTmux::DeadlineExceeded) do
+          pane.copy_mode(scroll_up: true, page_down: true, timeout: 0.5)
+        end
         assert_equal "0\n", pane.display('#{pane_in_mode}').text
       end
       AdvancingServer.open(socket_path: fixture.socket_path) do |server|
         pane = server.list_panes.first
-        usage = server.run(["list-commands", "-F", '#{command_list_usage}', "capture-pane"]).text
-        supported = usage.scan(/\[-([A-Za-z]+)(?:\]|\s)/).flatten.any? { |flags| flags.include?("M") }
+        usage = server.run(%w[list-commands -F #{command_list_usage} capture-pane]).text
+        supported =
+          usage.scan(/\[-([A-Za-z]+)(?:\]|\s)/).flatten.any? { |flags| flags.include?("M") }
         server.advance_after = "list-commands"
         failure = supported ? LibTmux::DeadlineExceeded : LibTmux::UnsupportedFeatureError
         assert_raises(failure) { pane.capture(mode_screen: true, timeout: 0.5) }
@@ -59,12 +62,21 @@ class OperationBudgetTest < Minitest::Test
         window = session.new_window(name: "unselected", command: ["/bin/cat"])
         link = session.list_window_links.find { |entry| entry.id == window.id }
         token = LibTmux::Internal::Cancellation.new
-        assert fixture.tmux("set-hook", "-g", "after-show-options[98]", "wait-for -S budget-ready ; wait-for budget-held").last.success?
-        request = Thread.new do
-          link.select(timeout: 0.5, cancel: token)
-        rescue StandardError => error
-          error
-        end
+        assert fixture
+                 .tmux(
+                   "set-hook",
+                   "-g",
+                   "after-show-options[98]",
+                   "wait-for -S budget-ready ; wait-for budget-held"
+                 )
+                 .last
+                 .success?
+        request =
+          Thread.new do
+            link.select(timeout: 0.5, cancel: token)
+          rescue StandardError => error
+            error
+          end
         begin
           assert fixture.tmux("wait-for", "budget-ready").last.success?
           token.cancel
@@ -86,7 +98,9 @@ class OperationBudgetTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
         pane = server.list_panes.first
-        assert_raises(ArgumentError) { pane.pipe(shell_command: "cat >/dev/null", input: false, output: false) }
+        assert_raises(ArgumentError) do
+          pane.pipe(shell_command: "cat >/dev/null", input: false, output: false)
+        end
         assert_equal "0\n", pane.display('#{pane_pipe}').text
       end
     end
@@ -114,7 +128,9 @@ class OperationBudgetTest < Minitest::Test
             -> { sibling.respawn(command: ["/bin/cat"], kill: true, timeout: 0.5, cancel: token) },
             -> { sibling.swap(original.ref, timeout: 0.5, cancel: token) },
             -> { sibling.pipe(shell_command: "cat >/dev/null", timeout: 0.5, cancel: token) },
-            -> { server.write_buffer(name: "cancelled", data: "payload", timeout: 0.5, cancel: token) }
+            -> do
+              server.write_buffer(name: "cancelled", data: "payload", timeout: 0.5, cancel: token)
+            end
           ]
           operations.each do |operation|
             error = assert_raises(LibTmux::Cancelled, &operation)

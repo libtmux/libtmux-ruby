@@ -26,13 +26,18 @@ module LibTmux
     end
 
     def text(invalid: :strict)
-      raise ArgumentError, "invalid text policy" unless [:strict, :replace].include?(invalid)
+      raise ArgumentError, "invalid text policy" unless %i[strict replace].include?(invalid)
 
       text = stdout.dup.force_encoding(Encoding::UTF_8)
       return text.scrub if invalid == :replace
       return text if text.valid_encoding?
 
-      raise FieldDecodeError.new("command stdout is not valid UTF-8", delivery: delivery, phase: :decode, pid: pid)
+      raise FieldDecodeError.new(
+              "command stdout is not valid UTF-8",
+              delivery: delivery,
+              phase: :decode,
+              pid: pid
+            )
     end
 
     def inspect
@@ -69,22 +74,24 @@ module LibTmux
       return detach unless @creator_pid == Process.pid
 
       cancel
-      @mutex.synchronize do
-        [@reader, @writer].each { |io| io.close unless io.closed? }
-      end
+      @mutex.synchronize { [@reader, @writer].each { |io| io.close unless io.closed? } }
     end
 
     private
 
     def detach
-      raise ArgumentError, "only a forked child may detach this token" if @creator_pid == Process.pid
+      if @creator_pid == Process.pid
+        raise ArgumentError, "only a forked child may detach this token"
+      end
 
       [@reader, @writer].each { |io| io.close unless io.closed? }
       nil
     end
 
     def ensure_owner
-      raise ClosedError.new("cancellation token belongs to another process", phase: :admission) unless @creator_pid == Process.pid
+      unless @creator_pid == Process.pid
+        raise ClosedError.new("cancellation token belongs to another process", phase: :admission)
+      end
     end
   end
 
@@ -92,20 +99,45 @@ module LibTmux
     Cancellation = LibTmux::Cancellation
 
     class ProcessExecutor
-      def initialize(stdout_limit: 1 << 20, stderr_limit: 1 << 18, input_limit: 1 << 20, argv_limit: 1 << 18, cleanup_timeout: 0.5, drain_timeout: 0.5)
+      def initialize(
+        stdout_limit: 1 << 20,
+        stderr_limit: 1 << 18,
+        input_limit: 1 << 20,
+        argv_limit: 1 << 18,
+        cleanup_timeout: 0.5,
+        drain_timeout: 0.5
+      )
         [stdout_limit, stderr_limit, input_limit, argv_limit].each do |limit|
-          raise ArgumentError, "byte limits must be nonnegative integers" unless limit.is_a?(Integer) && limit >= 0
+          unless limit.is_a?(Integer) && limit >= 0
+            raise ArgumentError, "byte limits must be nonnegative integers"
+          end
         end
         [cleanup_timeout, drain_timeout].each do |timeout|
-          raise ArgumentError, "cleanup and drain deadlines must be positive and finite" unless timeout.is_a?(Numeric) && timeout.finite? && timeout.positive?
+          unless timeout.is_a?(Numeric) && timeout.finite? && timeout.positive?
+            raise ArgumentError, "cleanup and drain deadlines must be positive and finite"
+          end
         end
-        @limits = {stdout: stdout_limit, stderr: stderr_limit, input: input_limit, argv: argv_limit}.freeze
+        @limits = {
+          stdout: stdout_limit,
+          stderr: stderr_limit,
+          input: input_limit,
+          argv: argv_limit
+        }.freeze
         @cleanup_timeout = cleanup_timeout
         @drain_timeout = drain_timeout
       end
 
       def run(argv, input: "".b, env: {}, timeout: 5.0, cancel: nil)
-        Execution.new(argv, input, env, timeout, cancel, @limits, @cleanup_timeout, @drain_timeout).call
+        Execution.new(
+          argv,
+          input,
+          env,
+          timeout,
+          cancel,
+          @limits,
+          @cleanup_timeout,
+          @drain_timeout
+        ).call
       end
 
       class Execution
@@ -113,13 +145,21 @@ module LibTmux
 
         def initialize(argv, input, env, timeout, cancel, limits, cleanup_timeout, drain_timeout)
           @started = monotonic
-          unless argv.is_a?(Array) && !argv.empty? && argv.all? { |argument| argument.is_a?(String) && !argument.include?("\0") }
+          unless argv.is_a?(Array) && !argv.empty? &&
+                   argv.all? { |argument| argument.is_a?(String) && !argument.include?("\0") }
             raise ArgumentError, "argv must contain strings without NUL"
           end
           raise ArgumentError, "input must be a String" unless input.is_a?(String)
-          raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
-          if input.bytesize > limits.fetch(:input) || argv.sum { |argument| argument.bytesize + 1 } > limits.fetch(:argv)
-            raise CapacityError.new("command input exceeded its byte limit", delivery: :not_sent, phase: :admission)
+          unless timeout.is_a?(Numeric) && timeout.finite?
+            raise ArgumentError, "timeout must be finite"
+          end
+          if input.bytesize > limits.fetch(:input) ||
+               argv.sum { |argument| argument.bytesize + 1 } > limits.fetch(:argv)
+            raise CapacityError.new(
+                    "command input exceeded its byte limit",
+                    delivery: :not_sent,
+                    phase: :admission
+                  )
           end
 
           @argv = argv.map { |argument| argument.dup.freeze }.freeze
@@ -132,7 +172,7 @@ module LibTmux
           @drain_timeout = drain_timeout
           @process_wait = ProcessWait.new
           @owned = []
-          @buffers = {stdout: +"".b, stderr: +"".b}
+          @buffers = { stdout: +"".b, stderr: +"".b }
           @offset = 0
         end
 
@@ -153,7 +193,12 @@ module LibTmux
                 if error.is_a?(Error)
                   error.send(:attach_cleanup_errors, cleanup_errors)
                 elsif error.nil? && !cleanup_errors.empty?
-                  error = TransportError.new("command cleanup failed", **details(:retire), cleanup_errors: cleanup_errors)
+                  error =
+                    TransportError.new(
+                      "command cleanup failed",
+                      **details(:retire),
+                      cleanup_errors: cleanup_errors
+                    )
                 end
               end
             end
@@ -186,19 +231,28 @@ module LibTmux
           @exit_reader = @child.reader
           @owned << @exit_reader
           begin
-            @pid = Process.spawn(@env, [@argv.first, @argv.first], *@argv.drop(1),
-              in: child_input, out: child_output, err: child_error, close_others: true)
+            @pid =
+              Process.spawn(
+                @env,
+                [@argv.first, @argv.first],
+                *@argv.drop(1),
+                in: child_input,
+                out: child_output,
+                err: child_error,
+                close_others: true
+              )
           ensure
             @child.spawned(@pid)
           end
           [child_input, child_output, child_error].each(&:close)
           @input_writer.close if @input.empty?
         rescue SystemCallError, IOError => error
-          raise TransportError.new("could not start command (#{error.class})", **details(:spawn)), cause: nil
+          raise TransportError.new("could not start command (#{error.class})", **details(:spawn)),
+                cause: nil
         end
 
         def communicate
-          reading = {@output_reader => :stdout, @error_reader => :stderr}
+          reading = { @output_reader => :stdout, @error_reader => :stderr }
           loop do
             return result if @status && reading.empty?
 
@@ -233,7 +287,8 @@ module LibTmux
           end
         rescue SystemCallError, IOError => error
           check_cancel(:read) unless @status
-          raise TransportError.new("command I/O failed (#{error.class})", **details(:read)), cause: nil
+          raise TransportError.new("command I/O failed (#{error.class})", **details(:read)),
+                cause: nil
         end
 
         def read_output(io, reading)
@@ -245,7 +300,9 @@ module LibTmux
             reading.delete(io)
             io.close
           elsif bytes.is_a?(String)
-            raise CapacityError.new("command #{stream} exceeded its byte limit", **details(:read)) if bytes.bytesize > available
+            if bytes.bytesize > available
+              raise CapacityError.new("command #{stream} exceeded its byte limit", **details(:read))
+            end
 
             buffer << bytes
           end
@@ -268,15 +325,27 @@ module LibTmux
 
         def check_deadline(phase)
           deadline = [@deadline, @drain_deadline || @deadline].min
-          raise DeadlineExceeded.new("command deadline exceeded", **details(phase)) if monotonic >= deadline
+          if monotonic >= deadline
+            raise DeadlineExceeded.new("command deadline exceeded", **details(phase))
+          end
         end
 
         def details(phase)
-          {delivery: @status ? :observed : (@pid ? :possibly_sent : :not_sent), phase: phase, pid: @pid}
+          {
+            delivery: @status ? :observed : (@pid ? :possibly_sent : :not_sent),
+            phase: phase,
+            pid: @pid
+          }
         end
 
         def result
-          CommandResult.new(**@buffers, status: @status, elapsed_seconds: monotonic - @started, pid: @pid, argv: @argv)
+          CommandResult.new(
+            **@buffers,
+            status: @status,
+            elapsed_seconds: monotonic - @started,
+            pid: @pid,
+            argv: @argv
+          )
         end
 
         def retire
@@ -304,8 +373,12 @@ module LibTmux
           else
             errors << "owned client cleanup remains pending after its deadline"
           end
-          errors << "command exit observation failed (#{@child.observation_error.class})" if @child.observation_error
-          errors << "command fallback reap failed (#{@child.retirement_error.class})" if @child.retirement_error
+          if @child.observation_error
+            errors << "command exit observation failed (#{@child.observation_error.class})"
+          end
+          if @child.retirement_error
+            errors << "command fallback reap failed (#{@child.retirement_error.class})"
+          end
           errors
         rescue StandardError => error
           errors << "command waiter failed (#{error.class})"

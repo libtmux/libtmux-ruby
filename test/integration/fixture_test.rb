@@ -7,16 +7,21 @@ require_relative "../support/tmux_fixture"
 
 class TmuxFixtureTest < Minitest::Test
   def test_explicit_executable_selects_both_owned_daemon_and_client
-    executable = ENV.fetch("LIBTMUX_TEST_TMUX") do
-      ENV.fetch("PATH").split(File::PATH_SEPARATOR).map { |part| File.join(part, "tmux") }
-        .find { |path| File.file?(path) && File.executable?(path) }
-    end
-    launches = []
-    trace = TracePoint.new(:call) do |event|
-      if event.defined_class == LibTmuxTest::TmuxFixture && event.method_id == :spawn_owned
-        launches << event.binding.local_variable_get(:arguments).first
+    executable =
+      ENV.fetch("LIBTMUX_TEST_TMUX") do
+        ENV
+          .fetch("PATH")
+          .split(File::PATH_SEPARATOR)
+          .map { |part| File.join(part, "tmux") }
+          .find { |path| File.file?(path) && File.executable?(path) }
       end
-    end
+    launches = []
+    trace =
+      TracePoint.new(:call) do |event|
+        if event.defined_class == LibTmuxTest::TmuxFixture && event.method_id == :spawn_owned
+          launches << event.binding.local_variable_get(:arguments).first
+        end
+      end
     fixture = LibTmuxTest::TmuxFixture.new(executable: executable)
     trace.enable do
       fixture.start
@@ -32,17 +37,24 @@ class TmuxFixtureTest < Minitest::Test
 
   def test_failed_observer_still_retires_its_real_child
     release = Queue.new
-    trace = TracePoint.new(:call) do |event|
-      if event.defined_class == LibTmux::Internal::ProcessWait && event.method_id == :observe
-        release.pop
-        raise IOError, "fixture observer failure"
+    trace =
+      TracePoint.new(:call) do |event|
+        if event.defined_class == LibTmux::Internal::ProcessWait && event.method_id == :observe
+          release.pop
+          raise IOError, "fixture observer failure"
+        end
       end
-    end
     fixture = LibTmuxTest::TmuxFixture.new
     fixture.start
     trace.enable
-    child = fixture.send(:spawn_owned, Gem.ruby, "--disable=rubyopt,gems", "-e",
-      'trap("TERM") {}; STDOUT.write("ready\n"); STDOUT.flush; input, output = IO.pipe; input.read(1)')
+    child =
+      fixture.send(
+        :spawn_owned,
+        Gem.ruby,
+        "--disable=rubyopt,gems",
+        "-e",
+        'trap("TERM") {}; STDOUT.write("ready\n"); STDOUT.flush; input, output = IO.pipe; input.read(1)'
+      )
     fixture.instance_variable_get(:@clients)[child.last.pid] = child
     assert IO.select([child[1]], nil, nil, 0.5), "owned helper did not start"
     assert_equal "ready\n", child[1].gets
@@ -124,17 +136,22 @@ class TmuxFixtureTest < Minitest::Test
     directory = pid = nil
     failure = RuntimeError.new("fixture body failed")
 
-    assert_same failure, assert_raises(RuntimeError) {
-      LibTmuxTest::TmuxFixture.open do |fixture|
-        directory = File.dirname(fixture.socket_path)
-        pid = server_pid(fixture)
-        identity = LibTmux::Internal::ProcessExecutor.new.run(["ps", "-o", "ppid=", "-p", pid.to_s], timeout: 0.5)
-        assert identity.success?
-        parent = Integer(identity.text.strip, 10)
-        assert_equal Process.pid, parent, "fixture server must remain an owned child"
-        raise failure
-      end
-    }
+    assert_same failure,
+                assert_raises(RuntimeError) {
+                  LibTmuxTest::TmuxFixture.open do |fixture|
+                    directory = File.dirname(fixture.socket_path)
+                    pid = server_pid(fixture)
+                    identity =
+                      LibTmux::Internal::ProcessExecutor.new.run(
+                        ["ps", "-o", "ppid=", "-p", pid.to_s],
+                        timeout: 0.5
+                      )
+                    assert identity.success?
+                    parent = Integer(identity.text.strip, 10)
+                    assert_equal Process.pid, parent, "fixture server must remain an owned child"
+                    raise failure
+                  end
+                }
 
     refute File.exist?(directory)
     assert_raises(Errno::ESRCH) { Process.kill(0, pid) }
@@ -143,26 +160,28 @@ class TmuxFixtureTest < Minitest::Test
 
   def test_cancellation_retires_a_dispatched_client_and_its_server
     started = Queue.new
-    worker = Thread.new do
-      Thread.current.report_on_exception = false
-      begin
-        LibTmuxTest::TmuxFixture.open do |fixture|
-          started << [fixture, server_pid(fixture)]
-          fixture.tmux("wait-for", "-S", "dispatched", ";", "wait-for", "unreleased")
+    worker =
+      Thread.new do
+        Thread.current.report_on_exception = false
+        begin
+          LibTmuxTest::TmuxFixture.open do |fixture|
+            started << [fixture, server_pid(fixture)]
+            fixture.tmux("wait-for", "-S", "dispatched", ";", "wait-for", "unreleased")
+          end
+        rescue Exception => error
+          started << error
+          raise
         end
-      rescue Exception => error
-        started << error
-        raise
       end
-    end
     startup = started.pop
     raise startup if startup.is_a?(Exception)
 
     fixture, pid = startup
     assert fixture.tmux("wait-for", "dispatched").last.success?
-    clients = fixture.instance_variable_get(:@clients_mutex).synchronize do
-      fixture.instance_variable_get(:@clients).keys
-    end
+    clients =
+      fixture
+        .instance_variable_get(:@clients_mutex)
+        .synchronize { fixture.instance_variable_get(:@clients).keys }
     assert_equal 1, clients.length, "expected one dispatched child client"
     worker.raise(Interrupt, "cancel fixture")
     assert_raises(Interrupt) { worker.join(0.5) }
@@ -198,25 +217,37 @@ class TmuxFixtureTest < Minitest::Test
   def test_retirement_failure_does_not_skip_other_owned_resources
     fixture = nil
     resources = []
-    error = assert_raises(LibTmuxTest::TmuxFixture::Error) do
-      LibTmuxTest::TmuxFixture.open do |owned|
-        fixture = owned
-        2.times do |index|
-          client = owned.send(:spawn_owned, "tmux",
-            "-N", "-S", owned.socket_path, "wait-for", "-S", "client-#{index}",
-            ";", "wait-for", "unreleased")
-          client.first.close
-          resources << client
-          owned.instance_variable_get(:@clients)[client.last.pid] = client
-          assert owned.tmux("wait-for", "client-#{index}").last.success?
-        end
-        resources << owned.instance_variable_get(:@server)
-        owned.define_singleton_method(:retire) do |process|
-          super(process)
-          raise IOError, "private cleanup detail" if process.equal?(resources.first)
+    error =
+      assert_raises(LibTmuxTest::TmuxFixture::Error) do
+        LibTmuxTest::TmuxFixture.open do |owned|
+          fixture = owned
+          2.times do |index|
+            client =
+              owned.send(
+                :spawn_owned,
+                "tmux",
+                "-N",
+                "-S",
+                owned.socket_path,
+                "wait-for",
+                "-S",
+                "client-#{index}",
+                ";",
+                "wait-for",
+                "unreleased"
+              )
+            client.first.close
+            resources << client
+            owned.instance_variable_get(:@clients)[client.last.pid] = client
+            assert owned.tmux("wait-for", "client-#{index}").last.success?
+          end
+          resources << owned.instance_variable_get(:@server)
+          owned.define_singleton_method(:retire) do |process|
+            super(process)
+            raise IOError, "private cleanup detail" if process.equal?(resources.first)
+          end
         end
       end
-    end
 
     assert_equal 1, error.cleanup_errors.length
     assert_includes error.cleanup_errors.first, "IOError"
@@ -237,16 +268,17 @@ class TmuxFixtureTest < Minitest::Test
   def test_block_failure_survives_cleanup_failure_with_diagnostics
     fixture = nil
     failure = RuntimeError.new("original block failure")
-    error = assert_raises(RuntimeError) do
-      LibTmuxTest::TmuxFixture.open do |owned|
-        fixture = owned
-        owned.define_singleton_method(:retire) do |process|
-          super(process)
-          raise IOError, "retirement failed"
+    error =
+      assert_raises(RuntimeError) do
+        LibTmuxTest::TmuxFixture.open do |owned|
+          fixture = owned
+          owned.define_singleton_method(:retire) do |process|
+            super(process)
+            raise IOError, "retirement failed"
+          end
+          raise failure
         end
-        raise failure
       end
-    end
 
     assert_same failure, error
     assert_equal 1, error.fixture_cleanup_errors.length
@@ -262,22 +294,23 @@ class TmuxFixtureTest < Minitest::Test
     cleaning = Queue.new
     release = Queue.new
     failure = Interrupt.new("first cancellation")
-    worker = Thread.new do
-      Thread.current.report_on_exception = false
-      begin
-        LibTmuxTest::TmuxFixture.open do |owned|
-          ready << owned
-          owned.define_singleton_method(:retire) do |process|
-            cleaning << true
-            release.pop
-            super(process)
+    worker =
+      Thread.new do
+        Thread.current.report_on_exception = false
+        begin
+          LibTmuxTest::TmuxFixture.open do |owned|
+            ready << owned
+            owned.define_singleton_method(:retire) do |process|
+              cleaning << true
+              release.pop
+              super(process)
+            end
+            Queue.new.pop
           end
-          Queue.new.pop
+        rescue Exception => error
+          error
         end
-      rescue Exception => error
-        error
       end
-    end
     fixture = ready.pop(timeout: 0.5)
     assert fixture, "fixture did not reach its interruption barrier"
     worker.raise(failure)

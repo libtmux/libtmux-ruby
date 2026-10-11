@@ -7,7 +7,8 @@ Gem::Specification.new do |spec|
   spec.version = LibTmux::MCP::VERSION
   spec.authors = ["libtmux contributors"]
   spec.summary = "MCP consumer package for libtmux"
-  spec.description = "Expose tmux snapshots, captures and explicitly enabled mutations through an MCP stdio server."
+  spec.description =
+    "Expose tmux snapshots, captures and explicitly enabled mutations through an MCP stdio server."
   spec.homepage = "https://github.com/libtmux/libtmux-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
@@ -19,8 +20,10 @@ Gem::Specification.new do |spec|
   spec.bindir = "exe"
   spec.executables = ["libtmux-mcp"]
   spec.files = %w[
-    LICENSE README.md
-    assets/logo.svg assets/logo.png
+    LICENSE
+    README.md
+    assets/logo.svg
+    assets/logo.png
     exe/libtmux-mcp
     lib/libtmux/mcp.rb
     lib/libtmux/mcp/version.rb
