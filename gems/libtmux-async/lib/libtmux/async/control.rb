@@ -38,7 +38,9 @@ module LibTmux
             raise StopIteration if @closed
           end
           remaining = deadline && deadline - clock
-          raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription) if remaining && remaining <= 0
+          if remaining && remaining <= 0
+            raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription)
+          end
 
           if remaining
             ::Async::Task.current.with_timeout(remaining) { @changed.wait }
@@ -63,15 +65,26 @@ module LibTmux
         @writer_changed = ::Async::Notification.new
         @startup_changed = ::Async::Notification.new
         @exchanges, @exchange_changed = {}, ::Async::Notification.new
-        initialize_state(binding_key: binding.key, session_id: session_id, reconnect: reconnect, **limits)
-        @driver = ControlDriver.new(self, scope, binding.command_prefix + ["-C", "attach-session", "-t", session_id])
+        initialize_state(
+          binding_key: binding.key,
+          session_id: session_id,
+          reconnect: reconnect,
+          **limits
+        )
+        @driver =
+          ControlDriver.new(
+            self,
+            scope,
+            binding.command_prefix + ["-C", "attach-session", "-t", session_id]
+          )
         @worker = ::Async::Task.new(scope.__send__(:parent)) { @driver.call }
       end
 
       def exchange_request(line, timeout:, cancel:, flow: nil)
         ensure_owner
         unless line.is_a?(String) && !line.empty? && !line.b.match?(/[\x00\r\n]/n)
-          raise ArgumentError, "control input must be one nonempty raw command line without NUL or line endings"
+          raise ArgumentError,
+                "control input must be one nonempty raw command line without NUL or line endings"
         end
         unless timeout.is_a?(Numeric) && timeout.finite? && timeout.positive?
           raise ArgumentError, "control timeout must be positive and finite"
@@ -79,7 +92,9 @@ module LibTmux
         if cancel && (!cancel.respond_to?(:reader) || !cancel.respond_to?(:cancelled?))
           raise ArgumentError, "cancel must provide a reader and cancellation state"
         end
-        raise CapacityError.new("control command exceeds its byte limit", phase: :admission) if line.bytesize > @max_command
+        if line.bytesize > @max_command
+          raise CapacityError.new("control command exceeds its byte limit", phase: :admission)
+        end
 
         deadline = clock + timeout
         request = admit(line, cancel, flow: flow)
@@ -87,16 +102,19 @@ module LibTmux
         watcher = failure = nil
         begin
           if cancel
-            watcher = ::Async::Task.new(::Async::Task.current) do
-              begin
-                Fiber.scheduler.io_wait(cancel.reader, IO::READABLE) unless cancel.cancelled?
-                abort_request(request, Cancelled, "control request cancelled") if cancel.cancelled?
-              rescue ::Async::Cancel
-                nil
-              rescue IOError, SystemCallError
-                abort_request(request, TransportError, "control cancellation reader failed")
+            watcher =
+              ::Async::Task.new(::Async::Task.current) do
+                begin
+                  Fiber.scheduler.io_wait(cancel.reader, IO::READABLE) unless cancel.cancelled?
+                  if cancel.cancelled?
+                    abort_request(request, Cancelled, "control request cancelled")
+                  end
+                rescue ::Async::Cancel
+                  nil
+                rescue IOError, SystemCallError
+                  abort_request(request, TransportError, "control cancellation reader failed")
+                end
               end
-            end
             watcher.run
           end
           loop do
@@ -169,7 +187,12 @@ module LibTmux
         end
         errors.concat(@cleanup_errors)
         unless errors.empty?
-          raise TransportError.new("Async control cleanup failed", phase: :retire, pid: @pid, cleanup_errors: errors)
+          raise TransportError.new(
+                  "Async control cleanup failed",
+                  phase: :retire,
+                  pid: @pid,
+                  cleanup_errors: errors
+                )
         end
         nil
       end
@@ -182,14 +205,18 @@ module LibTmux
 
       def start
         @worker.run
-        ::Async::Task.current.with_timeout(0.4) do
-          @startup_changed.wait until @pid || @transport_failure || @worker.finished?
-        end
+        ::Async::Task
+          .current
+          .with_timeout(0.4) do
+            @startup_changed.wait until @pid || @transport_failure || @worker.finished?
+          end
         if !@pid && @transport_failure
           errors = []
           @scope.__send__(:join_task, @worker, clock + 0.4, errors)
           errors.concat(@cleanup_errors)
-          self.class.__send__(:attach_cleanup_details, @transport_failure, errors) unless errors.empty?
+          unless errors.empty?
+            self.class.__send__(:attach_cleanup_details, @transport_failure, errors)
+          end
           raise @transport_failure
         end
 
@@ -197,7 +224,8 @@ module LibTmux
       end
 
       def retired?
-        (!@worker || @worker.finished?) && (!@driver || @driver.retired?) && (!@exchanges || @exchanges.empty?)
+        (!@worker || @worker.finished?) && (!@driver || @driver.retired?) &&
+          (!@exchanges || @exchanges.empty?)
       end
 
       def ensure_owner
@@ -234,8 +262,16 @@ module LibTmux
         @stopping = true
         @requests.values.each do |request|
           type = failure ? failure.class : ClosedError
-          complete(request, error: type.new(failure ? failure.message : "control connection closed",
-            delivery: request.offset.zero? ? :not_sent : :possibly_sent, phase: :control, pid: @pid))
+          complete(
+            request,
+            error:
+              type.new(
+                failure ? failure.message : "control connection closed",
+                delivery: request.offset.zero? ? :not_sent : :possibly_sent,
+                phase: :control,
+                pid: @pid
+              )
+          )
         end
         @queue.clear
         @replies.clear
@@ -246,8 +282,15 @@ module LibTmux
 
       class ControlDriver < ProcessDriver
         def initialize(connection, scope, argv)
-          super(scope, nil, argv.freeze, "".b, Float::INFINITY, nil,
-            {cleanup_timeout: 0.4, drain_timeout: 0.1})
+          super(
+            scope,
+            nil,
+            argv.freeze,
+            "".b,
+            Float::INFINITY,
+            nil,
+            { cleanup_timeout: 0.4, drain_timeout: 0.1 }
+          )
           @connection = connection
         end
 
@@ -263,9 +306,13 @@ module LibTmux
             start_task do
               until @child.observed? || @child.observation_error
                 @child.reader.read_nonblock(16_384, exception: false)
-                Fiber.scheduler.io_wait(@child.reader, IO::READABLE) unless @child.observed? || @child.observation_error
+                unless @child.observed? || @child.observation_error
+                  Fiber.scheduler.io_wait(@child.reader, IO::READABLE)
+                end
               end
-              raise TransportError.new("control exit observation failed", phase: :wait, pid: @pid) if @child.observation_error
+              if @child.observation_error
+                raise TransportError.new("control exit observation failed", phase: :wait, pid: @pid)
+              end
 
               @exit_deadline = clock + 0.1
             end
@@ -274,7 +321,12 @@ module LibTmux
 
               if @exit_deadline
                 remaining = @exit_deadline - clock
-                raise TransportError.new("control client exited while a pipe remained open", phase: :read) unless remaining.positive?
+                unless remaining.positive?
+                  raise TransportError.new(
+                          "control client exited while a pipe remained open",
+                          phase: :read
+                        )
+                end
 
                 ::Async::Task.current.with_timeout(remaining) { @changed.wait }
               else
@@ -282,7 +334,18 @@ module LibTmux
               end
             end
           rescue Exception => error
-            failure = error.is_a?(Error) ? error : TransportError.new("Async control transport failed (#{error.class})", phase: :read, pid: @pid)
+            failure =
+              (
+                if error.is_a?(Error)
+                  error
+                else
+                  TransportError.new(
+                    "Async control transport failed (#{error.class})",
+                    phase: :read,
+                    pid: @pid
+                  )
+                end
+              )
           ensure
             @connection.__send__(:finish_transport, failure)
             errors = cleanup
@@ -300,7 +363,8 @@ module LibTmux
           loop do
             data = @stdout.read_nonblock(16_384, exception: false)
             case data
-            when :wait_readable then Fiber.scheduler.io_wait(@stdout, IO::READABLE)
+            when :wait_readable
+              Fiber.scheduler.io_wait(@stdout, IO::READABLE)
             when nil
               @connection.instance_variable_get(:@parser).finish
               raise TransportError.new("control client output closed", phase: :read, pid: @pid)
@@ -315,8 +379,10 @@ module LibTmux
           loop do
             data = @stderr.read_nonblock(16_384, exception: false)
             case data
-            when :wait_readable then Fiber.scheduler.io_wait(@stderr, IO::READABLE)
-            when nil then return
+            when :wait_readable
+              Fiber.scheduler.io_wait(@stderr, IO::READABLE)
+            when nil
+              return
             when String
               @connection.__send__(:receive_stderr, data.bytesize)
             end
@@ -330,7 +396,11 @@ module LibTmux
               @connection.instance_variable_get(:@writer_changed).wait
               next
             end
-            written = @writer.write_nonblock(request.wire.byteslice(request.offset, 16_384), exception: false)
+            written =
+              @writer.write_nonblock(
+                request.wire.byteslice(request.offset, 16_384),
+                exception: false
+              )
             if written == :wait_writable
               Fiber.scheduler.io_wait(@writer, IO::WRITABLE)
             else

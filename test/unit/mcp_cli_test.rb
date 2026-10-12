@@ -18,7 +18,11 @@ class McpCLITest < Minitest::Test
       assert_same primary, raised
     end
     assert_equal %i[transport enrollments application scope server], events
-    assert_equal ["MCP cleanup failed (LibTmux::TransportError)", "MCP diagnostic failed (IOError)"], primary.mcp_cleanup_errors
+    assert_equal [
+                   "MCP cleanup failed (LibTmux::TransportError)",
+                   "MCP diagnostic failed (IOError)"
+                 ],
+                 primary.mcp_cleanup_errors
     assert primary.mcp_cleanup_errors.frozen?
   end
 
@@ -28,10 +32,19 @@ class McpCLITest < Minitest::Test
     assert_equal 2, LibTmux::MCP::CLI.run([], err: error)
 
     input, output = IO.pipe
-    [[RuntimeError.new("private execution"), 1], [LibTmux::Cancelled.new("private cancellation"), 130]].each do |primary, status|
+    [
+      [RuntimeError.new("private execution"), 1],
+      [LibTmux::Cancelled.new("private cancellation"), 130]
+    ].each do |primary, status|
       events = []
       with_cli_owners(events, primary) do
-        assert_equal status, LibTmux::MCP::CLI.run(%w[--socket private-path], input: input, out: output, err: error)
+        assert_equal status,
+                     LibTmux::MCP::CLI.run(
+                       %w[--socket private-path],
+                       input: input,
+                       out: output,
+                       err: error
+                     )
       end
       assert_equal %i[transport application scope server], events
       details = primary.is_a?(LibTmux::Error) ? primary.cleanup_errors : primary.mcp_cleanup_errors
@@ -48,15 +61,37 @@ class McpCLITest < Minitest::Test
       refute_empty output.string
       assert_empty error.string
     end
-    [[], %w[--socket private-path --socket-name other],
-      %w[--socket private-path --timeout NaN], %w[--socket private-path --concurrency 0],
+    [
+      [],
+      %w[--socket private-path --socket-name other],
+      %w[--socket private-path --timeout NaN],
+      %w[--socket private-path --concurrency 0],
       %w[--socket private-path --enable-tool unrecognized],
       %w[--socket private-path --enroll-pane %0=private-setup],
       %w[--socket private-path --enable-tool tmux_run --enroll-pane name=private-setup],
-      %w[--socket private-path --enable-tool tmux_run --enroll-pane %0=private-one --enroll-pane %0=private-two],
-      %w[--socket private-path --enable-tool tmux_run --enroll-pane %0=private-one --enroll-pane %1=private-one],
+      %w[
+        --socket
+        private-path
+        --enable-tool
+        tmux_run
+        --enroll-pane
+        %0=private-one
+        --enroll-pane
+        %0=private-two
+      ],
+      %w[
+        --socket
+        private-path
+        --enable-tool
+        tmux_run
+        --enroll-pane
+        %0=private-one
+        --enroll-pane
+        %1=private-one
+      ],
       %w[--socket private-path --enrollment-timeout 301],
-      %w[--socket private-path --unknown private-value]].each do |arguments|
+      %w[--socket private-path --unknown private-value]
+    ].each do |arguments|
       output, error = StringIO.new, StringIO.new
       assert_equal 2, LibTmux::MCP::CLI.run(arguments, out: output, err: error)
       assert_empty output.string
@@ -81,16 +116,24 @@ class McpCLITest < Minitest::Test
     end
     replacements = [
       [LibTmux::Endpoint, :new, ->(**_options) { Object.new }],
-      [LibTmux::Server, :open, lambda do |**_options, &block|
-        block.call(server)
-      ensure
-        events << :server
-      end],
-      [LibTmux::Async, :open, lambda do |**_options, &block|
-        block.call(scope)
-      ensure
-        events << :scope
-      end],
+      [
+        LibTmux::Server,
+        :open,
+        lambda do |**_options, &block|
+          block.call(server)
+        ensure
+          events << :server
+        end
+      ],
+      [
+        LibTmux::Async,
+        :open,
+        lambda do |**_options, &block|
+          block.call(scope)
+        ensure
+          events << :scope
+        end
+      ],
       [LibTmux::MCP::Application, :new, ->(**_options) { app }],
       [LibTmux::MCP::StdioTransport, :new, ->(**_options) { transport }]
     ]

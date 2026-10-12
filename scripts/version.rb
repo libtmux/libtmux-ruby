@@ -22,7 +22,8 @@ class VersionBump
     "gems/libtmux-workspace/libtmux-workspace.gemspec" => %w[libtmux]
   }.freeze
   VERSION_PATTERN = /^(\s*VERSION = )"([^"]+)"$/
-  SIBLING_PATTERN = /^\s*spec\.add_dependency "(libtmux(?:-(?:async|mcp|workspace))?)", "([^"]+)"\s*$/
+  SIBLING_PATTERN =
+    /^\s*spec\.add_dependency "(libtmux(?:-(?:async|mcp|workspace))?)", "([^"]+)"\s*$/
   DERIVED_CONSTRAINT = '= #{spec.version}'
   INITIAL_VERSION = Gem::Version.new("0.1.0.pre")
   INITIAL_RELEASE = Gem::Version.new("0.1.0.alpha.1")
@@ -93,7 +94,9 @@ class VersionBump
   end
 
   def canonical_version(input)
-    raise Error, "version must be an explicit RubyGems version string" unless input.is_a?(String) && !input.empty?
+    unless input.is_a?(String) && !input.empty?
+      raise Error, "version must be an explicit RubyGems version string"
+    end
 
     parsed = Gem::Version.new(input)
     raise Error, "version must use canonical RubyGems spelling" unless parsed.to_s == input
@@ -104,15 +107,14 @@ class VersionBump
   end
 
   def package_version(documents)
-    versions = PACKAGE_FILES.to_h do |name, path|
-      matches = documents.fetch(path).scan(VERSION_PATTERN)
-      raise Error, "#{name} must declare exactly one VERSION" unless matches.length == 1
+    versions =
+      PACKAGE_FILES.to_h do |name, path|
+        matches = documents.fetch(path).scan(VERSION_PATTERN)
+        raise Error, "#{name} must declare exactly one VERSION" unless matches.length == 1
 
-      [name, canonical_version(matches.first.last)]
-    end
-    unless versions.values.uniq.length == 1
-      raise Error, "package versions are inconsistent"
-    end
+        [name, canonical_version(matches.first.last)]
+      end
+    raise Error, "package versions are inconsistent" unless versions.values.uniq.length == 1
 
     versions.values.first
   end
@@ -121,19 +123,20 @@ class VersionBump
     evaluated_gemspecs(root).each_with_index do |specification, index|
       path, expected_names = GEMSPEC_DEPENDENCIES.to_a.fetch(index)
       package = File.basename(path, ".gemspec")
-      unless specification.fetch("path") == File.join(root, path) && specification.fetch("name") == package &&
-          specification.fetch("version") == current.to_s
+      unless specification.fetch("path") == File.join(root, path) &&
+               specification.fetch("name") == package &&
+               specification.fetch("version") == current.to_s
         raise Error, "#{path} has inconsistent package metadata"
       end
       semantic_dependencies = specification.fetch("dependencies")
       semantic_names = semantic_dependencies.map { |dependency| dependency.fetch("name") }
       expected_requirement = Gem::Requirement.new("= #{current}")
       unless semantic_names.sort == expected_names.sort &&
-          semantic_names.uniq.length == semantic_names.length &&
-          semantic_dependencies.all? do |dependency|
-            dependency.fetch("type") == "runtime" &&
-              Gem::Requirement.new(dependency.fetch("requirement")) == expected_requirement
-          end
+               semantic_names.uniq.length == semantic_names.length &&
+               semantic_dependencies.all? { |dependency|
+                 dependency.fetch("type") == "runtime" &&
+                   Gem::Requirement.new(dependency.fetch("requirement")) == expected_requirement
+               }
         raise Error, "#{path} has inconsistent sibling dependencies"
       end
 
@@ -155,7 +158,9 @@ class VersionBump
     raise Error, "could not evaluate local gemspecs" unless status.success?
 
     specifications = JSON.parse(output)
-    raise Error, "could not evaluate every local gemspec" unless specifications.length == paths.length
+    unless specifications.length == paths.length
+      raise Error, "could not evaluate every local gemspec"
+    end
 
     specifications
   rescue JSON::ParserError, KeyError, ArgumentError
@@ -172,46 +177,51 @@ class VersionBump
       dependencies = details.fetch(:dependencies)
       dependency_names = dependencies.map(&:first)
       unless details.fetch(:remote) == "gems/#{name}" && details.fetch(:version) == current.to_s &&
-          dependency_names.sort == expected_names.sort && dependency_names.uniq.length == dependency_names.length &&
-          dependencies.all? { |_, constraint| constraint == "= #{current}" }
+               dependency_names.sort == expected_names.sort &&
+               dependency_names.uniq.length == dependency_names.length &&
+               dependencies.all? { |_, constraint| constraint == "= #{current}" }
         raise Error, "Gemfile.lock has an inconsistent #{name} package block"
       end
     end
 
-    actual = lockfile.lines.map(&:chomp).select do |line|
-      line.match?(/^ {2,6}libtmux(?:-(?:async|mcp|workspace))? \(/)
-    end.tally
+    actual =
+      lockfile
+        .lines
+        .map(&:chomp)
+        .select { |line| line.match?(/^ {2,6}libtmux(?:-(?:async|mcp|workspace))? \(/) }
+        .tally
     unless actual == expected_lock_lines(current).tally
       raise Error, "Gemfile.lock has inconsistent package versions or constraints"
     end
   end
 
   def local_path_specs(lockfile)
-    lockfile.scan(/^PATH\n.*?(?=^(?:PATH|GEM|GIT|PLUGIN)\n|\z)/m).each_with_object({}) do |block, specs|
-      local_specs = block.scan(/^    (libtmux(?:-(?:async|mcp|workspace))?) \(([^)]+)\)$/)
-      next if local_specs.empty?
-      unless local_specs.length == 1 && block.scan(/^    \S.*$/).length == 1
-        raise Error, "Gemfile.lock local PATH source must contain exactly one package"
-      end
+    lockfile
+      .scan(/^PATH\n.*?(?=^(?:PATH|GEM|GIT|PLUGIN)\n|\z)/m)
+      .each_with_object({}) do |block, specs|
+        local_specs = block.scan(/^    (libtmux(?:-(?:async|mcp|workspace))?) \(([^)]+)\)$/)
+        next if local_specs.empty?
+        unless local_specs.length == 1 && block.scan(/^    \S.*$/).length == 1
+          raise Error, "Gemfile.lock local PATH source must contain exactly one package"
+        end
 
-      name, version = local_specs.first
-      raise Error, "Gemfile.lock repeats the #{name} PATH source" if specs.key?(name)
-      remote = block[/^  remote: (.+)$/, 1]
-      dependencies = block.scan(/^      (libtmux(?:-(?:async|mcp|workspace))?) \(([^)]+)\)$/)
-      specs[name] = {remote: remote, version: version, dependencies: dependencies}
-    end
+        name, version = local_specs.first
+        raise Error, "Gemfile.lock repeats the #{name} PATH source" if specs.key?(name)
+        remote = block[/^  remote: (.+)$/, 1]
+        dependencies = block.scan(/^      (libtmux(?:-(?:async|mcp|workspace))?) \(([^)]+)\)$/)
+        specs[name] = { remote: remote, version: version, dependencies: dependencies }
+      end
   end
 
   def validate_readme(readme, current)
     artifacts = readme.scan(%r{pkg/libtmux-([0-9A-Za-z.\-]+)\.gem}).flatten
-    unless artifacts == [current.to_s]
-      raise Error, "README artifact version is inconsistent"
-    end
+    raise Error, "README artifact version is inconsistent" unless artifacts == [current.to_s]
   end
 
   def validate_direction(current, target)
     if target == current && target.to_s != current.to_s
-      raise Error, "same version has a different spelling; keep #{current} or choose a newer version"
+      raise Error,
+            "same version has a different spelling; keep #{current} or choose a newer version"
     end
     return if target >= current
     return if current == INITIAL_VERSION && target == INITIAL_RELEASE
@@ -220,36 +230,41 @@ class VersionBump
   end
 
   def expected_lock_lines(version)
-    package_lines = PACKAGE_FILES.keys.flat_map do |name|
-      ["    #{name} (#{version})", "  #{name} (#{version})"]
-    end
-    dependency_lines = GEMSPEC_DEPENDENCIES.values.flatten.map do |name|
-      "      #{name} (= #{version})"
-    end
+    package_lines =
+      PACKAGE_FILES.keys.flat_map { |name| ["    #{name} (#{version})", "  #{name} (#{version})"] }
+    dependency_lines =
+      GEMSPEC_DEPENDENCIES.values.flatten.map { |name| "      #{name} (= #{version})" }
     package_lines + dependency_lines
   end
 
   def update_documents(documents, current, target)
     updated = documents.dup
     PACKAGE_FILES.each_value do |path|
-      updated[path] = documents.fetch(path).sub(VERSION_PATTERN) do
-        %(#{Regexp.last_match(1)}"#{target}")
-      end
+      updated[path] = documents
+        .fetch(path)
+        .sub(VERSION_PATTERN) { %(#{Regexp.last_match(1)}"#{target}") }
     end
     GEMSPEC_DEPENDENCIES.each_key do |path|
-      updated[path] = documents.fetch(path).lines.map do |line|
-        match = line.match(SIBLING_PATTERN)
-        next line unless match
+      updated[path] = documents
+        .fetch(path)
+        .lines
+        .map do |line|
+          match = line.match(SIBLING_PATTERN)
+          next line unless match
 
-        line.sub(/"#{Regexp.escape(match[2])}"/, %("#{DERIVED_CONSTRAINT}"))
-      end.join
+          line.sub(/"#{Regexp.escape(match[2])}"/, %("#{DERIVED_CONSTRAINT}"))
+        end
+        .join
     end
     lock_lines = expected_lock_lines(current).uniq
-    updated["Gemfile.lock"] = documents.fetch("Gemfile.lock").lines.map do |line|
-      lock_lines.include?(line.chomp) ? line.sub(current.to_s, target.to_s) : line
-    end.join
+    updated["Gemfile.lock"] = documents
+      .fetch("Gemfile.lock")
+      .lines
+      .map { |line| lock_lines.include?(line.chomp) ? line.sub(current.to_s, target.to_s) : line }
+      .join
     updated["README.md"] = documents.fetch("README.md").sub(
-      "pkg/libtmux-#{current}.gem", "pkg/libtmux-#{target}.gem"
+      "pkg/libtmux-#{current}.gem",
+      "pkg/libtmux-#{target}.gem"
     )
     updated
   end

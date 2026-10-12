@@ -13,9 +13,13 @@ class SessionGuardTest < Minitest::Test
         panes = owned.list_panes.map(&:ref)
         borrowed = server.list_sessions.find { |session| session.id != owned.id }
         borrowed_window = borrowed.list_windows.first
-        assert_raises(LibTmux::TargetNotFoundError) { owned.kill(expected_windows: [], expected_panes: []) }
+        assert_raises(LibTmux::TargetNotFoundError) do
+          owned.kill(expected_windows: [], expected_panes: [])
+        end
         owned.link_window(borrowed_window.ref, index: 9)
-        assert_raises(LibTmux::TargetNotFoundError) { owned.kill(expected_windows: expected, expected_panes: panes) }
+        assert_raises(LibTmux::TargetNotFoundError) do
+          owned.kill(expected_windows: expected, expected_panes: panes)
+        end
         assert_includes server.list_windows.map(&:ref), borrowed_window.ref
         owned.list_window_links.find { |link| link.id == borrowed_window.id }.unlink
         assert owned.kill(expected_windows: expected, expected_panes: panes).success?
@@ -31,16 +35,35 @@ class SessionGuardTest < Minitest::Test
         borrowed = server.list_panes.first
         created = server.new_session(name: "guarded", command: ["cat"], receipt: true)
         server.options(scope: :server).set("command-alias", "if-shell=wait-for never", index: 90)
-        server.options(scope: :server).set("command-alias", "kill-session=wait-for never", index: 91)
-        assert fixture.tmux("set-hook", "-g", "after-show-options[99]", "wait-for -S ownership-ready ; wait-for ownership-release").last.success?
-        request = Thread.new do
-          created.entity.kill(expected_windows: [created.window.ref], expected_panes: [created.pane.ref])
-        rescue LibTmux::TargetNotFoundError => error
-          error
-        end
+        server.options(scope: :server).set(
+          "command-alias",
+          "kill-session=wait-for never",
+          index: 91
+        )
+        assert fixture
+                 .tmux(
+                   "set-hook",
+                   "-g",
+                   "after-show-options[99]",
+                   "wait-for -S ownership-ready ; wait-for ownership-release"
+                 )
+                 .last
+                 .success?
+        request =
+          Thread.new do
+            created.entity.kill(
+              expected_windows: [created.window.ref],
+              expected_panes: [created.pane.ref]
+            )
+          rescue LibTmux::TargetNotFoundError => error
+            error
+          end
         begin
           assert fixture.tmux("wait-for", "ownership-ready").last.success?
-          assert fixture.tmux("join-pane", "-d", "-s", borrowed.id, "-t", created.pane.id).last.success?
+          assert fixture
+                   .tmux("join-pane", "-d", "-s", borrowed.id, "-t", created.pane.id)
+                   .last
+                   .success?
           assert fixture.tmux("set-hook", "-gu", "after-show-options[99]").last.success?
           assert fixture.tmux("wait-for", "-S", "ownership-release").last.success?
           assert request.join(0.5), "ownership guard did not settle"

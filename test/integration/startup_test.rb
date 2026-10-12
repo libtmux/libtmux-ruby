@@ -3,7 +3,9 @@
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
 require "libtmux"
-require "libtmux/owned" if File.exist?(File.expand_path("../../gems/libtmux/lib/libtmux/owned.rb", __dir__))
+if File.exist?(File.expand_path("../../gems/libtmux/lib/libtmux/owned.rb", __dir__))
+  require "libtmux/owned"
+end
 
 class StartupTest < Minitest::Test
   def test_log_readiness_disables_logging_before_exposing_the_owned_server
@@ -16,12 +18,13 @@ class StartupTest < Minitest::Test
     path = pid = nil
     LibTmux::Server.start(timeout: 0.5) do |server|
       path = File.dirname(server.endpoint.socket_path)
-      pid = Integer(server.run(["display-message", "-p", '#{pid}']).text)
+      pid = Integer(server.run(%w[display-message -p #{pid}]).text)
       assert log_readiness.stopped?
       assert_operator log_readiness.bytes_read, :>, 0
       assert_operator log_readiness.bytes_read, :<=, 1 << 20
       assert_empty Dir[File.join(path, "*.log")]
-      assert_equal "ready-without-logging\n", server.run(["display-message", "-p", "ready-without-logging"]).text
+      assert_equal "ready-without-logging\n",
+                   server.run(%w[display-message -p ready-without-logging]).text
       assert_empty Dir[File.join(path, "*.log")]
     end
     assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
@@ -39,11 +42,17 @@ class StartupTest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-log-writer-") do |directory|
       executable = File.join(directory, "writer")
       record = File.join(directory, "owned-path")
-      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\n" \
-        "File.write(#{record.inspect}, Dir.pwd)\n" \
-        "File.binwrite(\"tmux-server-\#{Process.pid}.log\", 'x' * ((1 << 20) + 1))\nIO.select([])\n")
+      File.write(
+        executable,
+        "#!#{RbConfig.ruby} --disable=rubyopt,gems\n" \
+          "File.write(#{record.inspect}, Dir.pwd)\n" \
+          "File.binwrite(\"tmux-server-\#{Process.pid}.log\", 'x' * ((1 << 20) + 1))\nIO.select([])\n"
+      )
       File.chmod(0o700, executable)
-      error = assert_raises(LibTmux::CapacityError) { LibTmux::Server.start(executable: executable, timeout: 0.5) }
+      error =
+        assert_raises(LibTmux::CapacityError) do
+          LibTmux::Server.start(executable: executable, timeout: 0.5)
+        end
       assert_equal :possibly_sent, error.delivery
       assert_equal :startup, error.phase
       assert_raises(Errno::ECHILD) { Process.waitpid(error.pid, Process::WNOHANG) }
@@ -64,7 +73,7 @@ class StartupTest < Minitest::Test
           owned_path = server.endpoint.socket_path
           assert_equal 0o700, File.stat(File.dirname(owned_path)).mode & 0o777
           assert_equal [], server.list_sessions.to_a
-          daemon_pid = Integer(server.run(["display-message", "-p", '#{pid}']).text)
+          daemon_pid = Integer(server.run(%w[display-message -p #{pid}]).text)
           assert_operator daemon_pid, :>, 0
           created = server.new_session(name: "owned", command: ["cat"])
           assert_equal [created.ref], server.list_sessions.map(&:ref)
@@ -79,13 +88,14 @@ class StartupTest < Minitest::Test
   def test_block_failure_and_pre_cancel_leave_no_owned_daemon_or_directory
     failure = RuntimeError.new("caller failure")
     path = pid = nil
-    observed = assert_raises(RuntimeError) do
-      LibTmux::Server.start do |server|
-        path = server.endpoint.socket_path
-        pid = Integer(server.run(["display-message", "-p", '#{pid}']).text)
-        raise failure
+    observed =
+      assert_raises(RuntimeError) do
+        LibTmux::Server.start do |server|
+          path = server.endpoint.socket_path
+          pid = Integer(server.run(%w[display-message -p #{pid}]).text)
+          raise failure
+        end
       end
-    end
     assert_same failure, observed
     assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
     refute File.exist?(File.dirname(path))
@@ -105,7 +115,8 @@ class StartupTest < Minitest::Test
       executable = File.join(directory, "exit")
       File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nexit 1\n")
       File.chmod(0o700, executable)
-      error = assert_raises(LibTmux::TransportError) { LibTmux::Server.start(executable: executable) }
+      error =
+        assert_raises(LibTmux::TransportError) { LibTmux::Server.start(executable: executable) }
       assert_equal :startup, error.phase
       assert_equal :possibly_sent, error.delivery
       assert_operator error.pid, :>, 0
@@ -119,11 +130,12 @@ class StartupTest < Minitest::Test
     constructor = daemon_class.method(:new)
     failure = Interrupt.new("cancel constructor transfer")
     owned = nil
-    factory = lambda do |**options|
-      owned = constructor.call(**options)
-      Thread.current.raise failure
-      owned
-    end
+    factory =
+      lambda do |**options|
+        owned = constructor.call(**options)
+        Thread.current.raise failure
+        owned
+      end
     begin
       daemon_class.define_singleton_method(:new, factory)
       observed = assert_raises(Interrupt) { LibTmux::Server.start }
@@ -142,12 +154,20 @@ class StartupTest < Minitest::Test
     held_input, writer = IO.pipe
     original = Process.method(:spawn)
     path = nil
-    replacement = lambda do |*argv, **options|
-      path = argv.fetch(argv.index("-S") + 1)
-      child = original.call("/bin/cat", in: held_input, out: File::NULL, err: File::NULL, close_others: true)
-      token.cancel
-      child
-    end
+    replacement =
+      lambda do |*argv, **options|
+        path = argv.fetch(argv.index("-S") + 1)
+        child =
+          original.call(
+            "/bin/cat",
+            in: held_input,
+            out: File::NULL,
+            err: File::NULL,
+            close_others: true
+          )
+        token.cancel
+        child
+      end
     begin
       Process.define_singleton_method(:spawn, replacement)
       error = assert_raises(LibTmux::Cancelled) { LibTmux::Server.start(cancel: token) }
@@ -166,24 +186,25 @@ class StartupTest < Minitest::Test
     entered, release = Queue.new, Queue.new
     first, second = Interrupt.new("first cancellation"), Interrupt.new("cleanup cancellation")
     path = pid = nil
-    worker = Thread.new do
-      LibTmux::Server.start do |server|
-        path = server.endpoint.socket_path
-        child = server.instance_variable_get(:@daemon).instance_variable_get(:@child)
-        pid = child.pid
-        original = child.method(:signal)
-        child.define_singleton_method(:signal) do |name|
-          if name == "TERM"
-            entered << true
-            release.pop
+    worker =
+      Thread.new do
+        LibTmux::Server.start do |server|
+          path = server.endpoint.socket_path
+          child = server.instance_variable_get(:@daemon).instance_variable_get(:@child)
+          pid = child.pid
+          original = child.method(:signal)
+          child.define_singleton_method(:signal) do |name|
+            if name == "TERM"
+              entered << true
+              release.pop
+            end
+            original.call(name)
           end
-          original.call(name)
+          raise first
         end
-        raise first
+      rescue Exception => error
+        error
       end
-    rescue Exception => error
-      error
-    end
     begin
       assert entered.pop(timeout: 0.5), "daemon close was not entered"
       worker.raise second
@@ -201,19 +222,20 @@ class StartupTest < Minitest::Test
   def test_forked_close_cannot_retire_parent_daemon
     LibTmux::Server.start do |server|
       reader, writer = IO.pipe
-      child = fork do
-        reader.close
-        server.close
-        writer.write("detached")
-        writer.close
-        exit! 0
-      end
+      child =
+        fork do
+          reader.close
+          server.close
+          writer.write("detached")
+          writer.close
+          exit! 0
+        end
       writer.close
       begin
         assert IO.select([reader], nil, nil, 0.5), "fork child did not detach"
         assert_equal "detached", reader.read
         assert Process.wait2(child).last.success?
-        assert server.run(["display-message", "-p", "still-owned"]).success?
+        assert server.run(%w[display-message -p still-owned]).success?
         assert File.socket?(server.endpoint.socket_path)
       ensure
         reader.close
@@ -226,7 +248,9 @@ class StartupTest < Minitest::Test
     child = server.instance_variable_get(:@daemon).instance_variable_get(:@child)
     original = child.method(:observation_error)
     path = server.endpoint.socket_path
-    child.define_singleton_method(:observation_error) { Errno::EINVAL.new("native observer failure") }
+    child.define_singleton_method(:observation_error) do
+      Errno::EINVAL.new("native observer failure")
+    end
     begin
       error = assert_raises(LibTmux::TransportError) { server.close }
       refute_empty error.cleanup_errors

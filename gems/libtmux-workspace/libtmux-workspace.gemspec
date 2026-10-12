@@ -7,7 +7,8 @@ Gem::Specification.new do |spec|
   spec.version = LibTmux::Workspace::VERSION
   spec.authors = ["libtmux contributors"]
   spec.summary = "Data-only workspace consumer package for libtmux"
-  spec.description = "Validate YAML or JSON workspace configurations, inspect creation plans and apply them to tmux."
+  spec.description =
+    "Validate YAML or JSON workspace configurations, inspect creation plans and apply them to tmux."
   spec.homepage = "https://github.com/libtmux/libtmux-ruby"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.3"
@@ -19,8 +20,10 @@ Gem::Specification.new do |spec|
   spec.bindir = "exe"
   spec.executables = ["libtmux-workspace"]
   spec.files = %w[
-    LICENSE README.md
-    assets/logo.svg assets/logo.png
+    LICENSE
+    README.md
+    assets/logo.svg
+    assets/logo.png
     exe/libtmux-workspace
     lib/libtmux/workspace.rb
     lib/libtmux/workspace/apply.rb

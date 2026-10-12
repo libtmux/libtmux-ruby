@@ -50,11 +50,29 @@ module LibTmux
   end
 
   class ControlEvent
-    attr_reader :kind, :raw, :data, :pane_id, :sequence, :generation,
-      :lost_sequences, :dropped_bytes, :reason, :previous_generation
+    attr_reader :kind,
+                :raw,
+                :data,
+                :pane_id,
+                :sequence,
+                :generation,
+                :lost_sequences,
+                :dropped_bytes,
+                :reason,
+                :previous_generation
 
-    def initialize(kind:, raw:, data: nil, pane_id: nil, sequence: nil, generation: nil,
-      lost_sequences: nil, dropped_bytes: 0, reason: nil, previous_generation: nil)
+    def initialize(
+      kind:,
+      raw:,
+      data: nil,
+      pane_id: nil,
+      sequence: nil,
+      generation: nil,
+      lost_sequences: nil,
+      dropped_bytes: 0,
+      reason: nil,
+      previous_generation: nil
+    )
       @kind, @raw, @data = kind, raw.b.freeze, data&.b&.freeze
       @pane_id, @sequence, @generation = pane_id&.dup&.freeze, sequence, generation&.dup&.freeze
       @lost_sequences, @dropped_bytes = lost_sequences&.dup&.freeze, dropped_bytes
@@ -76,7 +94,11 @@ module LibTmux
 
     def initialize(sequence:)
       @sequence = sequence
-      super("control subscription exceeded its buffer limit", delivery: :observed, phase: :subscription)
+      super(
+        "control subscription exceeded its buffer limit",
+        delivery: :observed,
+        phase: :subscription
+      )
     end
   end
 
@@ -84,11 +106,19 @@ module LibTmux
     include Enumerable
     attr_reader :generation
 
-    def initialize(max_bytes: 1 << 20, max_events: 1024, mode: :reliable, pane_id: nil, generation: nil)
+    def initialize(
+      max_bytes: 1 << 20,
+      max_events: 1024,
+      mode: :reliable,
+      pane_id: nil,
+      generation: nil
+    )
       unless [max_bytes, max_events].all? { |limit| limit.is_a?(Integer) && limit.positive? }
         raise ArgumentError, "subscription limits must be positive integers"
       end
-      raise ArgumentError, "subscription mode must be reliable or tail" unless [:reliable, :tail].include?(mode)
+      unless %i[reliable tail].include?(mode)
+        raise ArgumentError, "subscription mode must be reliable or tail"
+      end
 
       @max_bytes, @max_events, @mode, @pane_id = max_bytes, max_events, mode, pane_id
       @owner_pid = Process.pid
@@ -118,7 +148,9 @@ module LibTmux
           raise StopIteration if @closed
 
           remaining = deadline && deadline - clock
-          raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription) if remaining && remaining <= 0
+          if remaining && remaining <= 0
+            raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription)
+          end
 
           @changed.wait(@mutex, remaining)
         end
@@ -129,11 +161,12 @@ module LibTmux
       return enum_for(__method__) unless block_given?
 
       while true
-        event = begin
-          self.next
-        rescue StopIteration
-          break
-        end
+        event =
+          begin
+            self.next
+          rescue StopIteration
+            break
+          end
         yield event
       end
       self
@@ -160,21 +193,31 @@ module LibTmux
     def diagnostics
       ensure_owner
       @mutex.synchronize do
-        {queued_events: @queue.length, retained_event_bytes: @bytes,
-          gap_pending: !@gap.nil?, overflowed: @failure.is_a?(SubscriptionOverflow),
-          closed: @closed, mode: @mode,
-          limits: {max_bytes: @max_bytes, max_events: @max_events}.freeze}.freeze
+        {
+          queued_events: @queue.length,
+          retained_event_bytes: @bytes,
+          gap_pending: !@gap.nil?,
+          overflowed: @failure.is_a?(SubscriptionOverflow),
+          closed: @closed,
+          mode: @mode,
+          limits: { max_bytes: @max_bytes, max_events: @max_events }.freeze
+        }.freeze
       end
     end
 
     def inspect
-      "#<#{self.class} mode=#{@mode} #{@closed ? 'closed' : 'open'}>"
+      "#<#{self.class} mode=#{@mode} #{@closed ? "closed" : "open"}>"
     end
 
     private
 
     def ensure_owner
-      raise ClosedError.new("control subscription belongs to another process", phase: :subscription) unless Process.pid == @owner_pid
+      unless Process.pid == @owner_pid
+        raise ClosedError.new(
+                "control subscription belongs to another process",
+                phase: :subscription
+              )
+      end
     end
 
     def clock
@@ -189,11 +232,13 @@ module LibTmux
       @mutex.synchronize do
         return if @closed
 
-        if @mode == :reliable && (@bytes + event.bytesize > @max_bytes || @queue.length >= @max_events)
+        if @mode == :reliable &&
+             (@bytes + event.bytesize > @max_bytes || @queue.length >= @max_events)
           @failure = SubscriptionOverflow.new(sequence: event.sequence)
           @closed = true
         else
-          while !@queue.empty? && (@bytes + event.bytesize > @max_bytes || @queue.length >= @max_events)
+          while !@queue.empty? &&
+                  (@bytes + event.bytesize > @max_bytes || @queue.length >= @max_events)
             dropped = @queue.shift
             @bytes -= dropped.bytesize
             record_gap(dropped)
@@ -219,11 +264,20 @@ module LibTmux
 
     def record_gap(event)
       first = @gap ? @gap.lost_sequences.first : event.sequence
-      unknown_loss = (@gap && @gap.dropped_bytes.nil?) || (event.kind == :gap && event.dropped_bytes.nil?)
+      unknown_loss =
+        (@gap && @gap.dropped_bytes.nil?) || (event.kind == :gap && event.dropped_bytes.nil?)
       bytes = unknown_loss ? nil : (@gap&.dropped_bytes || 0) + event.bytesize
-      @gap = ControlEvent.new(kind: :gap, raw: "".b, sequence: event.sequence,
-        generation: event.generation, lost_sequences: [first, event.sequence], dropped_bytes: bytes,
-        reason: :overflow, previous_generation: @gap&.previous_generation || event.previous_generation)
+      @gap =
+        ControlEvent.new(
+          kind: :gap,
+          raw: "".b,
+          sequence: event.sequence,
+          generation: event.generation,
+          lost_sequences: [first, event.sequence],
+          dropped_bytes: bytes,
+          reason: :overflow,
+          previous_generation: @gap&.previous_generation || event.previous_generation
+        )
     end
   end
 
@@ -242,35 +296,53 @@ module LibTmux
 
       def feed(bytes)
         # Callers feed bounded read chunks; retained data is checked per line.
-        bytes.b.each_line("\n") do |part|
-          @pending << part
-          raise CapacityError.new("control line exceeds its byte limit", phase: :read) if @pending.bytesize > @max_line
-          next unless @pending.end_with?("\n")
-
-          line, @pending = @pending, +"".b
-          match = GUARD.match(line)
-          tuple = match && match.captures.drop(1).map(&:to_i)
-          if @guard
-            @frame_bytes += line.bytesize
-            raise CapacityError.new("control frame exceeds its byte limit", phase: :read) if @frame_bytes > @max_frame
-
-            if match && match[1] != "begin" && tuple == @guard
-              yield GuardedBlock.new(guard: @guard, body: @body,
-                terminator: match[1].to_sym, bytesize: @frame_bytes, opening: @opening, closing: line)
-              @guard = @body = nil
-            else
-              @body << line
+        bytes
+          .b
+          .each_line("\n") do |part|
+            @pending << part
+            if @pending.bytesize > @max_line
+              raise CapacityError.new("control line exceeds its byte limit", phase: :read)
             end
-          elsif match
-            raise ProtocolError.new("control closing guard has no opening guard", phase: :read) unless match[1] == "begin"
+            next unless @pending.end_with?("\n")
 
-            @guard, @body, @frame_bytes = tuple, +"".b, line.bytesize
-            @opening = line
-            raise CapacityError.new("control frame exceeds its byte limit", phase: :read) if @frame_bytes > @max_frame
-          else
-            yield event(line)
+            line, @pending = @pending, +"".b
+            match = GUARD.match(line)
+            tuple = match && match.captures.drop(1).map(&:to_i)
+            if @guard
+              @frame_bytes += line.bytesize
+              if @frame_bytes > @max_frame
+                raise CapacityError.new("control frame exceeds its byte limit", phase: :read)
+              end
+
+              if match && match[1] != "begin" && tuple == @guard
+                yield(
+                  GuardedBlock.new(
+                    guard: @guard,
+                    body: @body,
+                    terminator: match[1].to_sym,
+                    bytesize: @frame_bytes,
+                    opening: @opening,
+                    closing: line
+                  )
+                )
+                @guard = @body = nil
+              else
+                @body << line
+              end
+            elsif match
+              unless match[1] == "begin"
+                raise ProtocolError.new("control closing guard has no opening guard", phase: :read)
+              end
+
+              @guard, @body, @frame_bytes = tuple, +"".b, line.bytesize
+              @opening = line
+              if @frame_bytes > @max_frame
+                raise CapacityError.new("control frame exceeds its byte limit", phase: :read)
+              end
+            else
+              yield event(line)
+            end
           end
-        end
       end
 
       def finish
@@ -289,8 +361,13 @@ module LibTmux
         elsif line.start_with?("%output ", "%extended-output ")
           raise ProtocolError.new("malformed control output event", phase: :read)
         elsif (match = /\A%(pause|continue) (%[0-9]+)\n\z/n.match(line))
-          ControlEvent.new(kind: :gap, raw: line, pane_id: match[2],
-            reason: match[1] == "pause" ? :pause : :resume, dropped_bytes: nil)
+          ControlEvent.new(
+            kind: :gap,
+            raw: line,
+            pane_id: match[2],
+            reason: match[1] == "pause" ? :pause : :resume,
+            dropped_bytes: nil
+          )
         elsif line.start_with?("%pause ", "%continue ")
           raise ProtocolError.new("malformed control flow event", phase: :read)
         else
@@ -326,8 +403,24 @@ module LibTmux
       attr_reader :control_cleanup_errors
     end
 
-    Request = Struct.new(:id, :wire, :offset, :start_marker, :end_marker, :started,
-      :blocks, :bytes, :reader, :writer, :result, :error, :flow, :flow_reported, keyword_init: true)
+    Request =
+      Struct.new(
+        :id,
+        :wire,
+        :offset,
+        :start_marker,
+        :end_marker,
+        :started,
+        :blocks,
+        :bytes,
+        :reader,
+        :writer,
+        :result,
+        :error,
+        :flow,
+        :flow_reported,
+        keyword_init: true
+      )
     private_constant :Request, :CleanupDetails
 
     attr_reader :pid, :generation, :previous_generation, :events, :cleanup_errors
@@ -373,20 +466,40 @@ module LibTmux
     end
     private_class_method :attach_cleanup_details
 
-    def initialize(binding:, session_id:, reconnect: nil, max_requests: 32, max_command_bytes: 1 << 18,
-      max_queue_bytes: 1 << 20, max_line_bytes: 1 << 18, max_reply_bytes: 1 << 20,
-      max_stderr_bytes: 1 << 18, max_subscriptions: 32)
-      initialize_state(binding_key: binding.key, session_id: session_id, reconnect: reconnect,
-        max_requests: max_requests, max_command_bytes: max_command_bytes,
-        max_queue_bytes: max_queue_bytes, max_line_bytes: max_line_bytes, max_reply_bytes: max_reply_bytes,
-        max_stderr_bytes: max_stderr_bytes, max_subscriptions: max_subscriptions)
+    def initialize(
+      binding:,
+      session_id:,
+      reconnect: nil,
+      max_requests: 32,
+      max_command_bytes: 1 << 18,
+      max_queue_bytes: 1 << 20,
+      max_line_bytes: 1 << 18,
+      max_reply_bytes: 1 << 20,
+      max_stderr_bytes: 1 << 18,
+      max_subscriptions: 32
+    )
+      initialize_state(
+        binding_key: binding.key,
+        session_id: session_id,
+        reconnect: reconnect,
+        max_requests: max_requests,
+        max_command_bytes: max_command_bytes,
+        max_queue_bytes: max_queue_bytes,
+        max_line_bytes: max_line_bytes,
+        max_reply_bytes: max_reply_bytes,
+        max_stderr_bytes: max_stderr_bytes,
+        max_subscriptions: max_subscriptions
+      )
       error = nil
       begin
         Thread.handle_interrupt(Exception => :never) do
           begin
             process_wait = Internal::ProcessWait.new
             prefix = binding.command_prefix
-            @pin = Internal::SocketIdentity.new(Endpoint.new(socket_path: prefix.last, executable: prefix.first))
+            @pin =
+              Internal::SocketIdentity.new(
+                Endpoint.new(socket_path: prefix.last, executable: prefix.first)
+              )
             @wake_reader, @wake_writer = pipe
             input_reader, @input = pipe
             @output, output_writer = pipe
@@ -395,9 +508,19 @@ module LibTmux
             @exit_reader = @child.reader
             @resources << @exit_reader
             begin
-              @pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil},
-                *@pin.command_prefix, "-C", "attach-session", "-t", session_id,
-                in: input_reader, out: output_writer, err: error_writer, close_others: true)
+              @pid =
+                Process.spawn(
+                  { "TMUX" => nil, "TMUX_PANE" => nil },
+                  *@pin.command_prefix,
+                  "-C",
+                  "attach-session",
+                  "-t",
+                  session_id,
+                  in: input_reader,
+                  out: output_writer,
+                  err: error_writer,
+                  close_others: true
+                )
             ensure
               @child.spawned(@pid)
             end
@@ -407,7 +530,10 @@ module LibTmux
           rescue Exception => failure
             error = failure
             if @worker
-              @mutex.synchronize { @stopping = true; wake(@wake_writer) }
+              @mutex.synchronize do
+                @stopping = true
+                wake(@wake_writer)
+              end
               @worker.join(0.5)
             else
               cleanup
@@ -417,7 +543,9 @@ module LibTmux
       rescue Exception => deferred
         error ||= deferred
       end
-      self.class.send(:attach_cleanup_details, error, @cleanup_errors) if error && !@cleanup_errors.empty?
+      if error && !@cleanup_errors.empty?
+        self.class.send(:attach_cleanup_details, error, @cleanup_errors)
+      end
       raise error if error
     end
 
@@ -428,12 +556,15 @@ module LibTmux
     def exchange_request(line, timeout:, cancel:, flow: nil)
       ensure_owner
       unless line.is_a?(String) && !line.empty? && !line.b.match?(/[\x00\r\n]/n)
-        raise ArgumentError, "control input must be one nonempty raw command line without NUL or line endings"
+        raise ArgumentError,
+              "control input must be one nonempty raw command line without NUL or line endings"
       end
       unless timeout.is_a?(Numeric) && timeout.finite? && timeout.positive?
         raise ArgumentError, "control timeout must be positive and finite"
       end
-      raise CapacityError.new("control command exceeds its byte limit", phase: :admission) if line.bytesize > @max_command
+      if line.bytesize > @max_command
+        raise CapacityError.new("control command exceeds its byte limit", phase: :admission)
+      end
 
       deadline, request, result, error = clock + timeout, nil, nil, nil
       begin
@@ -464,7 +595,13 @@ module LibTmux
               begin
                 abort_request(request, Cancelled, "control request interrupted")
               rescue Exception => cleanup
-                self.class.send(:attach_cleanup_details, error, ["control request cleanup failed (#{cleanup.class})"]) if error
+                if error
+                  self.class.send(
+                    :attach_cleanup_details,
+                    error,
+                    ["control request cleanup failed (#{cleanup.class})"]
+                  )
+                end
                 error ||= cleanup
               ensure
                 @mutex.synchronize do
@@ -499,13 +636,23 @@ module LibTmux
         raise ArgumentError, "pane subscription must use an exact pane ID"
       end
       @mutex.synchronize do
-        raise ClosedError.new("control connection is closed", phase: :admission) if @stopping || @finished
+        if @stopping || @finished
+          raise ClosedError.new("control connection is closed", phase: :admission)
+        end
 
         @subscriptions.reject!(&:closed?)
-        raise CapacityError.new("control subscription limit reached", phase: :admission) if @subscriptions.length >= @max_subscriptions
+        if @subscriptions.length >= @max_subscriptions
+          raise CapacityError.new("control subscription limit reached", phase: :admission)
+        end
 
-        subscription = build_subscription(pane_id: pane_id, mode: mode, max_bytes: max_bytes, max_events: max_events,
-          generation: @generation)
+        subscription =
+          build_subscription(
+            pane_id: pane_id,
+            mode: mode,
+            max_bytes: max_bytes,
+            max_events: max_events,
+            generation: @generation
+          )
         subscription.send(:publish, @reconnect_gap) if @reconnect_gap
         @subscriptions << subscription
         subscription
@@ -527,10 +674,21 @@ module LibTmux
         Thread.handle_interrupt(Exception => :never) do
           request_close
           unless !@worker || @worker.join(timeout)
-            failure = TransportError.new("control reader did not retire within its cleanup deadline", phase: :cleanup, pid: @pid)
+            failure =
+              TransportError.new(
+                "control reader did not retire within its cleanup deadline",
+                phase: :cleanup,
+                pid: @pid
+              )
           end
           unless @cleanup_errors.empty?
-            failure ||= TransportError.new("control cleanup failed", phase: :cleanup, pid: @pid, cleanup_errors: @cleanup_errors)
+            failure ||=
+              TransportError.new(
+                "control cleanup failed",
+                phase: :cleanup,
+                pid: @pid,
+                cleanup_errors: @cleanup_errors
+              )
           end
         end
       rescue Exception => deferred
@@ -552,36 +710,63 @@ module LibTmux
     def diagnostics
       ensure_owner
       @mutex.synchronize do
-        {admitted_requests: @request_pipes.length, incomplete_requests: @requests.length,
-          queued_requests: @queue.length, writing_requests: @writing ? 1 : 0,
-          awaiting_reply: @replies.length, reserved_wire_bytes: @queued_bytes,
-          retained_reply_bytes: @retained_reply_bytes, stderr_received_bytes: @stderr_bytes,
-          subscription_count: @subscriptions.length, stopping: !!@stopping,
-          finished: !!@finished, cleanup_error_count: @cleanup_errors.length,
-          limits: @diagnostic_limits}.freeze
+        {
+          admitted_requests: @request_pipes.length,
+          incomplete_requests: @requests.length,
+          queued_requests: @queue.length,
+          writing_requests: @writing ? 1 : 0,
+          awaiting_reply: @replies.length,
+          reserved_wire_bytes: @queued_bytes,
+          retained_reply_bytes: @retained_reply_bytes,
+          stderr_received_bytes: @stderr_bytes,
+          subscription_count: @subscriptions.length,
+          stopping: !!@stopping,
+          finished: !!@finished,
+          cleanup_error_count: @cleanup_errors.length,
+          limits: @diagnostic_limits
+        }.freeze
       end
     end
 
     def inspect
-      "#<#{self.class} pid=#{@pid} generation=#{@generation} #{@stopping || @finished ? 'closed' : 'open'}>"
+      "#<#{self.class} pid=#{@pid} generation=#{@generation} #{@stopping || @finished ? "closed" : "open"}>"
     end
 
     private
 
-    def initialize_state(binding_key:, session_id:, reconnect: nil, max_requests: 32, max_command_bytes: 1 << 18,
-      max_queue_bytes: 1 << 20, max_line_bytes: 1 << 18, max_reply_bytes: 1 << 20,
-      max_stderr_bytes: 1 << 18, max_subscriptions: 32)
+    def initialize_state(
+      binding_key:,
+      session_id:,
+      reconnect: nil,
+      max_requests: 32,
+      max_command_bytes: 1 << 18,
+      max_queue_bytes: 1 << 20,
+      max_line_bytes: 1 << 18,
+      max_reply_bytes: 1 << 20,
+      max_stderr_bytes: 1 << 18,
+      max_subscriptions: 32
+    )
       unless session_id.is_a?(String) && /\A\$[0-9]+\z/.match?(session_id)
         raise ArgumentError, "control session must be an exact session ID"
       end
-      limits = [max_requests, max_command_bytes, max_queue_bytes, max_line_bytes,
-        max_reply_bytes, max_stderr_bytes, max_subscriptions]
-      raise ArgumentError, "control limits must be positive integers" unless limits.all? { |n| n.is_a?(Integer) && n.positive? }
+      limits = [
+        max_requests,
+        max_command_bytes,
+        max_queue_bytes,
+        max_line_bytes,
+        max_reply_bytes,
+        max_stderr_bytes,
+        max_subscriptions
+      ]
+      unless limits.all? { |n| n.is_a?(Integer) && n.positive? }
+        raise ArgumentError, "control limits must be positive integers"
+      end
       if reconnect
         unless reconnect.is_a?(ControlConnection) && reconnect.closed? &&
-            reconnect.instance_variable_get(:@binding_key) == binding_key &&
-            reconnect.instance_variable_get(:@session_id) == session_id
-          raise ArgumentError, "reconnect requires a retired control connection for the same binding and session"
+                 reconnect.instance_variable_get(:@binding_key) == binding_key &&
+                 reconnect.instance_variable_get(:@session_id) == session_id
+          raise ArgumentError,
+                "reconnect requires a retired control connection for the same binding and session"
         end
         @previous_generation = reconnect.generation
       end
@@ -594,16 +779,36 @@ module LibTmux
       @next_id, @queued_bytes, @sequence, @retained_reply_bytes = 0, 0, 0, 0
       if @previous_generation
         @sequence += 1
-        @reconnect_gap = ControlEvent.new(kind: :gap, raw: "".b, sequence: @sequence,
-          generation: @generation, previous_generation: @previous_generation, reason: :reconnect, dropped_bytes: nil)
+        @reconnect_gap =
+          ControlEvent.new(
+            kind: :gap,
+            raw: "".b,
+            sequence: @sequence,
+            generation: @generation,
+            previous_generation: @previous_generation,
+            reason: :reconnect,
+            dropped_bytes: nil
+          )
       end
       @max_requests, @max_command, @max_queue = max_requests, max_command_bytes, max_queue_bytes
-      @max_reply, @max_stderr, @max_subscriptions = max_reply_bytes, max_stderr_bytes, max_subscriptions
-      @diagnostic_limits = {max_requests: max_requests, max_command_bytes: max_command_bytes,
-        max_queue_bytes: max_queue_bytes, max_line_bytes: max_line_bytes,
-        max_reply_bytes: max_reply_bytes, max_stderr_bytes: max_stderr_bytes,
-        max_subscriptions: max_subscriptions}.freeze
-      @parser = Internal::ControlParser.new(max_line_bytes: max_line_bytes, max_frame_bytes: max_reply_bytes)
+      @max_reply, @max_stderr, @max_subscriptions =
+        max_reply_bytes,
+        max_stderr_bytes,
+        max_subscriptions
+      @diagnostic_limits = {
+        max_requests: max_requests,
+        max_command_bytes: max_command_bytes,
+        max_queue_bytes: max_queue_bytes,
+        max_line_bytes: max_line_bytes,
+        max_reply_bytes: max_reply_bytes,
+        max_stderr_bytes: max_stderr_bytes,
+        max_subscriptions: max_subscriptions
+      }.freeze
+      @parser =
+        Internal::ControlParser.new(
+          max_line_bytes: max_line_bytes,
+          max_frame_bytes: max_reply_bytes
+        )
       @stderr_bytes, @cleanup_errors = 0, [].freeze
       @events = subscribe
     end
@@ -617,11 +822,18 @@ module LibTmux
         raise ArgumentError, "control output target must be an exact pane ID"
       end
       flow = [pane_id.dup.freeze, state == "pause" ? :pause : :resume].freeze
-      exchange_request("refresh-client -A '#{pane_id}:#{state}'", timeout: timeout, cancel: cancel, flow: flow)
+      exchange_request(
+        "refresh-client -A '#{pane_id}:#{state}'",
+        timeout: timeout,
+        cancel: cancel,
+        flow: flow
+      )
     end
 
     def ensure_owner
-      raise ClosedError.new("control connection belongs to another process", phase: :admission) unless Process.pid == @owner_pid
+      unless Process.pid == @owner_pid
+        raise ClosedError.new("control connection belongs to another process", phase: :admission)
+      end
     end
 
     def clock
@@ -629,12 +841,18 @@ module LibTmux
     end
 
     def pipe
-      IO.pipe.tap { |pair| @resources.concat(pair); pair.each(&:binmode) }
+      IO.pipe.tap do |pair|
+        @resources.concat(pair)
+        pair.each(&:binmode)
+      end
     end
 
     def request_close
       ensure_owner
-      @mutex.synchronize { @stopping = true; wake(@wake_writer) }
+      @mutex.synchronize do
+        @stopping = true
+        wake(@wake_writer)
+      end
       nil
     end
 
@@ -664,8 +882,12 @@ module LibTmux
 
     def admit(line, cancel, flow: nil)
       @mutex.synchronize do
-        raise ClosedError.new("control connection is closed", phase: :admission) if @stopping || @finished
-        raise Cancelled.new("control request cancelled before admission", phase: :admission) if cancel&.cancelled?
+        if @stopping || @finished
+          raise ClosedError.new("control connection is closed", phase: :admission)
+        end
+        if cancel&.cancelled?
+          raise Cancelled.new("control request cancelled before admission", phase: :admission)
+        end
 
         start_marker = "libtmux_boundary_#{SecureRandom.hex(24)}"
         end_marker = "libtmux_boundary_#{SecureRandom.hex(24)}"
@@ -675,9 +897,20 @@ module LibTmux
         end
         reader, writer = IO.pipe
         begin
-          request = Request.new(id: (@next_id += 1), wire: wire, offset: 0,
-            start_marker: start_marker, end_marker: end_marker, started: false,
-            blocks: [], bytes: 0, reader: reader, writer: writer, flow: flow)
+          request =
+            Request.new(
+              id: (@next_id += 1),
+              wire: wire,
+              offset: 0,
+              start_marker: start_marker,
+              end_marker: end_marker,
+              started: false,
+              blocks: [],
+              bytes: 0,
+              reader: reader,
+              writer: writer,
+              flow: flow
+            )
         rescue Exception
           [reader, writer].each { |io| io.close unless io.closed? }
           raise
@@ -695,8 +928,15 @@ module LibTmux
       return if request.result || request.error
 
       if request.flow && !request.flow_reported && request.offset.positive?
-        publish_event(ControlEvent.new(kind: :gap, raw: "".b, pane_id: request.flow.first,
-          reason: request.flow.last == :pause ? :pause_requested : :resume_requested, dropped_bytes: nil))
+        publish_event(
+          ControlEvent.new(
+            kind: :gap,
+            raw: "".b,
+            pane_id: request.flow.first,
+            reason: request.flow.last == :pause ? :pause_requested : :resume_requested,
+            dropped_bytes: nil
+          )
+        )
         request.flow_reported = true
       end
 
@@ -712,10 +952,17 @@ module LibTmux
       loop do
         writing = pending_write
         break if @mutex.synchronize { @stopping }
-        raise TransportError.new("control client exited while a pipe remained open", phase: :read) if exit_deadline && clock >= exit_deadline
+        if exit_deadline && clock >= exit_deadline
+          raise TransportError.new("control client exited while a pipe remained open", phase: :read)
+        end
 
-        ready = IO.select(streams + [@wake_reader, @exit_reader], writing ? [@input] : nil,
-          nil, exit_deadline && [exit_deadline - clock, 0].max)
+        ready =
+          IO.select(
+            streams + [@wake_reader, @exit_reader],
+            writing ? [@input] : nil,
+            nil,
+            exit_deadline && [exit_deadline - clock, 0].max
+          )
         next unless ready
 
         ready[0].each do |io|
@@ -724,7 +971,10 @@ module LibTmux
             next
           elsif io == @exit_reader
             if @child.observation_error
-              raise TransportError.new("control exit observation failed (#{@child.observation_error.class})", phase: :wait)
+              raise TransportError.new(
+                      "control exit observation failed (#{@child.observation_error.class})",
+                      phase: :wait
+                    )
             end
             exit_deadline ||= clock + 0.1
             next
@@ -746,22 +996,38 @@ module LibTmux
           @mutex.synchronize do
             request = @writing
             if request && !@stopping
-              sent = @input.write_nonblock(request.wire.byteslice(request.offset, 16_384), exception: false)
+              sent =
+                @input.write_nonblock(
+                  request.wire.byteslice(request.offset, 16_384),
+                  exception: false
+                )
               request.offset += sent if sent.is_a?(Integer)
             end
           end
         end
       end
     rescue Exception => error
-      failure = error.is_a?(Error) ? error : TransportError.new("control transport failed (#{error.class})", phase: :read)
+      failure =
+        (
+          if error.is_a?(Error)
+            error
+          else
+            TransportError.new("control transport failed (#{error.class})", phase: :read)
+          end
+        )
     ensure
       Thread.handle_interrupt(Exception => :never) do
         @mutex.synchronize do
           @stopping = true
           @requests.values.each do |request|
             type = failure ? failure.class : ClosedError
-            error = type.new(failure ? failure.message : "control connection closed",
-              delivery: request.offset.zero? ? :not_sent : :possibly_sent, phase: :control, pid: @pid)
+            error =
+              type.new(
+                failure ? failure.message : "control connection closed",
+                delivery: request.offset.zero? ? :not_sent : :possibly_sent,
+                phase: :control,
+                pid: @pid
+              )
             complete(request, error: error)
           end
           @queue.clear
@@ -792,14 +1058,23 @@ module LibTmux
         request = @replies.first
         if record.is_a?(GuardedBlock) && request
           if marker?(record, request.start_marker)
-            raise ProtocolError.new("duplicate control start boundary", phase: :read) if request.started
+            if request.started
+              raise ProtocolError.new("duplicate control start boundary", phase: :read)
+            end
 
             request.started = true
             return
           elsif marker?(record, request.end_marker)
-            raise ProtocolError.new("control end boundary preceded its start", phase: :read) unless request.started
+            unless request.started
+              raise ProtocolError.new("control end boundary preceded its start", phase: :read)
+            end
 
-            reply = GuardedReply.new(request_id: request.id, blocks: request.blocks, generation: @generation)
+            reply =
+              GuardedReply.new(
+                request_id: request.id,
+                blocks: request.blocks,
+                generation: @generation
+              )
             complete(request, result: reply)
             @replies.shift
             return
@@ -816,11 +1091,12 @@ module LibTmux
           end
         end
         if request&.flow && record.is_a?(ControlEvent) && record.kind == :gap &&
-            record.pane_id == request.flow.first && record.reason == request.flow.last
+             record.pane_id == request.flow.first && record.reason == request.flow.last
           request.flow_reported = true
         end
         publish_event(record)
-        @stopping = true if record.is_a?(ControlEvent) && (record.raw == "%exit\n".b || record.raw.start_with?("%exit "))
+        @stopping = true if record.is_a?(ControlEvent) &&
+          (record.raw == "%exit\n".b || record.raw.start_with?("%exit "))
       end
     end
 
@@ -835,15 +1111,28 @@ module LibTmux
 
     def publish_event(record)
       @sequence += 1
-      event = if record.is_a?(GuardedBlock)
-        ControlEvent.new(kind: :unattributed_block, raw: record.raw,
-          sequence: @sequence, generation: @generation)
-      else
-        ControlEvent.new(kind: record.kind, raw: record.raw, data: record.data, pane_id: record.pane_id,
-          sequence: @sequence, generation: @generation, reason: record.reason,
-          previous_generation: record.previous_generation, lost_sequences: record.lost_sequences,
-          dropped_bytes: record.dropped_bytes)
-      end
+      event =
+        if record.is_a?(GuardedBlock)
+          ControlEvent.new(
+            kind: :unattributed_block,
+            raw: record.raw,
+            sequence: @sequence,
+            generation: @generation
+          )
+        else
+          ControlEvent.new(
+            kind: record.kind,
+            raw: record.raw,
+            data: record.data,
+            pane_id: record.pane_id,
+            sequence: @sequence,
+            generation: @generation,
+            reason: record.reason,
+            previous_generation: record.previous_generation,
+            lost_sequences: record.lost_sequences,
+            dropped_bytes: record.dropped_bytes
+          )
+        end
       @subscriptions.each { |subscription| subscription.send(:publish, event) }
     end
 
@@ -855,26 +1144,33 @@ module LibTmux
     def cleanup
       errors = []
       deadline = clock + 0.4
-      attempt = lambda do |label, &operation|
-        operation.call
-      rescue Exception => error
-        errors << "#{label} failed (#{error.class})"
-      end
+      attempt =
+        lambda do |label, &operation|
+          operation.call
+        rescue Exception => error
+          errors << "#{label} failed (#{error.class})"
+        end
       attempt.call("control input close") { @input.close if @input && !@input.closed? }
       if @pid
         attempt.call("control client termination") { signal("TERM") }
         attempt.call("control client forced termination") { signal("KILL") } unless @child.observed?
         @child.finish_signalling
         attempt.call("control exit observer join") do
-          errors << "control client reap deferred after cleanup deadline" unless @child.join([deadline - clock, 0].max)
+          unless @child.join([deadline - clock, 0].max)
+            errors << "control client reap deferred after cleanup deadline"
+          end
         end
       else
         attempt.call("control exit observer join") { @child&.join([deadline - clock, 0].max) }
       end
       @resources.each { |io| attempt.call("control pipe close") { io.close unless io.closed? } }
       attempt.call("control route close") { @pin&.close }
-      errors << "control exit observation failed (#{@child.observation_error.class})" if @child&.observation_error
-      errors << "control fallback reap failed (#{@child.retirement_error.class})" if @child&.retirement_error
+      if @child&.observation_error
+        errors << "control exit observation failed (#{@child.observation_error.class})"
+      end
+      if @child&.retirement_error
+        errors << "control fallback reap failed (#{@child.retirement_error.class})"
+      end
       @cleanup_errors = errors.freeze
     end
 

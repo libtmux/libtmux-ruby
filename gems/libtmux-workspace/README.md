@@ -62,16 +62,37 @@ plan = workspace.plan(snapshot: server.snapshot)
 Example.check(server.list_sessions.size == 1, "planning changed tmux")
 result = plan.apply(server: server)
 Example.check(result.success?, "workspace apply failed")
-Example.check(result.effects.any? { |effect| effect.outcome == :dispatch_only }, "shell dispatch overclaims completion")
-crowded = LibTmux::Workspace.parse(JSON.generate({
-  session_name: "crowded", windows: [{window_name: "small", panes: Array.new(40) { {} }}]
-}), format: :json, base_directory: __dir__)
-error = Example.raises(LibTmux::Workspace::ApplyError) do
-  crowded.plan.apply(server: server, compensate: true)
-end
-Example.check(!error.result.created_refs.empty?, "failure lost partial creation ledger")
-Example.check(error.result.compensation == :completed, "owned compensation failed")
-Example.check(server.list_sessions.map(&:ref).include?(borrowed.ref), "borrowed session was removed")
+Example.check(
+  result.effects.any? { |effect| effect.outcome == :dispatch_only },
+  "shell dispatch overclaims completion"
+)
+crowded =
+  LibTmux::Workspace.parse(
+    JSON.generate(
+      {
+        session_name: "crowded",
+        windows: [{ window_name: "small", panes: Array.new(40) { {} } }]
+      }
+    ),
+    format: :json,
+    base_directory: __dir__
+  )
+error =
+  Example.raises(LibTmux::Workspace::ApplyError) do
+    crowded.plan.apply(server: server, compensate: true)
+  end
+Example.check(
+  !error.result.created_refs.empty?,
+  "failure lost partial creation ledger"
+)
+Example.check(
+  error.result.compensation == :completed,
+  "owned compensation failed"
+)
+Example.check(
+  server.list_sessions.map(&:ref).include?(borrowed.ref),
+  "borrowed session was removed"
+)
 ```
 <!-- /example -->
 

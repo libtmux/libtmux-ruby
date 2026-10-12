@@ -13,7 +13,10 @@ class MCPWaitTest < Minitest::Test
       pane = scope.server.list_panes.first
       target = wire_ref(pane.ref)
       ready = signal_after_first_capture(app)
-      pending = Async::Task.current.async { call(app, target, {type: "screen_contains", text: "event-visible"}) }
+      pending =
+        Async::Task.current.async do
+          call(app, target, { type: "screen_contains", text: "event-visible" })
+        end
       await_ready(ready, pending)
       refute pending.finished?
       pane.send_text("event-visible")
@@ -22,16 +25,21 @@ class MCPWaitTest < Minitest::Test
       assert result.dig("data", "capture", "rows").join.include?("event-visible")
       assert_empty scope.server.list_clients
 
-      child = pane.split(direction: :vertical, command: [Gem.ruby, "--disable=rubyopt,gems", "-e", "STDIN.gets"])
+      child =
+        pane.split(
+          direction: :vertical,
+          command: [Gem.ruby, "--disable=rubyopt,gems", "-e", "STDIN.gets"]
+        )
       ready = signal_after_first_capture(app)
-      pending = Async::Task.current.async { call(app, wire_ref(child.ref), {type: "process_exit"}) }
+      pending =
+        Async::Task.current.async { call(app, wire_ref(child.ref), { type: "process_exit" }) }
       await_ready(ready, pending)
       child.send_keys("Enter")
       result = pending.wait(timeout: 0.5)
       assert result.fetch("ok"), "#{result.inspect}; #{@observation_failure.inspect}"
       assert_equal "process_exit", result.dig("data", "condition")
       assert_equal "unobserved", result.dig("data", "exit_status")
-      assert source.run(["has-session", "-t", "fixture"]).success?
+      assert source.run(%w[has-session -t fixture]).success?
     end
   end
 
@@ -41,16 +49,19 @@ class MCPWaitTest < Minitest::Test
       target = wire_ref(pane.ref)
       ready = signal_after_first_capture(app)
       cancellation = ::MCP::Cancellation.new(request_id: 14)
-      pending = Async::Task.current.async { call(app, target, {type: "screen_contains", text: "never"}, cancellation: cancellation) }
+      pending =
+        Async::Task.current.async do
+          call(app, target, { type: "screen_contains", text: "never" }, cancellation: cancellation)
+        end
       await_ready(ready, pending)
       cancellation.cancel
       failure = pending.wait(timeout: 0.5)
       assert_equal "cancelled", failure.dig("error", "code")
       assert_empty scope.server.list_clients
-      failure = call(app, target, {type: "process_exit"}, timeout: 0.1)
+      failure = call(app, target, { type: "process_exit" }, timeout: 0.1)
       assert_equal "deadline", failure.dig("error", "code")
       assert scope.server.snapshot.panes.any? { |entry| entry.id == pane.id && !entry.dead }
-      assert source.run(["has-session", "-t", "fixture"]).success?
+      assert source.run(%w[has-session -t fixture]).success?
     end
   end
 
@@ -59,11 +70,14 @@ class MCPWaitTest < Minitest::Test
       pane = scope.server.list_panes.first
       control = nil
       factory = scope.server.method(:open_control)
-      scope.server.define_singleton_method(:open_control) do |**options|
-        control = factory.call(**options)
-      end
+      scope
+        .server
+        .define_singleton_method(:open_control) { |**options| control = factory.call(**options) }
       ready = signal_after_first_capture(app)
-      pending = Async::Task.current.async { call(app, wire_ref(pane.ref), {type: "screen_contains", text: "absent"}) }
+      pending =
+        Async::Task.current.async do
+          call(app, wire_ref(pane.ref), { type: "screen_contains", text: "absent" })
+        end
       await_ready(ready, pending)
       begin
         control.pause_output(pane_id: pane.id, timeout: 0.5)
@@ -76,11 +90,12 @@ class MCPWaitTest < Minitest::Test
       closing = Async::Queue.new
       held = Async::Queue.new
       ready = signal_after_first_capture(app)
-      pending = Async::Task.current.async do
-        call(app, wire_ref(pane.ref), {type: "screen_contains", text: "absent"})
-      rescue Exception => error
-        error
-      end
+      pending =
+        Async::Task.current.async do
+          call(app, wire_ref(pane.ref), { type: "screen_contains", text: "absent" })
+        rescue Exception => error
+          error
+        end
       await_ready(ready, pending)
       original = control.method(:close)
       first = true
@@ -100,7 +115,7 @@ class MCPWaitTest < Minitest::Test
       assert control.closed?
       assert_raises(Errno::ECHILD) { Process.waitpid(control.pid, Process::WNOHANG) }
       assert_empty scope.server.list_clients
-      assert source.run(["has-session", "-t", "fixture"]).success?
+      assert source.run(%w[has-session -t fixture]).success?
     end
   end
 
@@ -109,9 +124,14 @@ class MCPWaitTest < Minitest::Test
       pane = scope.server.list_panes.first
       control = nil
       factory = scope.server.method(:open_control)
-      scope.server.define_singleton_method(:open_control) { |**options| control = factory.call(**options) }
+      scope
+        .server
+        .define_singleton_method(:open_control) { |**options| control = factory.call(**options) }
       ready = signal_after_first_capture(app)
-      pending = Async::Task.current.async { call(app, wire_ref(pane.ref), {type: "screen_contains", text: "finish-with-evidence"}) }
+      pending =
+        Async::Task.current.async do
+          call(app, wire_ref(pane.ref), { type: "screen_contains", text: "finish-with-evidence" })
+        end
       await_ready(ready, pending)
       closer = control.method(:close)
       allow_close = false
@@ -137,7 +157,7 @@ class MCPWaitTest < Minitest::Test
         assert control.closed?
         assert identity.io.closed?
         assert_empty app.instance_variable_get(:@retiring)
-        assert source.run(["has-session", "-t", "fixture"]).success?
+        assert source.run(%w[has-session -t fixture]).success?
       ensure
         allow_close = true
       end
@@ -148,16 +168,20 @@ class MCPWaitTest < Minitest::Test
     with_application do |app, scope, source|
       pane = scope.server.list_panes.first
       ready = signal_after_first_capture(app)
-      pending = Async::Task.current.async { call(app, wire_ref(pane.ref), {type: "screen_contains", text: "not-present"}) }
+      pending =
+        Async::Task.current.async do
+          call(app, wire_ref(pane.ref), { type: "screen_contains", text: "not-present" })
+        end
       await_ready(ready, pending)
       refute pending.finished?
       app.close
-      assert pending.finished?, "Application.close must join the admitted request's observer cleanup"
+      assert pending.finished?,
+             "Application.close must join the admitted request's observer cleanup"
       assert_equal "cancelled", pending.wait(timeout: 0.5).dig("error", "code")
       assert_empty app.instance_variable_get(:@observers)
       assert_empty app.instance_variable_get(:@retiring)
       assert_empty scope.server.list_clients
-      assert source.run(["has-session", "-t", "fixture"]).success?
+      assert source.run(%w[has-session -t fixture]).success?
     ensure
       pending.cancel unless pending&.finished?
     end
@@ -168,9 +192,14 @@ class MCPWaitTest < Minitest::Test
       pane = scope.server.list_panes.first
       control = nil
       factory = scope.server.method(:open_control)
-      scope.server.define_singleton_method(:open_control) { |**options| control = factory.call(**options) }
+      scope
+        .server
+        .define_singleton_method(:open_control) { |**options| control = factory.call(**options) }
       ready = signal_after_first_capture(app)
-      pending = Async::Task.current.async { call(app, wire_ref(pane.ref), {type: "screen_contains", text: "not-present"}) }
+      pending =
+        Async::Task.current.async do
+          call(app, wire_ref(pane.ref), { type: "screen_contains", text: "not-present" })
+        end
       await_ready(ready, pending)
       closing, release, waiting = Async::Queue.new, Async::Queue.new, Async::Queue.new
       original = control.method(:close)
@@ -185,12 +214,18 @@ class MCPWaitTest < Minitest::Test
         waiting.enqueue(true)
         original_wait.call
       end
-      closer = Async::Task.current.async do
-        app.close
-      rescue Exception => error
-        error
-      end
-      Async::Task.current.with_timeout(0.5) { closing.dequeue; waiting.dequeue }
+      closer =
+        Async::Task.current.async do
+          app.close
+        rescue Exception => error
+          error
+        end
+      Async::Task
+        .current
+        .with_timeout(0.5) do
+          closing.dequeue
+          waiting.dequeue
+        end
       2.times do
         closer.cancel
         Async::Task.current.with_timeout(0.5) { waiting.dequeue }
@@ -203,7 +238,7 @@ class MCPWaitTest < Minitest::Test
       assert_empty app.instance_variable_get(:@calls)
       assert_empty app.instance_variable_get(:@observers)
       app.close
-      assert source.run(["has-session", "-t", "fixture"]).success?
+      assert source.run(%w[has-session -t fixture]).success?
     ensure
       release&.enqueue(true)
       pending.cancel unless pending&.finished?
@@ -230,8 +265,15 @@ class MCPWaitTest < Minitest::Test
       observer.define_singleton_method(:wait) do
         wait.call
       rescue LibTmux::Error => error
-        test.instance_variable_set(:@observation_failure,
-          {class: error.class.name, message: error.message, phase: error.phase, cleanup_errors: error.cleanup_errors})
+        test.instance_variable_set(
+          :@observation_failure,
+          {
+            class: error.class.name,
+            message: error.message,
+            phase: error.phase,
+            cleanup_errors: error.cleanup_errors
+          }
+        )
         raise
       end
       original = observer.method(:read_rows)
@@ -249,12 +291,22 @@ class MCPWaitTest < Minitest::Test
 
   def with_application
     LibTmuxTest::TmuxFixture.open do |fixture|
-      LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |source|
+      LibTmux::Server.open(
+        socket_path: fixture.socket_path,
+        executable: fixture.executable
+      ) do |source|
         Async do |task|
           LibTmux::Async.open(server: source, parent: task) do |scope|
-            app = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "test", enabled_tools: ["tmux_wait"])
+            app =
+              LibTmux::MCP::Application.new(
+                server: scope.server,
+                endpoint_name: "test",
+                enabled_tools: ["tmux_wait"]
+              )
             begin
-              yield app, scope, source if require_process_cursor_support(app, scope, tool: "tmux_wait")
+              if require_process_cursor_support(app, scope, tool: "tmux_wait")
+                yield app, scope, source
+              end
             ensure
               app.close
             end
@@ -265,10 +317,14 @@ class MCPWaitTest < Minitest::Test
   end
 
   def call(app, target, condition, cancellation: nil, **options)
-    app.call("tmux_wait", {target: target, condition: condition, **options}, cancellation: cancellation).structured_content
+    app.call(
+      "tmux_wait",
+      { target: target, condition: condition, **options },
+      cancellation: cancellation
+    ).structured_content
   end
 
   def wire_ref(ref)
-    {"generation" => ref.binding_key, "kind" => ref.kind.to_s, "id" => ref.id}
+    { "generation" => ref.binding_key, "kind" => ref.kind.to_s, "id" => ref.id }
   end
 end

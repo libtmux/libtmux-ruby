@@ -57,10 +57,13 @@ module LibTmux
       unless timeout.nil? || (timeout.is_a?(Numeric) && timeout.finite? && timeout.positive?)
         raise ArgumentError, "terminal timeout must be positive and finite, or nil"
       end
-      argv = @pin.command_prefix + ["attach-session", "-E", *(read_only ? ["-r"] : []), "-t", session_id]
+      argv =
+        @pin.command_prefix + ["attach-session", "-E", *(read_only ? ["-r"] : []), "-t", session_id]
       perform_request(cancel: cancel) do |view|
-        Internal.const_get(:TerminalExecution, false).new(argv, terminal, term,
-          timeout && timeout - (monotonic - started), view).call
+        Internal
+          .const_get(:TerminalExecution, false)
+          .new(argv, terminal, term, timeout && timeout - (monotonic - started), view)
+          .call
       end
     end
   end
@@ -85,10 +88,21 @@ module LibTmux
               @mode = @tty.console_mode
               @child = OwnedChild.new
               begin
-                @pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil, "TERM" => @term},
-                  *@argv, in: @tty, out: @tty, err: @tty, close_others: true)
+                @pid =
+                  Process.spawn(
+                    { "TMUX" => nil, "TMUX_PANE" => nil, "TERM" => @term },
+                    *@argv,
+                    in: @tty,
+                    out: @tty,
+                    err: @tty,
+                    close_others: true
+                  )
               rescue SystemCallError, IOError => error
-                raise TransportError.new("terminal client could not start (#{error.class})", **details(:spawn)), cause: nil
+                raise TransportError.new(
+                        "terminal client could not start (#{error.class})",
+                        **details(:spawn)
+                      ),
+                      cause: nil
               ensure
                 @child.spawned(@pid)
               end
@@ -100,7 +114,12 @@ module LibTmux
               if failure.is_a?(Error)
                 failure.__send__(:attach_cleanup_errors, errors)
               elsif !failure && !errors.empty?
-                failure = TransportError.new("terminal cleanup failed", **details(:retire), cleanup_errors: errors)
+                failure =
+                  TransportError.new(
+                    "terminal cleanup failed",
+                    **details(:retire),
+                    cleanup_errors: errors
+                  )
               end
             end
           end
@@ -124,12 +143,22 @@ module LibTmux
           if @child.complete?
             raise @child.retirement_error if @child.retirement_error
 
-            return TerminalResult.__send__(:new, status: @child.status, pid: @pid, elapsed_seconds: clock - @started)
+            return(
+              TerminalResult.__send__(
+                :new,
+                status: @child.status,
+                pid: @pid,
+                elapsed_seconds: clock - @started
+              )
+            )
           end
           check_cancel unless @retire_deadline
           deadline = @retire_deadline || @deadline
           if deadline && clock >= deadline
-            raise DeadlineExceeded.new("terminal client exceeded its deadline", **details(:terminal))
+            raise DeadlineExceeded.new(
+                    "terminal client exceeded its deadline",
+                    **details(:terminal)
+                  )
           end
           readers = [@child.reader]
           readers << @cancel.reader unless @retire_deadline
@@ -138,7 +167,11 @@ module LibTmux
           end
         end
       rescue SystemCallError, IOError => error
-        raise TransportError.new("terminal process observation failed (#{error.class})", **details(:terminal)), cause: nil
+        raise TransportError.new(
+                "terminal process observation failed (#{error.class})",
+                **details(:terminal)
+              ),
+              cause: nil
       end
 
       def retire
@@ -175,7 +208,9 @@ module LibTmux
       end
 
       def check_cancel
-        raise Cancelled.new("terminal attachment cancelled", **details(:terminal)) if @cancel.cancelled?
+        if @cancel.cancelled?
+          raise Cancelled.new("terminal attachment cancelled", **details(:terminal))
+        end
       end
 
       def check_deadline
@@ -185,7 +220,7 @@ module LibTmux
       end
 
       def details(phase)
-        {phase: phase, pid: @pid, delivery: @pid ? :possibly_sent : :not_sent}
+        { phase: phase, pid: @pid, delivery: @pid ? :possibly_sent : :not_sent }
       end
 
       def clock

@@ -1,0 +1,55 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "open3"
+
+# Maintainer tool: formats Ruby with syntax_tree, 100 columns for source and
+# 80 for examples/, which render in fixed-width boxes.
+#
+#   scripts/format          rewrite until stable, then re-sync generated copies
+#   scripts/format --check  fail on any file the formatter would change
+root = File.expand_path("..", __dir__)
+Dir.chdir(root)
+
+SOURCE_WIDTH = 100
+EXAMPLE_WIDTH = 80
+MAX_PASSES = 5
+
+abort "usage: scripts/format [--check]" unless ARGV.empty? || ARGV == ["--check"]
+check = ARGV == ["--check"]
+
+tracked, status = Open3.capture2("git", "ls-files", "-z")
+abort "git ls-files failed" unless status.success?
+ruby_files =
+  tracked
+    .split("\0")
+    .select do |path|
+      next false unless File.file?(path)
+      path.match?(/\.(rb|gemspec)\z/) || %w[Gemfile Rakefile].include?(File.basename(path)) ||
+        File.open(path, &:readline).match?(/\A#!.*\bruby\b/)
+    rescue EOFError, ArgumentError
+      false
+    end
+groups =
+  ruby_files
+    .partition { |path| path.start_with?("examples/") }
+    .then { |examples, source| { SOURCE_WIDTH => source, EXAMPLE_WIDTH => examples } }
+
+stree =
+  lambda do |verb, width, files|
+    system(Gem.ruby, Gem.bin_path("syntax_tree", "stree"), verb, "--print-width=#{width}", *files)
+  end
+clean = -> { groups.all? { |width, files| stree.call("check", width, files) } }
+
+exit(clean.call ? 0 : 1) if check
+
+# The first write is not idempotent on this tree, so repeat until check passes.
+MAX_PASSES.times do
+  break if clean.call
+  groups.each { |width, files| stree.call("write", width, files) }
+end
+abort "formatter did not converge in #{MAX_PASSES} passes" unless clean.call
+
+# Formatting moves lines, so refresh every copy that quotes them.
+system(Gem.ruby, "scripts/examples", "--write") || exit(1)
+system(Gem.ruby, "scripts/types", "--write") || exit(1)

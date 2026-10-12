@@ -5,31 +5,34 @@ require_relative "../support/tmux_fixture"
 require "libtmux"
 require "libtmux/control"
 require "socket"
-require "libtmux/capture" if File.exist?(File.expand_path("../../gems/libtmux/lib/libtmux/capture.rb", __dir__))
+if File.exist?(File.expand_path("../../gems/libtmux/lib/libtmux/capture.rb", __dir__))
+  require "libtmux/capture"
+end
 
 class SnapshotIntegrationTest < Minitest::Test
   def test_three_links_have_one_global_window_and_local_readers_outlive_server
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
-        assert server.run(["link-window", "-s", "@0", "-t", "$0:5"]).success?
-        assert server.run(["link-window", "-s", "@0", "-t", "$0:10"]).success?
+        assert server.run(%w[link-window -s @0 -t $0:5]).success?
+        assert server.run(%w[link-window -s @0 -t $0:10]).success?
         capture = acquire(server, clients: true)
         assert_equal ["@0"], capture.windows.map(&:id)
         assert_equal ["%0"], capture.panes.map(&:id)
         assert_equal [0, 5, 10], capture.window_links.map(&:index)
-        assert_equal ["@0", "@0", "@0"], capture.sessions.one.windows.map(&:id)
+        assert_equal %w[@0 @0 @0], capture.sessions.one.windows.map(&:id)
         assert_equal 3, capture.window_links.map(&:ref).uniq.size
         assert_equal capture.window_links.first.ref, server.list_window_links.first.ref
         assert_empty capture.clients
         assert capture.finished_at >= capture.started_at
         assert_operator capture.server_info.fetch(:pid), :>, 0
         assert capture.server_info.fetch(:version).frozen?
-        assert_equal %i[server session window_link pane client], capture.reads.map { |read| read.fetch(:source) }
+        assert_equal %i[server session window_link pane client],
+                     capture.reads.map { |read| read.fetch(:source) }
         refreshed = acquire(server)
         assert_equal capture.panes.one.ref, refreshed.panes.one.ref
         refute_equal capture.panes.one, refreshed.panes.one
         server.close
-        assert_equal ["@0", "@0", "@0"], capture.sessions.one.windows.map(&:id)
+        assert_equal %w[@0 @0 @0], capture.sessions.one.windows.map(&:id)
         assert_equal ["%0"], capture.panes.one.window.panes.map(&:id)
         assert capture.panes.one.active?
         refute_empty capture.panes.one.current_command
@@ -46,8 +49,23 @@ class SnapshotIntegrationTest < Minitest::Test
         ready = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "ready"))
         begin
           code = 'UNIXSocket.open(ARGV.fetch(0)) { |io| io.write("ready") }; STDIN.read'
-          assert server.run(["new-window", "-d", "-t", "$0", "-c", directory, "--",
-            Gem.ruby, "--disable=rubyopt,gems", "-rsocket", "-e", code, ready.path]).success?
+          assert server.run(
+                   [
+                     "new-window",
+                     "-d",
+                     "-t",
+                     "$0",
+                     "-c",
+                     directory,
+                     "--",
+                     Gem.ruby,
+                     "--disable=rubyopt,gems",
+                     "-rsocket",
+                     "-e",
+                     code,
+                     ready.path
+                   ]
+                 ).success?
           assert IO.select([ready], nil, nil, 0.5), "pane did not announce its working directory"
           peer = ready.accept
           begin
@@ -58,11 +76,12 @@ class SnapshotIntegrationTest < Minitest::Test
           end
           # User options retain bytes that pane titles and some filesystems reject.
           assert server.run(["set-option", "-p", "-t", "%1", "@binary", payload]).success?
-          format = LibTmux::Internal::Metadata.format(["@binary", "pane_current_path"])
+          format = LibTmux::Internal::Metadata.format(%w[@binary pane_current_path])
           result = server.run(["list-panes", "-t", "@1", "-F", format])
           assert result.success?
           canonical = File.realpath(directory).b
-          assert_equal [[payload, canonical]], LibTmux::Internal::Metadata.decode(result.stdout, fields: 2, quoted: true)
+          assert_equal [[payload, canonical]],
+                       LibTmux::Internal::Metadata.decode(result.stdout, fields: 2, quoted: true)
           capture = acquire(server)
           pane = capture.panes.select { |record| record.id == "%1" }.one
           assert_equal canonical, pane.raw(:current_path)
@@ -78,21 +97,22 @@ class SnapshotIntegrationTest < Minitest::Test
 
   def test_a_real_capture_race_retries_once_and_persistent_races_raise
     LibTmuxTest::TmuxFixture.open do |fixture|
-      racing_server = Class.new(LibTmux::Server) do
-        attr_accessor :race_limit
-        attr_reader :race_count
+      racing_server =
+        Class.new(LibTmux::Server) do
+          attr_accessor :race_limit
+          attr_reader :race_count
 
-        private
+          private
 
-        def execute_typed(argv, **options)
-          result = super
-          if argv.first == "list-windows" && (@race_count || 0) < race_limit
-            @race_count = (@race_count || 0) + 1
-            super(["new-window", "-d", "-t", "$0", "--", "/bin/cat"], **options)
+          def execute_typed(argv, **options)
+            result = super
+            if argv.first == "list-windows" && (@race_count || 0) < race_limit
+              @race_count = (@race_count || 0) + 1
+              super(%w[new-window -d -t $0 -- /bin/cat], **options)
+            end
+            result
           end
-          result
         end
-      end
       racing_server.open(socket_path: fixture.socket_path) do |server|
         server.race_limit = 1
         capture = acquire(server)
@@ -148,8 +168,8 @@ class SnapshotIntegrationTest < Minitest::Test
         ensure
           pin.close
         end
-        assert server.run(["set-option", "-s", "exit-empty", "off"]).success?
-        assert server.run(["kill-session", "-t", "$0"]).success?
+        assert server.run(%w[set-option -s exit-empty off]).success?
+        assert server.run(%w[kill-session -t $0]).success?
         capture = acquire(server, clients: true)
         assert_empty capture.sessions
         assert_empty capture.windows

@@ -18,11 +18,21 @@ class MetadataTest < Minitest::Test
   end
 
   def test_rejects_malformed_truncated_and_oversized_records
-    ["x:a\n", ":a\n", "1a\n", "2:a", "1:a", "1:aX", "1:a\nX",
-     "999999999999:a\n", "-1:a\n"].each do |wire|
-      error = assert_raises(LibTmux::ProtocolError) do
-        LibTmux::Internal::Metadata.decode(wire.b, fields: 1)
-      end
+    [
+      "x:a\n",
+      ":a\n",
+      "1a\n",
+      "2:a",
+      "1:a",
+      "1:aX",
+      "1:a\nX",
+      "999999999999:a\n",
+      "-1:a\n"
+    ].each do |wire|
+      error =
+        assert_raises(LibTmux::ProtocolError) do
+          LibTmux::Internal::Metadata.decode(wire.b, fields: 1)
+        end
       assert_equal :decode, error.phase
       refute_includes error.message, wire
     end

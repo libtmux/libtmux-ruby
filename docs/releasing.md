@@ -63,7 +63,8 @@ Commit the preparation changes. From that clean commit, build and exercise
 the prospective release without a tag or registry access:
 
 ```console
-$ /usr/bin/time -p mise exec -- bundle exec rake 'release:dry_run[v0.1.0.alpha.1]'
+$ /usr/bin/time -p \
+    mise exec -- bundle exec rake 'release:dry_run[v0.1.0.alpha.1]'
 ```
 
 This builds all four gems into `pkg/release/`, records their source commit

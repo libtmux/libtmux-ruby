@@ -2,7 +2,9 @@
 
 require_relative "../test_helper"
 require "libtmux"
-require "libtmux/snapshot" if File.exist?(File.expand_path("../../gems/libtmux/lib/libtmux/snapshot.rb", __dir__))
+if File.exist?(File.expand_path("../../gems/libtmux/lib/libtmux/snapshot.rb", __dir__))
+  require "libtmux/snapshot"
+end
 
 class SnapshotTest < Minitest::Test
   def test_graph_owns_values_orders_numeric_ids_and_retains_link_occurrences
@@ -13,15 +15,15 @@ class SnapshotTest < Minitest::Test
     rows.fetch(:pane).clear
 
     assert capture.frozen?
-    assert_equal ["@2", "@10"], capture.windows.map(&:id)
-    assert_equal ["%2", "%10"], capture.panes.map(&:id)
+    assert_equal %w[@2 @10], capture.windows.map(&:id)
+    assert_equal %w[%2 %10], capture.panes.map(&:id)
     session = capture.sessions.one
     assert_equal "session", session.name
     assert session.name.frozen?
     assert_equal [2, 5, 10], session.window_links.map(&:index)
-    assert_equal ["@2", "@2", "@10"], session.windows.map(&:id)
+    assert_equal %w[@2 @2 @10], session.windows.map(&:id)
     assert_same session.windows.first, session.windows.to_a.fetch(1)
-    assert_equal ["%10", "%2"], capture.windows.first.panes.map(&:id)
+    assert_equal %w[%10 %2], capture.windows.first.panes.map(&:id)
     assert_equal 2, capture.windows.first.window_links.size
     assert_same capture.windows.first, capture.panes.first.window
     assert_same capture.panes.first, capture.windows.first.active_pane
@@ -89,19 +91,34 @@ class SnapshotTest < Minitest::Test
   def test_coverage_distinguishes_absent_empty_unloaded_incomplete_and_unsupported
     full = build(graph_rows)
     assert_nil full.panes.first.dead_status
-    empty = build({session: [], window: [], pane: [], window_link: []})
+    empty = build({ session: [], window: [], pane: [], window_link: [] })
     assert_empty empty.panes
-    partial = build({pane: [{id: "%1", window_id: "@1", index: "0"}]})
+    partial = build({ pane: [{ id: "%1", window_id: "@1", index: "0" }] })
     pane = partial.panes.one
     assert_equal :unloaded, pane.__send__(:field_coverage, :title)
     assert_equal :unloaded, pane.__send__(:relation_coverage, :window)
     assert_raises(LibTmux::IncompleteSnapshotError) { pane.window }
     assert_raises(LibTmux::IncompleteSnapshotError) { pane.title }
     assert_raises(LibTmux::IncompleteSnapshotError) { partial.windows }
-    unavailable = build(graph_rows, coverage: {pane: {fields: {title: :unsupported}}, window: {relations: {panes: :incomplete}}})
+    unavailable =
+      build(
+        graph_rows,
+        coverage: {
+          pane: {
+            fields: {
+              title: :unsupported
+            }
+          },
+          window: {
+            relations: {
+              panes: :incomplete
+            }
+          }
+        }
+      )
     assert_raises(LibTmux::UnsupportedFeatureError) { unavailable.panes.first.title }
     assert_raises(LibTmux::IncompleteSnapshotError) { unavailable.windows.first.panes }
-    no_children = build({window: [{id: "@0"}], pane: []})
+    no_children = build({ window: [{ id: "@0" }], pane: [] })
     assert_nil no_children.windows.one.active_pane
   end
 
@@ -125,17 +142,43 @@ class SnapshotTest < Minitest::Test
   end
 
   def test_declared_coverage_cannot_invent_missing_values_or_relations
-    partial = build({pane: [{id: "%1", window_id: "@1", index: "0"}]},
-      coverage: {pane: {fields: {title: :complete}, relations: {window: :complete}}})
+    partial =
+      build(
+        { pane: [{ id: "%1", window_id: "@1", index: "0" }] },
+        coverage: {
+          pane: {
+            fields: {
+              title: :complete
+            },
+            relations: {
+              window: :complete
+            }
+          }
+        }
+      )
     pane = partial.panes.one
     assert_equal :unloaded, pane.__send__(:field_coverage, :title)
     assert_equal :unloaded, pane.__send__(:relation_coverage, :window)
     assert_raises(LibTmux::IncompleteSnapshotError) { pane.title }
     assert_raises(LibTmux::IncompleteSnapshotError) { pane.window }
-    observed = build({client: [{name: "control", pid: "1", created: "2", session_id: ""}]})
+    observed = build({ client: [{ name: "control", pid: "1", created: "2", session_id: "" }] })
     assert_nil observed.clients.one.session
     assert_raises(LibTmux::UnsupportedFeatureError) { observed.clients.one.ref }
-    per_record = build(graph_rows, coverage: {pane: {records: {"%2" => {fields: {title: :unsupported}}}}})
+    per_record =
+      build(
+        graph_rows,
+        coverage: {
+          pane: {
+            records: {
+              "%2" => {
+                fields: {
+                  title: :unsupported
+                }
+              }
+            }
+          }
+        }
+      )
     assert_raises(LibTmux::UnsupportedFeatureError) { per_record.panes.first.title }
     assert_equal "sibling", per_record.panes.to_a.last.title
   end
@@ -144,22 +187,34 @@ class SnapshotTest < Minitest::Test
 
   def build(rows, **options)
     assert defined?(LibTmux::Snapshot), "captured graph is not implemented"
-    LibTmux::Snapshot.__send__(:new, rows: rows, binding_key: "binding", started_at: 1.0,
-      finished_at: 2.0, reads: [], server_info: {}, **options)
+    LibTmux::Snapshot.__send__(
+      :new,
+      rows: rows,
+      binding_key: "binding",
+      started_at: 1.0,
+      finished_at: 2.0,
+      reads: [],
+      server_info: {
+      },
+      **options
+    )
   end
 
   def graph_rows
     {
-      session: [{id: "$2", name: +"session", window_count: "3"}],
-      window: [{id: "@10", name: "second", pane_count: "0"}, {id: "@2", name: "shared", pane_count: "2"}],
+      session: [{ id: "$2", name: +"session", window_count: "3" }],
+      window: [
+        { id: "@10", name: "second", pane_count: "0" },
+        { id: "@2", name: "shared", pane_count: "2" }
+      ],
       pane: [
-        {id: "%2", window_id: "@2", index: "4", title: "title", active: "1", dead_status: ""},
-        {id: "%10", window_id: "@2", index: "0", title: "sibling", active: "0", dead_status: ""}
+        { id: "%2", window_id: "@2", index: "4", title: "title", active: "1", dead_status: "" },
+        { id: "%10", window_id: "@2", index: "0", title: "sibling", active: "0", dead_status: "" }
       ],
       window_link: [
-        {session_id: "$2", window_id: "@10", index: "10", active: "0"},
-        {session_id: "$2", window_id: "@2", index: "5", active: "0"},
-        {session_id: "$2", window_id: "@2", index: "2", active: "1"}
+        { session_id: "$2", window_id: "@10", index: "10", active: "0" },
+        { session_id: "$2", window_id: "@2", index: "5", active: "0" },
+        { session_id: "$2", window_id: "@2", index: "2", active: "1" }
       ]
     }
   end

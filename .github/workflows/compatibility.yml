@@ -48,6 +48,28 @@ jobs:
           version=$(ruby -r ./gems/libtmux/lib/libtmux/version -e 'print LibTmux::VERSION')
           bundle exec rake "release:dry_run[v$version]"
 
+  style:
+    name: Formatting and example width
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      BUNDLE_FROZEN: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+        with:
+          ruby-version: '4.0.7'
+          bundler-cache: true
+      - name: Check Ruby formatting with syntax_tree
+        run: bundle exec scripts/format --check
+      - name: Prove the example width check can fail, then run it
+        run: |
+          python3 scripts/check_example_width.py --self-test
+          python3 scripts/check_example_width.py
+
   cell:
     name: ${{ matrix.platform.system }} / Ruby ${{ matrix.ruby }} / tmux ${{ matrix.tmux }}
     runs-on: ${{ matrix.platform.runner }}

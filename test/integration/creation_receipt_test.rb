@@ -16,13 +16,23 @@ class CreationReceiptTest < Minitest::Test
         assert receipt.result.success?
         assert_equal :observed, receipt.result.delivery
         assert receipt.frozen?
-        assert_equal 3, LibTmux::Internal::Metadata.decode(receipt.result.stdout, fields: 3).first.length
+        assert_equal 3,
+                     LibTmux::Internal::Metadata
+                       .decode(receipt.result.stdout, fields: 3)
+                       .first
+                       .length
         window = receipt.entity.new_window(name: "second", command: ["cat"], receipt: true)
         assert_instance_of LibTmux::Window, window.entity
         assert_same window.entity, window.window
         assert_equal [window.pane.ref], window.window.list_panes.map(&:ref)
-        assert_equal 2, LibTmux::Internal::Metadata.decode(window.result.stdout, fields: 2).first.length
-        assert_raises(ArgumentError) { server.new_session(name: "invalid", command: ["cat"], receipt: :yes) }
+        assert_equal 2,
+                     LibTmux::Internal::Metadata
+                       .decode(window.result.stdout, fields: 2)
+                       .first
+                       .length
+        assert_raises(ArgumentError) do
+          server.new_session(name: "invalid", command: ["cat"], receipt: :yes)
+        end
       end
     end
   end

@@ -17,7 +17,7 @@ module LibTmux
         @started = clock
         @changed = ::Async::Notification.new
         @tasks, @streams = [], []
-        @buffers = {stdout: +"".b, stderr: +"".b}
+        @buffers = { stdout: +"".b, stderr: +"".b }
         @finished_reads = 0
       end
 
@@ -49,7 +49,12 @@ module LibTmux
           if failure
             Async.__send__(:attach_cleanup, failure, errors)
           elsif !failure && !errors.empty?
-            failure = TransportError.new("Async command cleanup failed", **details(:retire), cleanup_errors: errors)
+            failure =
+              TransportError.new(
+                "Async command cleanup failed",
+                **details(:retire),
+                cleanup_errors: errors
+              )
           end
         end
         raise failure if failure
@@ -103,8 +108,12 @@ module LibTmux
           else
             errors << "owned client reaping remains pending after cleanup deadline"
           end
-          errors << "child observation failed (#{@child.observation_error.class})" if @child.observation_error
-          errors << "child reaping failed (#{@child.retirement_error.class})" if @child.retirement_error
+          if @child.observation_error
+            errors << "child observation failed (#{@child.observation_error.class})"
+          end
+          if @child.retirement_error
+            errors << "child reaping failed (#{@child.retirement_error.class})"
+          end
           @child.close
         end
         @tasks.each do |task|
@@ -121,7 +130,11 @@ module LibTmux
       end
 
       def details(phase)
-        {delivery: @result || @status ? :observed : (@pid ? :possibly_sent : :not_sent), phase: phase, pid: @pid}
+        {
+          delivery: @result || @status ? :observed : (@pid ? :possibly_sent : :not_sent),
+          phase: phase,
+          pid: @pid
+        }
       end
 
       private
@@ -138,9 +151,7 @@ module LibTmux
         return unless @cancel
 
         start_task do
-          until @cancel.cancelled?
-            Fiber.scheduler.io_wait(@cancel.reader, IO::READABLE)
-          end
+          Fiber.scheduler.io_wait(@cancel.reader, IO::READABLE) until @cancel.cancelled?
           @cancelled = true
           @scope.__send__(:notify)
         end
@@ -161,7 +172,10 @@ module LibTmux
       end
 
       def pipe
-        IO.pipe.tap { |pair| pair.each(&:binmode); @streams.concat(pair) }
+        IO.pipe.tap do |pair|
+          pair.each(&:binmode)
+          @streams.concat(pair)
+        end
       end
 
       def spawn
@@ -171,32 +185,47 @@ module LibTmux
           @stderr, error = pipe
           @child = Internal::OwnedChild.new
           begin
-            @pid = Process.spawn({"TMUX" => nil, "TMUX_PANE" => nil}, [@argv.first, @argv.first], *@argv.drop(1),
-              in: input, out: output, err: error, close_others: true)
+            @pid =
+              Process.spawn(
+                { "TMUX" => nil, "TMUX_PANE" => nil },
+                [@argv.first, @argv.first],
+                *@argv.drop(1),
+                in: input,
+                out: output,
+                err: error,
+                close_others: true
+              )
           ensure
             @child.spawned(@pid)
           end
           [input, output, error].each(&:close)
         end
       rescue IOError, SystemCallError => error
-        raise TransportError.new("could not start command (#{error.class})", **details(:spawn)), cause: nil
+        raise TransportError.new("could not start command (#{error.class})", **details(:spawn)),
+              cause: nil
       end
 
       def start_task(&block)
-        task = ::Async::Task.new(::Async::Task.current) do
-          begin
-            block.call
-          rescue ::Async::Cancel
-            @failure ||= Cancelled.new("command I/O task was cancelled", **details(:read)) unless @retiring
-          rescue IOError, SystemCallError => error
-            @failure ||= TransportError.new("command I/O failed (#{error.class})", **details(:read)) unless @retiring
-          rescue Exception => error
-            @failure ||= error unless @retiring
-          ensure
-            @changed.signal
-            @scope.__send__(:notify)
+        task =
+          ::Async::Task.new(::Async::Task.current) do
+            begin
+              block.call
+            rescue ::Async::Cancel
+              @failure ||=
+                Cancelled.new("command I/O task was cancelled", **details(:read)) unless @retiring
+            rescue IOError, SystemCallError => error
+              @failure ||=
+                TransportError.new(
+                  "command I/O failed (#{error.class})",
+                  **details(:read)
+                ) unless @retiring
+            rescue Exception => error
+              @failure ||= error unless @retiring
+            ensure
+              @changed.signal
+              @scope.__send__(:notify)
+            end
           end
-        end
         @tasks << task
         task.run
         task
@@ -222,10 +251,14 @@ module LibTmux
           remaining = @limits.fetch(stream) - buffer.bytesize
           bytes = io.read_nonblock([CHUNK, remaining + 1].min, exception: false)
           case bytes
-          when nil then break
-          when :wait_readable then Fiber.scheduler.io_wait(io, IO::READABLE)
+          when nil
+            break
+          when :wait_readable
+            Fiber.scheduler.io_wait(io, IO::READABLE)
           when String
-            raise CapacityError.new("command #{stream} exceeded its byte limit", **details(:read)) if bytes.bytesize > remaining
+            if bytes.bytesize > remaining
+              raise CapacityError.new("command #{stream} exceeded its byte limit", **details(:read))
+            end
 
             @scope.__send__(:retain_output, @ticket, bytes.bytesize)
             buffer << bytes
@@ -254,13 +287,18 @@ module LibTmux
 
       def update_exit
         if @child.observation_error
-          raise TransportError.new("command exit observation failed (#{@child.observation_error.class})", **details(:wait))
+          raise TransportError.new(
+                  "command exit observation failed (#{@child.observation_error.class})",
+                  **details(:wait)
+                )
         end
         if @child.observed?
           @drain_deadline ||= clock + @limits.fetch(:drain_timeout)
           @child.finish_signalling
         end
-        raise TransportError.new("command reaping failed", **details(:wait)) if @child.retirement_error
+        if @child.retirement_error
+          raise TransportError.new("command reaping failed", **details(:wait))
+        end
 
         @status = @child.status
         @changed.signal
@@ -273,7 +311,14 @@ module LibTmux
             raise @failure if @failure
             if @status && @finished_reads == 2
               check_budget(:publish)
-              @result = CommandResult.new(**@buffers, status: @status, pid: @pid, argv: @argv, elapsed_seconds: clock - @started)
+              @result =
+                CommandResult.new(
+                  **@buffers,
+                  status: @status,
+                  pid: @pid,
+                  argv: @argv,
+                  elapsed_seconds: clock - @started
+                )
               return
             end
             phase = observed? ? :drain : :read

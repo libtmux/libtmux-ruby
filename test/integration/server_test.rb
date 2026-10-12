@@ -15,15 +15,22 @@ class ServerTest < Minitest::Test
         name = "session \#{pid} ';"
         session = server.new_session(name: name, command: [executable], width: 80, height: 24)
         assert_match(/\A\$\d+\z/, session.id)
-        assert_equal "#{name}\n", server.run(["display-message", "-p", "-t", session.id, '#{session_name}']).text
+        assert_equal "#{name}\n",
+                     server.run(["display-message", "-p", "-t", session.id, '#{session_name}']).text
         assert_equal ["$0", session.id], server.list_sessions.map(&:id)
 
         receipt = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "receipt"))
         begin
-          code = 'line = STDIN.gets; UNIXSocket.open(ARGV.fetch(0)) { |io| io.write(line) }; STDIN.read'
-          window = session.new_window(name: "window \#{pane_id};", command: [Gem.ruby, "--disable=rubyopt,gems", "-rsocket", "-e", code, receipt.path])
+          code =
+            "line = STDIN.gets; UNIXSocket.open(ARGV.fetch(0)) { |io| io.write(line) }; STDIN.read"
+          window =
+            session.new_window(
+              name: "window \#{pane_id};",
+              command: [Gem.ruby, "--disable=rubyopt,gems", "-rsocket", "-e", code, receipt.path]
+            )
           assert_match(/\A@\d+\z/, window.id)
-          assert_equal "window \#{pane_id};\n", server.run(["display-message", "-p", "-t", window.id, '#{window_name}']).text
+          assert_equal "window \#{pane_id};\n",
+                       server.run(["display-message", "-p", "-t", window.id, '#{window_name}']).text
           pane = window.list_panes.fetch(0)
           text = "C-a \#{pane_id};"
           assert pane.send_text(text).success?
@@ -98,9 +105,10 @@ class ServerTest < Minitest::Test
       begin
         Dir.mkdir(File.dirname(original_path), 0o700)
         File.link(replacement.socket_path, original_path)
-        failure = assert_raises(LibTmux::CommandError) do
-          server.new_session(name: "must-not-exist", command: ["/bin/cat"])
-        end
+        failure =
+          assert_raises(LibTmux::CommandError) do
+            server.new_session(name: "must-not-exist", command: ["/bin/cat"])
+          end
         refute failure.result.success?
         assert_equal :observed, failure.delivery
         refute replacement.tmux("has-session", "-t", "must-not-exist").last.success?
@@ -115,11 +123,12 @@ class ServerTest < Minitest::Test
   def test_close_cancels_owned_clients_and_preserves_the_borrowed_daemon
     LibTmuxTest::TmuxFixture.open do |fixture|
       server = open_server(fixture)
-      request = Thread.new do
-        server.run(["wait-for", "-S", "ruby-ready", ";", "wait-for", "ruby-held"])
-      rescue LibTmux::Cancelled => error
-        error
-      end
+      request =
+        Thread.new do
+          server.run(%w[wait-for -S ruby-ready ; wait-for ruby-held])
+        rescue LibTmux::Cancelled => error
+          error
+        end
       begin
         assert fixture.tmux("wait-for", "ruby-ready").last.success?
         server.close
@@ -154,7 +163,8 @@ class ServerTest < Minitest::Test
         token = LibTmux::Internal::Cancellation.new
         begin
           token.cancel
-          failure = assert_raises(LibTmux::Cancelled) { server.run(["list-sessions"], cancel: token) }
+          failure =
+            assert_raises(LibTmux::Cancelled) { server.run(["list-sessions"], cancel: token) }
           assert_equal :not_sent, failure.delivery
         ensure
           token.close
@@ -165,7 +175,12 @@ class ServerTest < Minitest::Test
 
   def test_admission_is_bounded_and_close_can_retry_after_its_deadline
     LibTmuxTest::TmuxFixture.open do |fixture|
-      server = LibTmux::Server.open(socket_path: fixture.socket_path, max_requests: 2, close_timeout: Float::MIN)
+      server =
+        LibTmux::Server.open(
+          socket_path: fixture.socket_path,
+          max_requests: 2,
+          close_timeout: Float::MIN
+        )
       requests = []
       begin
         2.times do |index|
@@ -178,8 +193,20 @@ class ServerTest < Minitest::Test
         end
         assert_respond_to server, :diagnostics
         active = server.diagnostics
-        assert_equal({admitted_requests: 2, reserved_process_slots: 2, control_connections: 0,
-          closed: false, limits: {max_requests: 2, max_controls: 4, close_timeout: Float::MIN}}, active)
+        assert_equal(
+          {
+            admitted_requests: 2,
+            reserved_process_slots: 2,
+            control_connections: 0,
+            closed: false,
+            limits: {
+              max_requests: 2,
+              max_controls: 4,
+              close_timeout: Float::MIN
+            }
+          },
+          active
+        )
         assert active.frozen?
         assert active.fetch(:limits).frozen?
         failure = assert_raises(LibTmux::CapacityError) { server.run(["list-sessions"]) }
@@ -209,20 +236,22 @@ class ServerTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       entered = Queue.new
       release = Queue.new
-      type = Class.new(LibTmux::Server) do
-        define_method(:close) do
-          super()
-          entered << true
-          release.pop
+      type =
+        Class.new(LibTmux::Server) do
+          define_method(:close) do
+            super()
+            entered << true
+            release.pop
+          end
         end
-      end
       original = RuntimeError.new("first failure")
       deferred = RuntimeError.new("second failure")
-      worker = Thread.new do
-        type.open(socket_path: fixture.socket_path) { raise original }
-      rescue Exception => failure
-        failure
-      end
+      worker =
+        Thread.new do
+          type.open(socket_path: fixture.socket_path) { raise original }
+        rescue Exception => failure
+          failure
+        end
       begin
         entered.pop
         worker.raise(deferred)
@@ -239,26 +268,28 @@ class ServerTest < Minitest::Test
   def test_fork_close_cannot_cancel_a_parent_request
     LibTmuxTest::TmuxFixture.open do |fixture|
       server = open_server(fixture)
-      request = Thread.new do
-        server.run(["wait-for", "-S", "fork-ready", ";", "wait-for", "fork-held"])
-      rescue LibTmux::Cancelled => failure
-        failure
-      end
+      request =
+        Thread.new do
+          server.run(%w[wait-for -S fork-ready ; wait-for fork-held])
+        rescue LibTmux::Cancelled => failure
+          failure
+        end
       reader, writer = IO.pipe
       child = nil
       begin
         assert fixture.tmux("wait-for", "fork-ready").last.success?
-        child = fork do
-          reader.close
-          server.close
-          begin
-            server.run(["list-sessions"])
-            exit! 1
-          rescue LibTmux::ClosedError
-            writer.write("closed")
-            exit! 0
+        child =
+          fork do
+            reader.close
+            server.close
+            begin
+              server.run(["list-sessions"])
+              exit! 1
+            rescue LibTmux::ClosedError
+              writer.write("closed")
+              exit! 0
+            end
           end
-        end
         writer.close
         assert IO.select([reader], nil, nil, 0.5), "fork close blocked on parent requests"
         assert_equal "closed", reader.read

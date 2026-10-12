@@ -10,7 +10,9 @@ class MCPCaptureTest < Minitest::Test
   def test_sdk_capture_retains_exact_bounded_states_and_rejects_foreign_or_respawned_cursors
     with_application do |app, sdk, scope, source|
       supported = require_process_cursor_support(app, scope)
-      assert_includes [true, false], supported, "process support must select a proved positive or refusal branch"
+      assert_includes [true, false],
+                      supported,
+                      "process support must select a proved positive or refusal branch"
       next unless supported
       pane = scope.server.list_panes.first
       target = wire_ref(pane.ref)
@@ -34,14 +36,28 @@ class MCPCaptureTest < Minitest::Test
       assert_equal first.fetch("process_generation"), delta.fetch("process_generation")
 
       other = target.merge("generation" => "another-binding")
-      assert_equal "stale_cursor", invoke(sdk, target: other, cursor: delta.fetch("next_cursor")).dig("error", "code")
-      assert_equal "invalid_input", invoke(sdk, target: target, cursor: delta.fetch("next_cursor"), max_bytes: 10).dig("error", "code")
+      assert_equal "stale_cursor",
+                   invoke(sdk, target: other, cursor: delta.fetch("next_cursor")).dig(
+                     "error",
+                     "code"
+                   )
+      assert_equal "invalid_input",
+                   invoke(
+                     sdk,
+                     target: target,
+                     cursor: delta.fetch("next_cursor"),
+                     max_bytes: 10
+                   ).dig("error", "code")
       pane.respawn(command: ["cat"], kill: true)
-      assert_equal "stale_cursor", invoke(sdk, target: target, cursor: delta.fetch("next_cursor")).dig("error", "code")
+      assert_equal "stale_cursor",
+                   invoke(sdk, target: target, cursor: delta.fetch("next_cursor")).dig(
+                     "error",
+                     "code"
+                   )
       app.close
       app.close
       assert_equal "closed", invoke(sdk, target: target).dig("error", "code")
-      assert source.run(["has-session", "-t", "fixture"]).success?
+      assert source.run(%w[has-session -t fixture]).success?
     end
   end
 
@@ -56,7 +72,8 @@ class MCPCaptureTest < Minitest::Test
       full = invoke(sdk, target: target, max_lines: 1).fetch("data")
       limited = invoke(sdk, target: target, max_lines: 1, max_bytes: 4).fetch("data")
       assert_equal "base64", limited.fetch("encoding")
-      assert_equal full.fetch("rows").join.b.byteslice(-4, 4), limited.fetch("rows").map { |row| row.unpack1("m0") }.join.b
+      assert_equal full.fetch("rows").join.b.byteslice(-4, 4),
+                   limited.fetch("rows").map { |row| row.unpack1("m0") }.join.b
       assert limited.fetch("truncated")
       ["display-message -p not-screen", "wait-for capture-must-not-wait"].each do |command|
         session.hooks.set("after-capture-pane", command: command, index: 17)
@@ -65,7 +82,11 @@ class MCPCaptureTest < Minitest::Test
         session.hooks.unset("after-capture-pane", index: 17)
       end
       session.hooks.unset("after-capture-pane")
-      scope.server.hooks.set("after-capture-pane", command: "display-message -p inherited-not-screen", index: 503)
+      scope.server.hooks.set(
+        "after-capture-pane",
+        command: "display-message -p inherited-not-screen",
+        index: 503
+      )
       refused = invoke(sdk, target: target)
       assert_equal "unsupported", refused.dig("error", "code"), refused.inspect
 
@@ -79,7 +100,7 @@ class MCPCaptureTest < Minitest::Test
   def test_capture_refuses_a_session_link_removed_before_dispatch
     with_application do |app, sdk, scope, source|
       version = source.snapshot.server_info.fetch(:version).scan(/\d+/).first(2).map(&:to_i)
-      phases = (version <=> [3, 5]).negative? ? [:preflight, :capture] : [:capture]
+      phases = (version <=> [3, 5]).negative? ? %i[preflight capture] : [:capture]
       phases.each do |phase|
         first = scope.server.new_session(name: "context-#{phase}", command: ["cat"])
         window = first.list_windows.first
@@ -88,18 +109,27 @@ class MCPCaptureTest < Minitest::Test
         second = scope.server.new_session(name: "other-context-#{phase}", command: ["cat"])
         second.link_window(window.ref, index: 4)
         armed = true
-        scope.server.singleton_class.prepend(Module.new do
-          define_method(:execute_typed) do |argv, **options|
-            dispatch = phase == :preflight ? argv.last == 'after-capture-pane' : argv.include?('#{==:#{after-capture-pane},}')
-            if armed && dispatch
-              armed = false
-              run(["unlink-window", "-k", "-t", "#{first.id}:#{link.index}"]).tap do |result|
-                raise "fixture failed to remove capture context" unless result.success?
+        scope.server.singleton_class.prepend(
+          Module.new do
+            define_method(:execute_typed) do |argv, **options|
+              dispatch =
+                (
+                  if phase == :preflight
+                    argv.last == "after-capture-pane"
+                  else
+                    argv.include?('#{==:#{after-capture-pane},}')
+                  end
+                )
+              if armed && dispatch
+                armed = false
+                run(["unlink-window", "-k", "-t", "#{first.id}:#{link.index}"]).tap do |result|
+                  raise "fixture failed to remove capture context" unless result.success?
+                end
               end
+              super(argv, **options)
             end
-            super(argv, **options)
           end
-        end)
+        )
         result = invoke(sdk, target: wire_ref(pane.ref))
         assert_equal "stale_target", result.dig("error", "code"), result.inspect
         refute armed, "fixture missed the capture dispatch"
@@ -112,11 +142,19 @@ class MCPCaptureTest < Minitest::Test
 
   def with_application(**options)
     LibTmuxTest::TmuxFixture.open do |fixture|
-      LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |source|
+      LibTmux::Server.open(
+        socket_path: fixture.socket_path,
+        executable: fixture.executable
+      ) do |source|
         Async do |task|
           LibTmux::Async.open(server: source, parent: task) do |scope|
-            app = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "test",
-              enabled_tools: %w[tmux_capabilities tmux_snapshot tmux_capture tmux_wait], **options)
+            app =
+              LibTmux::MCP::Application.new(
+                server: scope.server,
+                endpoint_name: "test",
+                enabled_tools: %w[tmux_capabilities tmux_snapshot tmux_capture tmux_wait],
+                **options
+              )
             begin
               yield app, app.sdk_server, scope, source
             ensure
@@ -129,30 +167,43 @@ class MCPCaptureTest < Minitest::Test
   end
 
   def invoke(sdk, **arguments)
-    response = sdk.handle({jsonrpc: "2.0", id: 1, method: "tools/call", params: {name: "tmux_capture", arguments: arguments}})
+    response =
+      sdk.handle(
+        {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: "tmux_capture",
+            arguments: arguments
+          }
+        }
+      )
     JSON.parse(JSON.generate(response)).fetch("result").fetch("structuredContent")
   end
 
   def wire_ref(ref)
-    {"generation" => ref.binding_key, "kind" => ref.kind.to_s, "id" => ref.id}
+    { "generation" => ref.binding_key, "kind" => ref.kind.to_s, "id" => ref.id }
   end
 
   def with_output(scope, pane, session: scope.server.list_sessions.first, expected: nil)
-    scope.server.open_control(session: session.ref) do |control|
-      events = control.subscribe(pane_id: pane.id)
-      control.exchange("display-message -p ready", timeout: 0.5)
-      yield
-      received = +"".b
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
-      loop do
-        event = events.next(timeout: deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC))
-        next unless event.kind == :output
+    scope
+      .server
+      .open_control(session: session.ref) do |control|
+        events = control.subscribe(pane_id: pane.id)
+        control.exchange("display-message -p ready", timeout: 0.5)
+        yield
+        received = +"".b
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.5
+        loop do
+          event = events.next(timeout: deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC))
+          next unless event.kind == :output
 
-        received << event.data
-        break unless expected && !received.include?(expected.b)
+          received << event.data
+          break unless expected && !received.include?(expected.b)
+        end
+      ensure
+        events&.close
       end
-    ensure
-      events&.close
-    end
   end
 end
