@@ -4,6 +4,29 @@ require_relative "../test_helper"
 require "libtmux/mcp"
 
 class MCPCatalogToolTest < Minitest::Test
+  def test_tools_list_declares_object_schema_roots_for_the_negotiated_protocol
+    names = %w[tmux_capabilities tmux_snapshot tmux_send tmux_create tmux_close tmux_run tmux_capture tmux_wait]
+    Async do
+      application = LibTmux::MCP::Application.new(server: LibTmux::Async::Server.allocate,
+        endpoint_name: "catalog", enabled_tools: names)
+      sdk = application.sdk_server
+      initialized = sdk.handle({jsonrpc: "2.0", id: 1, method: "initialize",
+        params: {protocolVersion: "2025-11-25", capabilities: {}, clientInfo: {name: "test", version: "1"}}})
+      assert_equal "2025-11-25", initialized.fetch(:result).fetch(:protocolVersion)
+
+      response = JSON.parse(JSON.generate(sdk.handle({jsonrpc: "2.0", id: 2, method: "tools/list"})))
+      tools = response.fetch("result").fetch("tools")
+      assert_equal names, tools.map { |tool| tool.fetch("name") }
+      tools.each do |tool|
+        %w[inputSchema outputSchema].each do |key|
+          assert_equal "object", tool.fetch(key)["type"], "#{tool.fetch("name")} #{key} root"
+        end
+      end
+    ensure
+      application&.close
+    end.wait
+  end
+
   def test_handshake_does_not_compile_tool_schemas_but_listing_validates_and_memoizes_them
     constructions = 0
     trace = TracePoint.new(:call) do |event|

@@ -2,6 +2,11 @@
 
 ## 0.1.0.alpha.2 (unreleased)
 
+### libtmux-mcp
+
+- Declare object roots in tool output schemas so clients using the
+  2025-11-25 protocol accept the `tools/list` response with MCP SDK 1.5.1.
+
 ## 0.1.0.alpha.1 (2026-09-20)
 
 Initial alpha of the Ruby tmux suite.
