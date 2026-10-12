@@ -133,8 +133,16 @@ class MCPMutationTest < Minitest::Test
 
   def test_one_deadline_covers_acquisition_and_mutation_and_preserves_unknown_effects
     with_application(request_timeout: 0.1) do |app, sdk, scope, source, fixture|
+      diagnose = lambda do |phase, &operation|
+        operation.call
+      rescue LibTmux::Error => error
+        warn JSON.generate(test: name, phase: phase, error: error.class.name, message: error.message,
+          delivery: error.delivery, process_phase: error.phase, pid: error.pid,
+          cleanup_errors: error.cleanup_errors.map { |item| item.class.name })
+        raise
+      end
       parent = ::Async::Task.current
-      session = wire_ref(scope.server.snapshot.sessions.first.ref)
+      session = wire_ref(diagnose.call("initial snapshot") { scope.server.snapshot }.sessions.first.ref)
       seen = []
       scope.server.define_singleton_method(:snapshot) do |**options|
         seen << [:capture, options.fetch(:timeout), options.fetch(:cancel)]
@@ -147,32 +155,32 @@ class MCPMutationTest < Minitest::Test
       source.hooks.set("after-new-window", command: "wait-for -S mcp-created ; wait-for mcp-create-held", index: 93)
       begin
         pending = parent.async { invoke(sdk, "tmux_create", kind: "window", parent: session, name: "partial-effect", argv: ["cat"]) }
-        scope.server.wait_for("mcp-created", timeout: 0.5)
-        failure = pending.wait(timeout: 0.5)
+        diagnose.call("create readiness") { scope.server.wait_for("mcp-created", timeout: 0.5) }
+        failure = diagnose.call("create pending result") { pending.wait(timeout: 0.5) }
         assert_equal "deadline", failure.dig("error", "code")
         assert_equal "possibly_sent", failure.dig("error", "delivery")
         assert_equal({"state" => "unknown", "created" => []}, failure.dig("error", "effects"))
         assert_operator seen.fetch(1).fetch(1), :<, seen.fetch(0).fetch(1)
         assert_same seen.fetch(0).fetch(2), seen.fetch(1).fetch(2)
-        assert scope.server.run(["list-windows", "-a", "-F", '#{window_name}']).text.lines.any? { |line| line.chomp == "partial-effect" }
+        assert diagnose.call("created-window readback") { scope.server.run(["list-windows", "-a", "-F", '#{window_name}']) }.text.lines.any? { |line| line.chomp == "partial-effect" }
       ensure
-        scope.server.wait_for("mcp-create-held", action: :signal, timeout: 0.5)
+        diagnose.call("create-release cleanup") { scope.server.wait_for("mcp-create-held", action: :signal, timeout: 0.5) }
         source.hooks.unset("after-new-window", index: 93)
       end
 
       source.options.set("command-alias", "display-message=wait-for -S mcp-acquire-ready ; wait-for mcp-acquire-held ; display-message", index: 93)
       begin
         pending = parent.async { invoke(sdk, "tmux_create", kind: "window", parent: session, name: "never-dispatched", argv: ["cat"]) }
-        scope.server.wait_for("mcp-acquire-ready", timeout: 0.5)
-        failure = pending.wait(timeout: 0.5)
+        diagnose.call("acquisition readiness") { scope.server.wait_for("mcp-acquire-ready", timeout: 0.5) }
+        failure = diagnose.call("acquisition pending result") { pending.wait(timeout: 0.5) }
         assert_equal "deadline", failure.dig("error", "code")
         assert_equal "not_sent", failure.dig("error", "delivery")
         assert_equal({"state" => "none", "created" => []}, failure.dig("error", "effects"))
       ensure
-        scope.server.wait_for("mcp-acquire-held", action: :signal, timeout: 0.5)
+        diagnose.call("acquisition-release cleanup") { scope.server.wait_for("mcp-acquire-held", action: :signal, timeout: 0.5) }
         source.options.unset("command-alias", index: 93)
       end
-      refute scope.server.run(["list-windows", "-a", "-F", '#{window_name}']).text.lines.any? { |line| line.chomp == "never-dispatched" }
+      refute diagnose.call("final readback") { scope.server.run(["list-windows", "-a", "-F", '#{window_name}']) }.text.lines.any? { |line| line.chomp == "never-dispatched" }
     end
   end
 

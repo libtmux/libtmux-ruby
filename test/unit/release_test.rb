@@ -74,11 +74,15 @@ class ReleaseTest < Minitest::Test
       FileUtils.cp_r(File.join(self.class.source_fixture, "."), @root)
     else
       build_source_fixture
-      self.class.source_fixture = Dir.mktmpdir("libtmux-ruby-release-source-")
-      self.class.source_commit = git("rev-parse", "HEAD").strip
-      FileUtils.cp_r(File.join(@root, "."), self.class.source_fixture)
-      fixture = self.class.source_fixture
-      Minitest.after_run { FileUtils.remove_entry(fixture) }
+      commit = git("rev-parse", "HEAD").strip
+      fixture = Dir.mktmpdir("libtmux-ruby-release-source-")
+      begin
+        FileUtils.cp_r(File.join(@root, "."), fixture)
+        self.class.source_fixture, self.class.source_commit = fixture, commit
+        Minitest.after_run { FileUtils.remove_entry(fixture) }
+      ensure
+        FileUtils.remove_entry(fixture) unless self.class.source_fixture == fixture
+      end
     end
     @commit = self.class.source_commit
     @tag = "v#{VERSION}"
@@ -121,6 +125,28 @@ class ReleaseTest < Minitest::Test
 
   def teardown
     FileUtils.remove_entry(@root) if @root
+  end
+
+  def test_failed_source_copy_does_not_cache_an_incomplete_fixture
+    saved_fixture, saved_commit = self.class.source_fixture, self.class.source_commit
+    self.class.source_fixture = self.class.source_commit = nil
+    probe = self.class.new(name)
+    destination = nil
+    failing_copy = lambda do |source, target|
+      destination = target
+      raise Errno::ENOENT, File.join(source, ".git/objects/maintenance.lock")
+    end
+    original_copy = FileUtils.method(:cp_r)
+    FileUtils.define_singleton_method(:cp_r, failing_copy)
+    assert_raises(Errno::ENOENT) { probe.setup }
+    assert_nil self.class.source_fixture
+    assert_nil self.class.source_commit
+    refute File.exist?(destination), "failed source copy left a partial fixture"
+  ensure
+    FileUtils.define_singleton_method(:cp_r, original_copy) if original_copy
+    self.class.source_fixture, self.class.source_commit = saved_fixture, saved_commit
+    probe&.teardown
+    FileUtils.remove_entry(destination) if destination && File.exist?(destination)
   end
 
   def test_prepare_reuses_complete_bytes_and_verify_is_local
@@ -326,7 +352,7 @@ class ReleaseTest < Minitest::Test
   end
 
   def git(*arguments)
-    output, status = Open3.capture2e("git", *arguments, chdir: @root)
+    output, status = Open3.capture2e("git", "-c", "maintenance.auto=false", *arguments, chdir: @root)
     raise output unless status.success?
     output
   end
