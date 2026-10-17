@@ -30,18 +30,30 @@ module LibTmux
         end
       end
 
+      def self.supported_release?(version)
+        LibTmux::Internal::TmuxVersion.require_supported(version)
+        true
+      rescue UnsupportedFeatureError
+        false
+      end
+
+      # Before tmux 3.5, whole-array formats are empty even for sparse hooks,
+      # so the capture hook is read with show-options instead.
+      def self.preflight_hooks?(release)
+        release < LibTmux::Internal::TmuxVersion.parse("3.5")
+      end
+
       def self.capabilities(version)
-        parsed = /\A(\d+)\.(\d+)/.match(version)
         native = case RUBY_PLATFORM
         when /\A(?:x86_64|aarch64)-linux/
           ["64-bit Linux with peer pidfds (kernel >= 6.6)", "same PID namespace and matching procfs"]
         when /\A(?:x86_64|arm64)-darwin/
           ["64-bit Darwin with kqueue NOTE_EXIT/NOTE_REAP", "fresh pinned-route daemon identity"]
         end
-        conditional = native && Fiddle::SIZEOF_LONG == 8 && parsed && ([parsed[1].to_i, parsed[2].to_i] <=> [3, 3]) >= 0
+        conditional = native && Fiddle::SIZEOF_LONG == 8 && supported_release?(version)
         {"screen" => "bounded_rows", "history_continuity" => "unknown",
           "process_cursor" => conditional ? "conditional" : "unsupported",
-          "requirements" => ["tmux >= 3.3", *(native || ["supported 64-bit Linux or Darwin process identity backend"]),
+          "requirements" => ["tmux >= #{LibTmux::Internal::TmuxVersion::MINIMUM}", *(native || ["supported 64-bit Linux or Darwin process identity backend"]),
             "live pane process", "empty effective capture hook", "stable capture-hook configuration on tmux < 3.5"],
           "wait_conditions" => %w[screen_contains process_exit]}
       end
@@ -285,10 +297,10 @@ module LibTmux
       end
 
       def require_tracking(snapshot)
-        version = /\A(\d+)\.(\d+)/.match(snapshot.server_info.fetch(:version))
-        unless version && ([version[1].to_i, version[2].to_i] <=> [3, 3]) >= 0
-          raise UnsupportedFeatureError.new("process cursors require tmux 3.3 death-status formats", phase: :admission)
-        end
+        return if self.class.supported_release?(snapshot.server_info.fetch(:version))
+
+        raise UnsupportedFeatureError.new("process cursors require tmux #{LibTmux::Internal::TmuxVersion::MINIMUM} or newer",
+          phase: :admission)
       end
 
       def read_rows(snapshot, pane, limits, identity)
@@ -308,10 +320,9 @@ module LibTmux
         hook_error = "libtmux-hook-refused-#{SecureRandom.hex(16)}"
         hook_failure = @server.__send__(:tmux_command, [hook_error])
         begin
-          # Before tmux 3.5, whole-array formats are empty even for sparse hooks.
           # Configuration must stay stable between this preflight and capture.
-          version = /\A(\d+)\.(\d+)/.match(snapshot.server_info.fetch(:version))
-          unless version && ([version[1].to_i, version[2].to_i] <=> [3, 5]) >= 0
+          release = LibTmux::Internal::TmuxVersion.parse(snapshot.server_info.fetch(:version))
+          if self.class.preflight_hooks?(release)
             hooks = @server.__send__(:execute_typed,
               [names.fetch("show-options"), "-A", "-v", "-t", target, "after-capture-pane"], **@budget.options)
             unless hooks.stdout.empty?
