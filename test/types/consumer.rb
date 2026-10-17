@@ -103,7 +103,7 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
     consumer.call("::LibTmux::CommandResult", result, :success?, expected: "bool")
     consumer.verify_rejects_wrong_return
     # Control clients attach only to tmux 3.7 and newer; older daemons refuse.
-    control_daemon = (server.__send__(:tmux_release) <=> LibTmux::Internal::TmuxVersion.parse("3.7")) >= 0
+    control_daemon = server.supports_control?
     if control_daemon
       consumer.call("::LibTmux::Server", server, :open_control, session: session.ref, expected: ":checked") do |control|
         reply = consumer.call("::LibTmux::ControlConnection", control, :exchange, "display-message -p typed", expected: "::LibTmux::GuardedReply")
@@ -135,7 +135,7 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
     raise "consumer fixture unexpectedly empty" unless records.length == 2
   when "libtmux-async"
     session = server.new_session(name: "async-types", command: ["/bin/cat"])
-    control_daemon = (server.__send__(:tmux_release) <=> LibTmux::Internal::TmuxVersion.parse("3.7")) >= 0
+    control_daemon = server.supports_control?
     Async do |parent|
       consumer.call("singleton(::LibTmux::Async)", LibTmux::Async, :open, parent: parent, server: server, expected: ":checked") do |scope|
         facade = consumer.call("::LibTmux::Async::Scope", scope, :server, expected: "::LibTmux::Async::Server")

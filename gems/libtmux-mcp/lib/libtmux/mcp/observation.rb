@@ -184,8 +184,7 @@ module LibTmux
             snapshot, pane = resolve(reference)
             require_tracking(snapshot)
             # Daemons below 3.7 take no control client, so a screen wait polls the pane.
-            polling = condition.fetch("type") == "screen_contains" && (LibTmux::Internal::TmuxVersion.parse(snapshot.server_info.fetch(:version)) <=>
-              LibTmux::Internal::TmuxVersion.parse(LibTmux::Internal::TmuxVersion::CONTROL_MINIMUM)).negative?
+            polling = condition.fetch("type") == "screen_contains" && !@server.supports_control?
             identity = acquire_identity(snapshot, pane)
             if condition.fetch("type") == "screen_contains" && !polling
               link = snapshot.window_links.find { |item| item.window_id == pane.window_id }

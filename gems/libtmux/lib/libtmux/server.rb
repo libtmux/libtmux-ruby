@@ -183,6 +183,11 @@ module LibTmux
       @release.text
     end
 
+    # True when the checked daemon accepts control clients (tmux 3.7 and newer).
+    def supports_control?
+      (@release <=> Internal::TmuxVersion.parse(Internal::TmuxVersion::CONTROL_MINIMUM)) >= 0
+    end
+
     # Raw tmux arguments retain tmux's separators and format semantics.
     def run(argv, input: "".b, timeout: 5.0, cancel: nil)
       dispatch(argv, input: input, timeout: timeout, cancel: cancel)

@@ -5,8 +5,7 @@ module LibTmuxTest
   # cannot run the behavior under test, the test asserts the refusal instead.
   module ControlSupport
     def control_supported?(server)
-      release = server.__send__(:tmux_release)
-      (release <=> LibTmux::Internal::TmuxVersion.parse("3.7")) >= 0
+      server.supports_control?
     end
 
     # Returns true when the daemon accepts control clients. Otherwise it asserts
