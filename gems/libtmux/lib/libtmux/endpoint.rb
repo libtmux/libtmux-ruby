@@ -76,7 +76,7 @@ module LibTmux
   module Internal
     # Keep the socket inode alive and route through it; PID timestamps can repeat.
     class SocketIdentity
-      attr_reader :key
+      attr_reader :key, :release
 
       def initialize(endpoint)
         @endpoint = endpoint
@@ -117,6 +117,11 @@ module LibTmux
           end
           raise error, cause: nil
         end
+      end
+
+      # Records the daemon release that the server version check read through this route.
+      def record_release(release)
+        @release = release
       end
 
       def command_prefix

@@ -186,7 +186,8 @@ module LibTmux
         {"type" => "object", "oneOf" => [object({"ok" => {"const" => true}, "data" => payload}),
           object({"ok" => {"const" => false}, "error" => object({"code" => text,
             "message" => text, "delivery" => {"enum" => %w[not_sent possibly_sent observed]},
-            "effects" => name == "tmux_run" ? run_effects : effects}, %w[code message delivery])})]}
+            "effects" => name == "tmux_run" ? run_effects : effects}.merge(name == "tmux_wait" ? {"capture" => capture_output} : {}),
+            %w[code message delivery])})]}
       end
 
       def self.authorization
@@ -239,7 +240,7 @@ module LibTmux
         elsif name == "tmux_capture"
           "Read exact-pane screen/history rows preserving LF. Defaults: 200 lines, 65536 bytes, zero history lines, track=false. Limits: 1000 lines/history, 262144 bytes. UTF-8 or base64; truncation is separate from unknown history continuity. Tracked process cursors require tmux>=3.3a and a native process identity backend: Linux peer pidfds with matching PID namespaces, or Darwin kqueue process observation. Continuation returns an exact state row splice, not a live-output journal. Refuses capture after-hooks."
         elsif name == "tmux_wait"
-          "Wait for observed literal screen text or the initial pane process exit. Deadline in seconds is capped by the application limit. Uses control events/process descriptors; no polling. Requires tmux>=3.3a and Linux peer pidfds with matching PID namespaces or Darwin kqueue process observation. Reports observed evidence, never remote termination caused by cancellation or an inferred process exit status."
+          "Wait for observed literal screen text or the initial pane process exit. Deadline in seconds is capped by the application limit. Pane exit is observed through process descriptors. The screen_contains condition joins wrapped rows, uses control events on tmux>=3.7 and polls the pane screen on older daemons, which take no control client. A pane or tmux server that ends first fails with pane_died and the last rows read in error.capture; a lost control stream fails with observation_lost. Requires tmux>=3.3a and Linux peer pidfds with matching PID namespaces or Darwin kqueue process observation. Reports observed evidence, never remote termination caused by cancellation or an inferred process exit status."
         elsif name == "tmux_send"
           "Send literal UTF-8 text or named keys to one exact pane. Opt-in mutation; 64 KiB total text bytes, at most 256 keys. Reports tmux client completion and input dispatch only; never shell completion."
         elsif name == "tmux_create"

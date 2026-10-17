@@ -23,30 +23,34 @@ module LibTmux
           raise ArgumentError, "timeout must be finite and nonnegative"
         end
         deadline = timeout && clock + timeout
-        loop do
-          @mutex.synchronize do
-            if @gap
-              gap, @gap = @gap, nil
-              return gap
+        # Kernel#loop would swallow the StopIteration that ends the stream and
+        # return nil from next.
+        while true
+          begin
+            @mutex.synchronize do
+              if @gap
+                gap, @gap = @gap, nil
+                return gap
+              end
+              unless @queue.empty?
+                event = @queue.shift
+                @bytes -= event.bytesize
+                return event
+              end
+              raise @failure if @failure
+              raise StopIteration if @closed
             end
-            unless @queue.empty?
-              event = @queue.shift
-              @bytes -= event.bytesize
-              return event
-            end
-            raise @failure if @failure
-            raise StopIteration if @closed
-          end
-          remaining = deadline && deadline - clock
-          raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription) if remaining && remaining <= 0
+            remaining = deadline && deadline - clock
+            raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription) if remaining && remaining <= 0
 
-          if remaining
-            ::Async::Task.current.with_timeout(remaining) { @changed.wait }
-          else
-            @changed.wait
+            if remaining
+              ::Async::Task.current.with_timeout(remaining) { @changed.wait }
+            else
+              @changed.wait
+            end
+          rescue ::Async::TimeoutError
+            raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription)
           end
-        rescue ::Async::TimeoutError
-          raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription)
         end
       end
 

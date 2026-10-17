@@ -2,11 +2,14 @@
 
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
+require_relative "../support/control_support"
 require_relative "../support/control_assertions"
 require "libtmux/async"
 require "socket"
 
 class AsyncTest < Minitest::Test
+  include LibTmuxTest::ControlSupport
+
   include LibTmuxTest::ControlAssertions
   def test_process_facade_yields_to_the_client_that_releases_a_wait
     assert LibTmux::Async.respond_to?(:open), "Async scope is missing"
@@ -423,7 +426,7 @@ class AsyncTest < Minitest::Test
 
   def test_control_wait_and_guarded_replies_progress_with_independent_processes
     assert defined?(LibTmux::Async::ControlConnection), "scheduler-owned control transport is missing"
-    with_scope do |scope, parent|
+    with_scope(control: true) do |scope, parent|
       owner = Thread.current
       io_owners = []
       trace = TracePoint.new(:call, :c_call) do |event|
@@ -456,7 +459,7 @@ class AsyncTest < Minitest::Test
   end
 
   def test_control_shares_guard_attribution_and_fails_closed_on_corruption
-    with_scope do |scope, parent|
+    with_scope(control: true) do |scope, parent|
       scope.server.run(["set-option", "-s", "command-alias[99]", "probe=display-message -p alias"])
       scope.server.run(["set-hook", "-g", "command-error", "display-message -p error-hook"])
       scope.server.open_control(session: scope.server.list_sessions.first.ref) do |control|
@@ -475,7 +478,7 @@ class AsyncTest < Minitest::Test
 
   def test_control_pipeline_preserves_reply_ownership_and_cancel_delivery
     [false, true].each do |cancel_first|
-      with_scope do |scope, parent|
+      with_scope(control: true) do |scope, parent|
         control = scope.server.open_control(session: scope.server.list_sessions.first.ref)
         token = LibTmux::Internal::Cancellation.new
         reader, writer = IO.pipe
@@ -538,7 +541,7 @@ class AsyncTest < Minitest::Test
   end
 
   def test_control_overflow_and_tail_gaps_do_not_block_replies
-    with_scope do |scope, parent|
+    with_scope(control: true) do |scope, parent|
       scope.server.open_control(session: scope.server.list_sessions.first.ref) do |control|
         reliable = control.subscribe(max_events: 1, max_bytes: 1024)
         tail = control.subscribe(mode: :tail, max_events: 1, max_bytes: 1024)
@@ -562,7 +565,7 @@ class AsyncTest < Minitest::Test
   end
 
   def test_control_dispatched_cancellation_retires_connection_and_owned_watchers
-    with_scope do |scope, parent|
+    with_scope(control: true) do |scope, parent|
       control = scope.server.open_control(session: scope.server.list_sessions.first.ref, max_requests: 1)
       token = LibTmux::Internal::Cancellation.new
       request = parent.async do
@@ -585,7 +588,7 @@ class AsyncTest < Minitest::Test
   end
 
   def test_scope_close_joins_control_exchange_cleanup_before_returning
-    with_scope do |scope, parent|
+    with_scope(control: true) do |scope, parent|
       control = scope.server.open_control(session: scope.server.list_sessions.first.ref)
       token = LibTmux::Internal::Cancellation.new
       entered, release = Queue.new, Queue.new
@@ -682,7 +685,7 @@ class AsyncTest < Minitest::Test
   end
 
   def test_control_spawn_failure_is_reported_without_losing_admission
-    with_scope do |scope, parent, fixture|
+    with_scope(control: true) do |scope, parent, fixture|
       executable = File.join(File.dirname(fixture.socket_path), "removed-async-client")
       File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nexec #{fixture.executable.inspect}, *ARGV\n")
       File.chmod(0o700, executable)
@@ -717,7 +720,7 @@ class AsyncTest < Minitest::Test
   end
 
   def test_control_flow_and_explicit_reconnect_report_loss_on_the_owning_scope
-    with_scope(max_controls: 2) do |scope, parent|
+    with_scope(control: true, max_controls: 2) do |scope, parent|
       session = scope.server.list_sessions.first.ref
       control = scope.server.open_control(session: session)
       observer = scope.server.open_control(session: session)
@@ -761,12 +764,16 @@ class AsyncTest < Minitest::Test
 
   private
 
-  def with_scope(**options)
+  def with_scope(control: false, **options)
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path) do |source|
         Async do |parent|
           parent.with_timeout(0.8) do
-            LibTmux::Async.open(parent: parent, server: source, **options) { |scope| yield scope, parent, fixture }
+            LibTmux::Async.open(parent: parent, server: source, **options) do |scope|
+              next if control && !require_control_support(scope.server)
+
+              yield scope, parent, fixture
+            end
           end
         end.wait
       end

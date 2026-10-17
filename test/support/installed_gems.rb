@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "libtmux/tmux_version"
+require "open3"
 
 module LibTmuxTest
   module InstalledGems
@@ -37,9 +39,25 @@ module LibTmuxTest
       manifest.fetch("programs").select { |entry| entry.fetch("gem") == package }.each do |entry|
         output, status = Open3.capture2e(environment.merge("LIBTMUX_EXAMPLE_INSTALLED" => "1"),
           Gem.ruby, "-W:no-experimental", File.join(directory, entry.fetch("path")), chdir: directory)
+        if needs_control?(entry) && !control_daemon?(environment)
+          # Below tmux 3.7 the example's own program is refused before a client attaches.
+          refute status.success?, "installed example #{entry.fetch('id')} attached a control client"
+          assert_match(/UnsupportedFeatureError: control connections require tmux 3\.7 or newer/, output)
+          next
+        end
         assert status.success?, "installed example #{entry.fetch('id')} failed: #{output}"
         assert_equal entry.dig("api", "output") || "PASS #{entry.fetch('id')}\n", output
       end
+    end
+
+    def needs_control?(entry)
+      entry.dig("api", "symbols").to_a.any? { |symbol| symbol.end_with?("#open_control") }
+    end
+
+    def control_daemon?(environment)
+      banner, = Open3.capture2e(environment, "tmux", "-V")
+      version = LibTmux::Internal::TmuxVersion
+      version.parse(banner.strip.delete_prefix("tmux ")) >= version.parse("3.7")
     end
 
     def run_installed_type_consumer(package, environment, directory)

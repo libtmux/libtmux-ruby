@@ -3,10 +3,13 @@
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
 require_relative "../support/process_cursor_support"
+require_relative "../support/control_support"
 require "libtmux/mcp"
 
 class MCPCaptureTest < Minitest::Test
   include LibTmuxTest::ProcessCursorSupport
+  include LibTmuxTest::ControlSupport
+
   def test_sdk_capture_retains_exact_bounded_states_and_rejects_foreign_or_respawned_cursors
     with_application do |app, sdk, scope, source|
       require_process_cursor_support(scope)
@@ -18,7 +21,7 @@ class MCPCaptureTest < Minitest::Test
       assert_equal "snapshot", first.fetch("mode")
       assert_equal "unknown", first.fetch("history_continuity")
       assert_equal "utf-8", first.fetch("encoding")
-      with_output(scope, pane) { pane.send_text("delta-visible") }
+      with_output(scope, pane, expected: "delta-visible") { pane.send_text("delta-visible") }
       next_page = invoke(sdk, target: target, cursor: first.fetch("next_cursor"))
       assert next_page.fetch("ok"), next_page.inspect
       delta = next_page.fetch("data")
@@ -135,7 +138,18 @@ class MCPCaptureTest < Minitest::Test
     {"generation" => ref.binding_key, "kind" => ref.kind.to_s, "id" => ref.id}
   end
 
+  # Control events order the wait on tmux 3.7 and newer; older daemons poll the
+  # pane screen for the sent text.
   def with_output(scope, pane, session: scope.server.list_sessions.first, expected: nil)
+    unless control_supported?(scope.server)
+      yield
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+      until pane.capture.stdout.include?(expected.b)
+        flunk "#{expected.inspect} did not reach the pane" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        sleep 0.01
+      end
+      return
+    end
     scope.server.open_control(session: session.ref) do |control|
       events = control.subscribe(pane_id: pane.id)
       control.exchange("display-message -p ready", timeout: 0.5)

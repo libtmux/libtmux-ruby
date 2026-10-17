@@ -20,6 +20,17 @@ module Example
     raise "expected #{type}"
   end
 
+  # Control clients attach only to tmux 3.7 and newer.
+  def self.control?(server)
+    (server.__send__(:tmux_release) <=> LibTmux::Internal::TmuxVersion.parse("3.7")) >= 0
+  end
+
+  def self.refuses_control(server, session)
+    error = raises(LibTmux::UnsupportedFeatureError) { server.open_control(session: session.ref) }
+    check(error.delivery == :not_sent, "control refusal reported a dispatch")
+    check(server.list_clients.empty?, "a control client attached")
+  end
+
   def self.run(name)
     path = pid = nil
     LibTmux::Server.start(executable: executable) do |server|

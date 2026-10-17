@@ -298,4 +298,25 @@ class TmuxVersionTest < Minitest::Test
     end
     assert_raises(LibTmux::UnsupportedFeatureError) { version.verify_fence(Report.new(stdout: "", stderr: "unknown command: #{marker}\n", ok: true), marker) }
   end
+
+  def test_identity_fields_travel_as_one_comma_joined_word
+    argv, marker = version.identity_argv(%w[version pid start_time])
+    assert_equal ["run-shel", "-C", "#{marker}\#{version},\#{pid},\#{start_time}"], argv
+    result = Report.new(stdout: "", stderr: "unknown command: #{marker}3.7d,41,1700000000\n", ok: false)
+    assert_equal %w[3.7d 41 1700000000], version.parse_identity(result, marker, 3)
+  end
+
+  def test_identity_reports_that_are_not_one_complete_word_are_refused
+    _, marker = version.identity_argv(%w[version pid])
+    [["unknown command: #{marker}3.7d,41\nunknown command: x\n", false], ["unknown command: #{marker}3.7d 41\n", false],
+      ["unknown command: #{marker}3.7d\n", false], ["unknown command: other3.7d,41\n", false],
+      ["unknown command: #{marker}3.7d,41\n", true], ["", false]].each do |stderr, ok|
+      assert_raises(LibTmux::ProtocolError, stderr) do
+        version.parse_identity(Report.new(stdout: "", stderr: stderr, ok: ok), marker, 2)
+      end
+    end
+    assert_raises(LibTmux::ProtocolError) do
+      version.parse_identity(Report.new(stdout: "x", stderr: "unknown command: #{marker}3.7d,41\n", ok: false), marker, 2)
+    end
+  end
 end

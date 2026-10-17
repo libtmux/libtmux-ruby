@@ -168,6 +168,7 @@ module LibTmux
       @pin = Internal::SocketIdentity.new(@endpoint)
       begin
         @release = Internal::TmuxVersion.connected(@pin.command_prefix) { |argv| @executor.run(argv, timeout: version_timeout, discard_stdout: true) }
+        @pin.record_release(@release)
         argv, marker = Internal::TmuxVersion.fence_check_argv
         Internal::TmuxVersion.verify_fence(@executor.run(@pin.command_prefix + argv, timeout: version_timeout), marker)
       rescue Exception
@@ -394,6 +395,10 @@ module LibTmux
       end
     end
     private_constant :CancellationView
+
+    def tmux_release
+      with_bound_endpoint { |_endpoint, _pin, release| release }
+    end
 
     def tmux_release
       with_bound_endpoint { |_endpoint, _pin, release| release }

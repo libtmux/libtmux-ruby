@@ -186,6 +186,7 @@ module LibTmux
 
       def open_control(binding:, session_id:, **options)
         ensure_open
+        Internal::TmuxVersion.require_control(binding.release)
         @controls.reject!(&:closed?)
         raise CapacityError.new("Async control capacity is exhausted", phase: :admission) if @controls.length >= @max_controls
 
