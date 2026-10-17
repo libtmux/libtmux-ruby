@@ -11,8 +11,9 @@
   endpoint at a supported one. tmux master (`next-3.9`) and release candidates
   are supported. [Supported tmux](docs/reference/behavior.md#supported-tmux).
 - Gate optional features by daemon release instead of raising the floor:
-  control connections (`open_control`, Async control, MCP `screen_contains`
-  waits) need tmux 3.7; named buffer deletion and rename need 3.4; raw
+  control connections (`open_control`, Async control) need tmux 3.7, and the
+  MCP `screen_contains` wait polls the screen below it; named buffer deletion
+  and rename need 3.4; raw
   `break-pane` and colon or period names are refused on exact 3.7; raw
   `split-window -p` is refused on 3.4; malformed layouts are refused before
   3.4. `Pane#break_out` repairs exact 3.7 and sole-pane breaks. Refusals raise
