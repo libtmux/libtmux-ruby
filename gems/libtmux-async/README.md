@@ -238,6 +238,9 @@ The contract is in [Control connections][behavior-control].
 - **Ruby 3.3 or newer** and **tmux 3.3a or newer.** The facade dispatches
   through a version-checked core server, so it carries the same daemon release
   check.
+- **Control connections need tmux 3.7 or newer.**
+  [`open_control`][async-server-open_control] refuses an older daemon before a
+  control client attaches.
 - **Async 2.46.** The gem depends on `async` ~> 2.46.0 and the same version of
   `libtmux`.
 - **Linux, including WSL, and macOS.** The [compatibility workflow][compat]

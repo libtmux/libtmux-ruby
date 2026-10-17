@@ -175,9 +175,19 @@ $ libtmux-mcp \
 - On tmux 3.3a to 3.4 the hook is checked before the capture command runs, so
   keep hook configuration stable while observing.
 
-### [`tmux_wait`][tool-tmux_wait]: wait for text or exit, without polling
+### [`tmux_wait`][tool-tmux_wait]: wait for text or exit
 
-- It watches for screen text, or for the pane process to exit, through events.
+- It waits for screen text, or for the pane process to exit. Screen text
+  comes from control events on tmux 3.7 and newer, and from polling the pane
+  every 50 ms on older daemons, which take no control client. Process exit
+  uses process descriptors.
+- Wrapped rows are joined, so text that the pane width split across rows
+  still matches.
+- If the pane, or the tmux server holding it, ends before the text appears,
+  the call fails with `pane_died`, `delivery: observed` and the last rows it
+  read in the error's `capture`. If only the control stream ends while the
+  pane lives, such as after the client detaches, the failure is
+  `observation_lost`.
 - A cancelled or expired wait closes its observers and never signals the pane
   program.
 - Process tracking needs a native identity backend: Linux peer pidfds with
@@ -333,6 +343,9 @@ pass the invitation to [`accept_shell`][mcp-application-accept_shell].
 - **A daemon that changes while it runs.** A tool call returns an
   `unsupported` result with `delivery: not_sent`. The result names the floor
   and says to upgrade tmux and restart the server.
+- **The `screen_contains` wait.** It uses control events on tmux 3.7 and
+  newer and polls the pane screen on older daemons, which take no control
+  client.
 - **Linux, including WSL, and macOS.** The core
   [compatibility workflow][compat] runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a
   through 3.8 on Ubuntu 24.04. macOS is supported on a best-effort basis, and
