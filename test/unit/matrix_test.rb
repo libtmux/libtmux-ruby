@@ -14,11 +14,12 @@ class MatrixTest < Minitest::Test
     output, error, status = Open3.capture3(Gem.ruby, path, "--plan")
     assert status.success?, error
     report = JSON.parse(output)
-    assert_equal 30, report.fetch("cells").length
-    assert_equal 30, report.fetch("cells").map { |cell| cell.fetch("id") }.uniq.length
+    expected = %w[os ruby tmux].map { |key| report.fetch("cells").map { |cell| cell.fetch(key) }.uniq.length }.reduce(:*)
+    assert_equal expected, report.fetch("cells").length
+    assert_equal expected, report.fetch("cells").map { |cell| cell.fetch("id") }.uniq.length
     assert_equal "PARTIAL", report.fetch("status")
     assert report.fetch("cells").all? { |cell| cell.fetch("status") == "UNVERIFIED" }
-    assert_equal %w[3.3a 3.4 3.5a 3.6 3.7c], report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
+    assert_equal %w[3.3a 3.4 3.5a 3.6 3.7c 3.8], report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
     assert_equal ["positive_native_identity"], report.fetch("cells").map { |cell| cell["process_bound_mcp"] }.uniq
     output, _, status = Open3.capture3(Gem.ruby, path, "--require-all")
     refute status.success?

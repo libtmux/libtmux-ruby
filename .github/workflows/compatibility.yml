@@ -57,7 +57,7 @@ jobs:
       matrix:
         platform: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '[{"system":"macos","runner":"macos-15"}]' || '[{"system":"linux","runner":"ubuntu-24.04"},{"system":"macos","runner":"macos-15"}]') }}
         ruby: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["4.0.7"]' || '["3.3.12","3.4.10","4.0.7"]') }}
-        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["3.7c"]' || '["3.3a","3.4","3.5a","3.6","3.7c"]') }}
+        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["3.7c"]' || '["3.3a","3.4","3.5a","3.6","3.7c","3.8"]') }}
     env:
       BUNDLE_FROZEN: 'true'
       LIBTMUX_VERSION_CHECK_EXPECT: supported
@@ -235,10 +235,49 @@ jobs:
               exit 1 ;;
           esac
 
+  development:
+    name: tmux development build (next-3.9)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BUNDLE_FROZEN: 'true'
+      LIBTMUX_VERSION_CHECK_EXPECT: supported
+      TMUX_COMMIT: d68e56f130ba44d13ae5f1f353526c7ce604099f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+        with:
+          ruby-version: '4.0.7'
+          bundler-cache: true
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config autoconf automake zsh
+      - name: Build tmux master at a pinned commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/tmux/tmux.git "$RUNNER_TEMP/tmux-master"
+          cd "$RUNNER_TEMP/tmux-master"
+          git checkout --quiet "$TMUX_COMMIT"
+          sh autogen.sh
+          ./configure --prefix="$RUNNER_TEMP/tmux-master-install" --disable-utf8proc
+          make -j2
+          make install
+          "$RUNNER_TEMP/tmux-master-install/bin/tmux" -V | grep -E '^tmux next-'
+          echo "$RUNNER_TEMP/tmux-master-install/bin" >> "$GITHUB_PATH"
+      - name: Run the outer suite against the development build
+        timeout-minutes: 10
+        env:
+          LIBTMUX_TEST_TMUX: ${{ runner.temp }}/tmux-master-install/bin/tmux
+        run: bundle exec scripts/check outer
+
   report:
-    name: All 30 required cells
+    name: All required cells
     if: ${{ always() && !(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only)) }}
-    needs: [cell, admission]
+    needs: [cell, unsupported, development]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -254,6 +293,9 @@ jobs:
           path: build/matrix-input
       - name: Require unsupported-daemon version checks
         if: ${{ needs.unsupported.result != 'success' }}
+        run: exit 1
+      - name: Require the tmux development build
+        if: ${{ needs.development.result != 'success' }}
         run: exit 1
       - name: Reject missing, failed, skipped or stale cells
         if: always()

@@ -24,7 +24,7 @@ class ReleaseCI
 
       jobs = @client.call("repos/#{REPOSITORY}/actions/runs/#{run.fetch('id')}/jobs?filter=latest&per_page=100")
       next unless jobs.fetch("jobs").any? do |job|
-        job["name"] == "All 30 required cells" && job["conclusion"] == "success"
+        job["name"] == "All required cells" && job["conclusion"] == "success"
       end
 
       return run.fetch("id")

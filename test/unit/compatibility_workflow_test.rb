@@ -17,7 +17,9 @@ class CompatibilityWorkflowTest < Minitest::Test
     assert_match(/^\s*\*\)\n\s*echo [^\n]*>&2\n\s*exit 1 ;;/, script)
   end
 
-  def test_supported_cells_name_their_lane
-    assert_equal "supported", WORKFLOW.fetch("jobs").fetch("cell").fetch("env").fetch("LIBTMUX_VERSION_CHECK_EXPECT")
+  def test_supported_cells_and_the_development_build_name_their_lane
+    %w[cell development].each do |name|
+      assert_equal "supported", WORKFLOW.fetch("jobs").fetch(name).fetch("env").fetch("LIBTMUX_VERSION_CHECK_EXPECT"), name
+    end
   end
 end
