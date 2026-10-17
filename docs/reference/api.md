@@ -621,7 +621,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#id](../../gems/libtmux/lib/libtmux/snapshot.rb#L148) | `::String` | [Captured records](behavior.md#captured-records) |
 | [#index](../../gems/libtmux/lib/libtmux/snapshot.rb#L148) | `::Integer` | [Captured records](behavior.md#captured-records) |
 | [#inspect](../../gems/libtmux/lib/libtmux/snapshot.rb#L50) | `::String` | [Captured records](behavior.md#captured-records) |
-| [#pid](../../gems/libtmux/lib/libtmux/snapshot.rb#L148) | `::Integer` | [Captured records](behavior.md#captured-records) |
+| [#pid](../../gems/libtmux/lib/libtmux/snapshot.rb#L148) | `::Integer?` | [Captured records](behavior.md#captured-records) |
 | [#raw](../../gems/libtmux/lib/libtmux/snapshot.rb#L34) | `::String?` | [Captured records](behavior.md#captured-records) |
 | [#ref](../../gems/libtmux/lib/libtmux/snapshot.rb#L26) | `::LibTmux::EntityRef` | [Captured records](behavior.md#captured-records) |
 | [#title](../../gems/libtmux/lib/libtmux/snapshot.rb#L148) | `::String` | [Captured records](behavior.md#captured-records) |
