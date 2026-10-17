@@ -61,7 +61,38 @@ class WorkspaceCLITest < Minitest::Test
     end
   end
 
+  def test_only_floor_refusals_get_the_unsupported_code
+    floor = LibTmux::Internal::TmuxVersion
+    below = assert_raises(LibTmux::UnsupportedFeatureError) { floor.require_supported("3.2a") }
+    changed = LibTmux::UnsupportedFeatureError.new("the tmux daemon no longer reports 3.3a; reopen the server",
+      phase: :admission, delivery: :not_sent, expected: floor::EXPECTED)
+    unrelated = LibTmux::UnsupportedFeatureError.new("native waitid is unavailable", phase: :admission, delivery: :not_sent)
+    Dir.mktmpdir("libtmux-ruby-cli-") do |directory|
+      file = File.join(directory, "load.json")
+      File.write(file, JSON.generate({session_name: "refused", windows: [{window_name: "one", panes: [{}]}]}))
+      socket = File.join(directory, "socket")
+      [[below, true], [changed, true], [floor.unrecognized("master", "the daemon"), true], [unrelated, false]].each do |error, refusal|
+        status, output, = with_open_raising(error) { run_cli(["load", file, "--json", "--socket", socket], directory) }
+        failure = JSON.parse(output).fetch("error")
+        assert_equal 1, status
+        assert_equal refusal ? "tmux_unsupported" : "execution", failure.fetch("kind"), error.message
+        assert_equal error.message, failure.fetch("message")
+        _, plain, shown = with_open_raising(error) { run_cli(["load", file, "--socket", socket], directory) }
+        assert_empty plain
+        assert_equal "#{error.message}\n", shown
+      end
+    end
+  end
+
   private
+
+  def with_open_raising(error)
+    original = LibTmux::Server.method(:open)
+    LibTmux::Server.define_singleton_method(:open) { |**| raise error }
+    yield
+  ensure
+    LibTmux::Server.define_singleton_method(:open, original)
+  end
 
   def run_cli(arguments, directory)
     output, error = StringIO.new, StringIO.new

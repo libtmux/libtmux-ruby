@@ -8,7 +8,7 @@ module LibTmux
 
         @scope, @source = scope, source
         @mutex = Mutex.new
-        source.__send__(:with_bound_endpoint) { |endpoint, pin| @endpoint, @pin = endpoint, pin }
+        source.__send__(:with_bound_endpoint) { |endpoint, pin, release| @endpoint, @pin, @release = endpoint, pin, release }
       end
 
       def run(argv, input: "".b, timeout: 5.0, cancel: nil)
@@ -17,7 +17,9 @@ module LibTmux
         validate_argv(argv)
         raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
 
-        @scope.__send__(:execute, @pin.command_prefix + argv, input: input, timeout: timeout, cancel: cancel)
+        fence, marker = Internal::TmuxVersion.fence(@release)
+        result = @scope.__send__(:execute, @pin.command_prefix + fence + argv, input: input, timeout: timeout, cancel: cancel)
+        Internal::TmuxVersion.check_fence(result, marker, @release)
       end
 
       def close

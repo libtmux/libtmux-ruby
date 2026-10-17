@@ -684,7 +684,7 @@ class AsyncTest < Minitest::Test
   def test_control_spawn_failure_is_reported_without_losing_admission
     with_scope do |scope, parent, fixture|
       executable = File.join(File.dirname(fixture.socket_path), "removed-async-client")
-      File.write(executable, "#!/bin/sh\nexit 1\n")
+      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nexec #{fixture.executable.inspect}, *ARGV\n")
       File.chmod(0o700, executable)
       LibTmux::Server.open(socket_path: fixture.socket_path, executable: executable) do |source|
         ref = source.__send__(:build_entity, :session, "$0").ref
