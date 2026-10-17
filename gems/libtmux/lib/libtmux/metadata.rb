@@ -16,7 +16,7 @@ module LibTmux
       def unquote(value)
         escapes = {"a" => "\a", "b" => "\b", "t" => "\t", "n" => "\n", "v" => "\v",
           "f" => "\f", "r" => "\r", "s" => " ", "E" => "\e"}
-        value.b.gsub(/\\([0-7]{3}|.)/n) do
+        value.b.gsub(/\\([0-7]{3}|.)/nm) do
           escaped = Regexp.last_match(1)
           if escaped.match?(/\A[0-7]{3}\z/)
             byte = escaped.to_i(8)
