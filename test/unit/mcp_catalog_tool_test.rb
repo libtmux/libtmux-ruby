@@ -4,6 +4,20 @@ require_relative "../test_helper"
 require "libtmux/mcp"
 
 class MCPCatalogToolTest < Minitest::Test
+  def test_advertised_output_schemas_declare_the_mcp_object_root
+    skip "known bug: output schemas omit their object root"
+    Async do
+      application = LibTmux::MCP::Application.new(server: LibTmux::Async::Server.allocate,
+        endpoint_name: "catalog", enabled_tools: LibTmux::MCP.const_get(:Catalog)::NAMES)
+      application.tools.each do |tool|
+        schema = JSON.parse(JSON.generate(tool.to_h)).fetch("outputSchema")
+        assert_equal "object", schema["type"], "#{tool.name_value} outputSchema must declare an object root"
+      end
+    ensure
+      application&.close
+    end.wait
+  end
+
   def test_handshake_does_not_compile_tool_schemas_but_listing_validates_and_memoizes_them
     constructions = 0
     trace = TracePoint.new(:call) do |event|
