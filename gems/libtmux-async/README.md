@@ -17,6 +17,9 @@ subscriptions. Imports start no scheduler, tmux server or background task.
 
 </div>
 
+Requires tmux 3.3a or newer. The Async facade dispatches through a
+version-checked core server and carries the same daemon release check.
+
 Install the alpha with `gem install libtmux-async --pre`.
 
 The [complete program](../../examples/async_cancel.rb) owns an isolated server

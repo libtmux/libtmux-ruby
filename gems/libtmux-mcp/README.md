@@ -17,6 +17,12 @@ The official MCP SDK handles the protocol; bounded Async tasks handle transport.
 
 </div>
 
+Requires tmux 3.3a or newer. The server refuses an older daemon when it
+starts, before serving any tool, and prints the reason and the remedy on
+stderr. If the daemon changes while the server runs, a tool call returns an
+`unsupported` result with `delivery: not_sent` and a fixed line that names the
+floor and says to upgrade tmux and restart the server.
+
 Install the alpha and its `libtmux-mcp` executable:
 
 ```console
@@ -75,7 +81,7 @@ subsequent calls return a splice against that exact captured state. A screen
 delta does not establish that every intervening output byte was observed.
 
 Capture refuses nonempty effective `after-capture-pane` hooks, including
-inherited sparse entries. On tmux 3.2a–3.4, callers must keep capture-hook
+inherited sparse entries. On tmux 3.3a–3.4, callers must keep capture-hook
 configuration stable throughout observation: those versions require a separate
 hook preflight. tmux 3.5+ checks the hook in the capture command queue. Both paths
 retain an explicit session/pane context and refuse its removal instead of
@@ -84,13 +90,14 @@ identity checks on every version that supports it.
 
 `tmux_wait` observes screen text or process exit through events. Canceling it
 retires its observation resources without signaling the pane program. Strong
-process tracking requires tmux 3.3 or later and a native identity backend:
+process tracking requires tmux 3.3a or later and a native identity backend:
 Linux peer pidfds with matching process namespaces, or Darwin kqueue process
 observation. Acquisition verifies the live daemon and pane before retaining
 a cursor; unavailable evidence produces an explicit refusal. The
 [compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
-records each exact platform/version result, including the required tmux 3.2a
-refusal and positive identity cases on later versions.
+records each exact platform/version result: positive identity cases on
+supported releases, and refusal jobs for tmux 3.0a, 3.1c, 3.2a and unpatched
+3.3.
 
 Resource templates expose metadata pages and pane screens under encoded
 endpoint/generation URIs. They enforce the same policy and response limits as

@@ -12,7 +12,15 @@ for prose and commit conventions.
 [.tool-versions](../.tool-versions) pins the development interpreter. It does not
 establish a supported Ruby version range.
 
-Integration and installed-artifact tests require tmux and `/bin/zsh` 5.9.
+Integration and installed-artifact tests require tmux 3.3a or newer and
+`/bin/zsh` 5.9. The version check tests also exercise tmux 3.2a and unpatched
+3.3 daemons when `LIBTMUX_TEST_TMUX` names one and
+`LIBTMUX_VERSION_CHECK_CLIENT_TMUX` names a supported client.
+`test/old_daemon/pre_3_2_refusal_test.rb` does the same for tmux 3.0a and 3.1c,
+which tmux 3.2 clients cannot start; it also needs
+`LIBTMUX_VERSION_CHECK_EXPECT` set to the release under test. CI sets that
+variable to `refused` or `supported` for the other version check tests, and
+they fail in CI when it is missing.
 The authored-shell tests use zsh's ZLE, `zsh/net/socket` and `zsh/system`
 modules. The Linux CI job installs zsh; the macOS runner supplies it.
 
