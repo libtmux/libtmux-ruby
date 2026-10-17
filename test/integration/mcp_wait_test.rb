@@ -26,7 +26,7 @@ class MCPWaitTest < Minitest::Test
         assert result.dig("data", "capture", "rows").join.include?("event-visible")
         assert_empty scope.server.list_clients
       else
-        assert_screen_wait_refused(app, scope)
+        assert_screen_wait_polls(app, scope)
       end
 
       child = pane.split(direction: :vertical, command: [Gem.ruby, "--disable=rubyopt,gems", "-e", "STDIN.gets"])
@@ -56,7 +56,7 @@ class MCPWaitTest < Minitest::Test
         assert_equal "cancelled", failure.dig("error", "code")
         assert_empty scope.server.list_clients
       else
-        assert_screen_wait_refused(app, scope)
+        assert_screen_wait_cancels(app, scope)
       end
       failure = call(app, target, {type: "process_exit"}, timeout: 0.1)
       assert_equal "deadline", failure.dig("error", "code")
@@ -258,11 +258,31 @@ class MCPWaitTest < Minitest::Test
     signal
   end
 
-  def assert_screen_wait_refused(app, scope)
+  # Below 3.7 a screen wait polls the pane and attaches no control client.
+  def assert_screen_wait_polls(app, scope)
     pane = scope.server.list_panes.first
-    failure = call(app, wire_ref(pane.ref), {type: "screen_contains", text: "unreachable"})
-    assert_equal "unsupported", failure.dig("error", "code"), failure.inspect
-    assert_equal "not_sent", failure.dig("error", "delivery"), failure.inspect
+    ready = signal_after_first_capture(app)
+    pending = Async::Task.current.async { call(app, wire_ref(pane.ref), {type: "screen_contains", text: "polled-visible"}) }
+    await_ready(ready, pending)
+    refute pending.finished?
+    assert_empty scope.server.list_clients
+    pane.send_text("polled-visible")
+    result = pending.wait(timeout: 1)
+    assert result.fetch("ok"), result.inspect
+    assert result.dig("data", "capture", "rows").join.include?("polled-visible")
+    assert_empty scope.server.list_clients
+  end
+
+  def assert_screen_wait_cancels(app, scope)
+    pane = scope.server.list_panes.first
+    ready = signal_after_first_capture(app)
+    cancellation = ::MCP::Cancellation.new(request_id: 15)
+    pending = Async::Task.current.async do
+      call(app, wire_ref(pane.ref), {type: "screen_contains", text: "never-visible"}, cancellation: cancellation)
+    end
+    await_ready(ready, pending)
+    cancellation.cancel
+    assert_equal "cancelled", pending.wait(timeout: 0.5).dig("error", "code")
     assert_empty scope.server.list_clients
   end
 
@@ -275,7 +295,7 @@ class MCPWaitTest < Minitest::Test
             begin
               if require_process_cursor_support(app, scope, tool: "tmux_wait")
                 if control && !control_supported?(scope.server)
-                  assert_screen_wait_refused(app, scope)
+                  assert_screen_wait_polls(app, scope)
                 else
                   yield app, scope, source
                 end

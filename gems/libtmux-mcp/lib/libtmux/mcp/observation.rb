@@ -5,6 +5,7 @@ require "libtmux/mcp/process_identity"
 module LibTmux
   module MCP
     class Observation
+      POLL_SECONDS = 0.05
       StaleCursor = Class.new(LibTmux::Error)
       LostObservation = Class.new(LibTmux::Error)
       module CleanupDetails
@@ -37,13 +38,6 @@ module LibTmux
         false
       end
 
-      def self.control_release?(version)
-        LibTmux::Internal::TmuxVersion.require_control(LibTmux::Internal::TmuxVersion.parse(version))
-        true
-      rescue UnsupportedFeatureError
-        false
-      end
-
       def self.capabilities(version)
         native = case RUBY_PLATFORM
         when /\A(?:x86_64|aarch64)-linux/
@@ -56,8 +50,8 @@ module LibTmux
           "process_cursor" => conditional ? "conditional" : "unsupported",
           "requirements" => ["tmux >= #{LibTmux::Internal::TmuxVersion::MINIMUM}", *(native || ["supported 64-bit Linux or Darwin process identity backend"]),
             "live pane process", "empty effective capture hook", "stable capture-hook configuration on tmux < 3.5",
-            "tmux >= #{LibTmux::Internal::TmuxVersion::CONTROL_MINIMUM} for screen_contains waits"],
-          "wait_conditions" => control_release?(version) ? %w[screen_contains process_exit] : %w[process_exit]}
+            "screen_contains waits use control events from tmux #{LibTmux::Internal::TmuxVersion::CONTROL_MINIMUM} and poll the screen before it"],
+          "wait_conditions" => %w[screen_contains process_exit]}
       end
 
       def initialize(server:, arguments:, timeout:, cancel:, max_snapshot_bytes:)
@@ -173,11 +167,10 @@ module LibTmux
             condition = @arguments.fetch("condition")
             snapshot, pane = resolve(reference)
             require_tracking(snapshot)
-            if condition.fetch("type") == "screen_contains"
-              LibTmux::Internal::TmuxVersion.require_control(LibTmux::Internal::TmuxVersion.parse(snapshot.server_info.fetch(:version)))
-            end
+            # Daemons below 3.7 take no control client, so a screen wait polls the pane.
+            polling = condition.fetch("type") == "screen_contains" && !@server.supports_control?
             identity = acquire_identity(snapshot, pane)
-            if condition.fetch("type") == "screen_contains"
+            if condition.fetch("type") == "screen_contains" && !polling
               link = snapshot.window_links.find { |item| item.window_id == pane.window_id }
               raise TargetNotFoundError.new("pane has no observable session", phase: :admission) unless link
 
@@ -204,6 +197,20 @@ module LibTmux
               task = ::Async::Task.new(::Async::Task.current) do
                 Fiber.scheduler.io_wait(io, IO::READABLE)
                 wake.call(event)
+              rescue ::Async::Cancel
+                nil
+              rescue StandardError => error
+                wake.call(error)
+              end
+              tasks << task
+              task.run
+            end
+            if polling
+              task = ::Async::Task.new(::Async::Task.current) do
+                loop do
+                  ::Async::Task.current.sleep(POLL_SECONDS)
+                  wake.call(:read)
+                end
               rescue ::Async::Cancel
                 nil
               rescue StandardError => error
