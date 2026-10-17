@@ -12,7 +12,10 @@ module LibTmux
     # then fenced against that exact text.
     module TmuxVersion
       MINIMUM = "3.3a"
-      PATTERN = /\A(?<next>next-)?(?<major>\d+)\.(?<minor>\d+)(?<patch>[a-z]?)(?<candidate>-rc\d*)?\z/
+      # The forms tmux has reported: X.Y, X.Y plus a patch letter, X.Y-rc and
+      # X.Y-rcN candidates, and next-X.Y development builds. Anything else,
+      # including master and openbsd-*, is not a release number.
+      PATTERN = /\A(?:next-(?<next_major>\d+)\.(?<next_minor>\d+)|(?<major>\d+)\.(?<minor>\d+)(?:(?<patch>[a-z])|(?<candidate>-rc(?<number>\d*)))?)\z/
       # tmux resolves a command-alias entry by exact name before it resolves a
       # command, so the full names run-shell and if-shell can be hijacked by one
       # alias, as the existing link guards avoid with builtin_spellings. These
@@ -26,11 +29,19 @@ module LibTmux
 
       # `key` orders releases; a development build or release candidate ranks
       # below the release it names.
+      # `key` orders releases: major, minor, patch letter, then the build kind.
+      # next-X.Y < X.Y-rc < X.Y-rcN < X.Y < X.Ya.
+      STABLE = 1 << 20
+
       Release = Data.define(:text, :key) do
         include Comparable
 
         def stable?
-          key.last == 1
+          key.last == STABLE
+        end
+
+        def exactly?(major, minor)
+          key == [major, minor, 0, STABLE]
         end
 
         def <=>(other)
@@ -46,9 +57,14 @@ module LibTmux
           raise UnsupportedFeatureError.new("tmux version is unrecognized; tmux #{MINIMUM} or newer is required",
             phase: :admission)
         end
-        patch = match[:patch].each_byte.reduce(0) { |number, byte| number * 26 + byte - 96 }
-        stable = !match[:next] && !match[:candidate]
-        Release.new(text: value.dup.freeze, key: [match[:major].to_i, match[:minor].to_i, patch, stable ? 1 : 0].freeze)
+        key = if match[:next_major]
+          [match[:next_major].to_i, match[:next_minor].to_i, 0, 0]
+        else
+          patch = match[:patch] ? match[:patch].ord - 96 : 0
+          kind = match[:candidate] ? 1 + match[:number].to_i : STABLE
+          [match[:major].to_i, match[:minor].to_i, patch, kind]
+        end
+        Release.new(text: value.dup.freeze, key: key.freeze)
       end
 
       def require_supported(value, minimum: MINIMUM)

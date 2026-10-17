@@ -42,6 +42,36 @@ class TmuxVersionTest < Minitest::Test
     assert_operator version.parse("3.9"), :<, version.parse("3.10")
   end
 
+  # The forms tmux has reported, shared by every port. Supported releases rank
+  # at or above 3.3a; the rest are below the floor or not release numbers.
+  GRAMMAR = {
+    accept: %w[3.3a 3.4 3.7d 3.8 3.10 4.0 3.4-rc 3.8-rc 3.8-rc2 next-3.4 next-3.9],
+    below_floor: %w[3.3 3.2a 3.3-rc 3.2-rc5 next-3.3],
+    unparseable: ["master", "openbsd-7.6", "", "3", "garbage", "3.3a garbage", "3.3a-master", "3.3a-dev", "next-3.3a",
+      "next-3.9-master", "next-3.9a", "3.8a-rc2", "3.8-rcx", "3.8-RC2", "3.8-rc-2"]
+  }.freeze
+  ORDER = [%w[next-3.7 3.7-rc 3.7-rc3 3.7 3.7a], %w[next-3.4 3.4-rc 3.4], %w[3.8-rc 3.8-rc2 3.8 3.8a 3.9], %w[3.9 3.10 4.0]].freeze
+
+  def test_version_grammar_vectors
+    GRAMMAR.fetch(:accept).each { |value| assert_equal value, version.require_supported(value).text, value }
+    GRAMMAR.fetch(:below_floor).each do |value|
+      assert_equal value, version.parse(value).text
+      assert_raises(LibTmux::UnsupportedFeatureError, value) { version.require_supported(value) }
+    end
+    GRAMMAR.fetch(:unparseable).each do |value|
+      error = assert_raises(LibTmux::UnsupportedFeatureError, value.inspect) { version.parse(value) }
+      assert_match(/unrecognized/, error.message)
+    end
+    ORDER.each do |chain|
+      chain.each_cons(2) { |lower, higher| assert_operator version.parse(lower), :<, version.parse(higher), "#{lower} < #{higher}" }
+    end
+    assert version.parse("3.7d").stable?
+    refute version.parse("3.8-rc").stable?
+    assert version.parse("3.7").exactly?(3, 7)
+    refute version.parse("3.7a").exactly?(3, 7)
+    refute version.parse("3.7-rc").exactly?(3, 7)
+  end
+
   def test_the_floor_itself_is_met_only_by_its_release
     version.require_supported("3.3a")
     %w[next-3.3a 3.3a-rc1].each do |value|
