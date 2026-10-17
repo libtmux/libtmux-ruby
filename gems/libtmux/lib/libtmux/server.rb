@@ -443,7 +443,7 @@ module LibTmux
       end
       # Exact tmux 3.7 rejects these in session and window names, so the
       # refusal comes before any effect.
-      if @release.key == [3, 7, 0, 1] && name.match?(/[:.]/)
+      if @release.exactly?(3, 7) && name.match?(/[:.]/)
         raise UnsupportedFeatureError.new("tmux 3.7 rejects ':' and '.' in session and window names",
           phase: :admission, delivery: :not_sent)
       end

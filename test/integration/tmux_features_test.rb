@@ -180,6 +180,6 @@ class TmuxFeaturesTest < Minitest::Test
   end
 
   def exact_release?(server, major, minor)
-    server.__send__(:tmux_release).key == [major, minor, 0, 1]
+    server.__send__(:tmux_release).exactly?(major, minor)
   end
 end

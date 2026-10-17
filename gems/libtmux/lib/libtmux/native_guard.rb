@@ -217,7 +217,8 @@ module LibTmux
         rest
       end
 
-      # 3.3a through 3.3 leave a malformed header's error cause unset and fault.
+      # tmux 3.3a faults on a header that is not four hex digits and a comma, so
+      # only checksummed layouts and built-in names pass before 3.4.
       def check_layout(item, command, release)
         return unless before?(release, 3, 4)
 
@@ -237,7 +238,7 @@ module LibTmux
       end
 
       def exact?(release, major, minor)
-        release.key == [major, minor, 0, 1]
+        release.exactly?(major, minor)
       end
 
       def refuse(what, floor, release)
