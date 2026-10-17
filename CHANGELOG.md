@@ -2,6 +2,22 @@
 
 ## 0.1.0.alpha.2 (unreleased)
 
+### libtmux
+
+- Require tmux 3.3a or newer. `Server.open` and `Server.start` refuse an
+  older daemon, including unpatched 3.3 and a daemon behind a newer client,
+  with `UnsupportedFeatureError` before any requested command runs; the same
+  applies to Async, MCP and the workspace CLI. Update the daemon, or point the
+  endpoint at a supported one. tmux master (`next-3.9`) and release candidates
+  are supported. [Supported tmux](docs/reference/behavior.md#supported-tmux).
+- Support tmux 3.8: decode escaped line feeds in captured metadata, accept
+  its JSON saved layouts in `select_layout`, and report the PID of a dead pane
+  as `nil`. **Breaking:** `PaneSnapshot#pid` is now `Integer?` on every tmux
+  release in the RBS, the `where` schema and the field catalog, although only a
+  dead pane on 3.8 reports an empty PID. See [migration guidance](https://github.com/libtmux/libtmux-ruby/blob/master/MIGRATION.md).
+- Add `Server#tmux_version` and the `version_timeout:` option. `Server.new`
+  now reads the daemon release and blocks for up to that long.
+
 ### libtmux-mcp
 
 - Declare object roots in tool output schemas so clients using the

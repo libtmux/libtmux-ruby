@@ -31,7 +31,8 @@ resolved executable and socket path; it does not establish server identity.
 ## Borrowed bindings
 
 `Server.new` and `Server.open` bind an existing endpoint through a private
-socket route. They do filesystem I/O, but do not start a daemon. The route
+socket route. They do filesystem I/O and one version probe of the running
+daemon (see [Supported tmux](#supported-tmux)), but do not start a daemon. The route
 pins the selected socket incarnation; replacing the public path or restarting
 there does not authorize retargeting. Ownership of the private directory is
 exclusive; deliberate same-user tampering is outside this ownership contract.
@@ -95,6 +96,50 @@ Window-link `window` and `session` accessors preserve that binding context.
 Handles are command targets, not caches of changing metadata. Subsequent I/O
 can raise `TargetNotFoundError` after the entity disappears or its guarded
 link context changes. Names are never fallback command targets.
+
+## Supported tmux
+
+The suite supports tmux 3.3a and newer. Releases compare in full, patch
+letter included, so 3.3 is below the minimum. A `next-X.Y` development build
+or an `-rc` candidate ranks below the release it names, and a report that is
+not a numbered release, such as `master`, is refused.
+
+`Server.new` and `Server.open` read the connected daemon's release through the
+private route with `run-shell -C`, which fires no tmux hook. The configured
+client's `-V` output is not consulted, so a newer client cannot accept an older
+daemon. `Server.start` reads the configured executable's `-V` report before
+every owned daemon starts. An unsupported or unreadable release raises
+`UnsupportedFeatureError` with `phase: :admission` and `delivery: :not_sent`.
+A socket with no running daemon raises `TargetNotFoundError`.
+
+Every raw command, typed operation, snapshot, Async call, workspace apply and
+MCP request dispatches through a binding that passed this version check. Each dispatched
+command list begins with an `if-shell` fence naming the checked release. If
+the daemon behind the route stops reporting it, tmux rejects a private marker
+before any requested command runs and the call raises
+`UnsupportedFeatureError`. On tmux 3.5 and newer that rejection fires
+`command-error`. Control connections and terminal attachments use the same
+route and are not probed again: the route pins the checked daemon's socket
+inode, and an interactive client's output cannot carry a fence marker.
+
+The probe and the fence spell `run-shell` and `if-shell` as the unique
+prefixes `run-shel` and `if-shel`, because tmux resolves a `command-alias` entry
+by exact name: an alias named for the full command, which the guarded link
+operations already work around, cannot reach them. The version check tests the result
+once. An `if-shel` with a true condition around `run-shel -C <marker>` must
+report the marker's parse error, with no failing command and so no hook. An alias
+or a future tmux command that shadows either prefix refuses the server with
+`UnsupportedFeatureError` instead of silently disabling the fence. Aliases added
+after the version check, and other redefinitions of built-ins, are outside the contract.
+
+`version_timeout:` (default five seconds) bounds each version read made by
+`Server.new`, which blocks while it runs. `Server#tmux_version` returns the
+checked release text, such as `3.7d` or `next-3.9`.
+
+`LibTmux::Support` exposes the version check: `Support::MINIMUM`,
+`Support.require_supported(text)` and `Support.server_version(server)`, also
+reachable as `Support::Versions`. Here "support" means tmux version support,
+not helper code.
 
 ## Raw commands
 
@@ -464,7 +509,7 @@ creates a new generation and reports a continuity gap; it is not replay.
 It intentionally has no command-result success predicate.
 
 Native `run-shell` output routing depends on tmux: 3.3a–3.4 writes it into
-pane view mode; 3.2a and 3.5+ can emit it outside reply blocks as events.
+pane view mode; 3.5+ can emit it outside reply blocks as events.
 The adapter preserves this behavior. Shell output resembling an unmatched
 control terminator fails the connection closed when it reaches the raw stream.
 
@@ -546,7 +591,7 @@ omit raw input payloads. Close releases retained captures and tracking
 resources, not the borrowed Async scope or daemon. Calls and close require
 the creating scheduler/thread/process.
 
-Screen observation requires an empty effective capture hook. On tmux 3.2a–3.4,
+Screen observation requires an empty effective capture hook. On tmux 3.3a–3.4,
 applications must coordinate hook configuration changes with captures and
 screen waits because sparse-array inspection is a separate preflight.
 tmux 3.5+ retains the hook check in the capture queue. Removing the selected
@@ -614,7 +659,7 @@ deadline, `cancel: nil`, and `compensate: false`. It checks binding/conflicts,
 then executes ordered individually attributable operations. Shell command
 sending is recorded as dispatch only, not program completion.
 
-Session options precede subsequent window/pane creation. On tmux 3.2a–3.6,
+Session options precede subsequent window/pane creation. On tmux 3.3a–3.6,
 the reused initial pane keeps the global history limit inherited at creation;
 later panes use the configured session value. Tmux 3.7+ updates existing grids
 when `history-limit` changes. Apply preserves global options and initial IDs.

@@ -237,9 +237,8 @@ class McpCLIIntegrationTest < Minitest::Test
     values, error, status = fixture.tmux("display-message", "-p", '#{version}|#{pane_id}')
     assert status.success?, error
     version, pane_id = values.strip.split("|")
-    parts = /\A(\d+)\.(\d+)/.match(version)
-    refute_nil parts, "tmux version must be known for the enrollment contract"
-    return true if ([parts[1].to_i, parts[2].to_i] <=> [3, 3]) >= 0
+    release = LibTmux::Internal::TmuxVersion.parse(version)
+    return true if (release <=> LibTmux::Internal::TmuxVersion.parse("3.3a")) >= 0
 
     setup = File.join(File.dirname(fixture.socket_path), "unsupported-enrollment.zsh")
     reader, input = IO.pipe

@@ -21,6 +21,10 @@ retains exact per-revision platform and version results.
 
 </div>
 
+Requires tmux 3.3a or newer; unpatched 3.3 is below the minimum. A server
+handle checks the connected daemon's release before any command is
+dispatched, and refuses an older daemon even when its client is newer.
+
 Install the alpha with `gem install libtmux --pre`, then require `libtmux`.
 Imports do not
 start tmux, a scheduler or an MCP server. See the repository's contribution

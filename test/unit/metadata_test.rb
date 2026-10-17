@@ -39,4 +39,10 @@ class MetadataTest < Minitest::Test
       LibTmux::Internal::Metadata.decode("1:\\777\n", fields: 1, quoted: true)
     end
   end
+
+  # tmux 3.8 escapes a literal line feed in q: output as a backslash before it.
+  def test_quoted_decode_unescapes_a_backslash_before_a_line_feed
+    rows = LibTmux::Internal::Metadata.decode("3:a\\\nb\n", fields: 1, quoted: true)
+    assert_equal [["a\nb".b]], rows
+  end
 end

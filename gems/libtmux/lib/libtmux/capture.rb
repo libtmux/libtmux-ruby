@@ -2,6 +2,7 @@
 
 require_relative "snapshot"
 require_relative "metadata"
+require_relative "tmux_version"
 
 module LibTmux
   module Internal
@@ -53,19 +54,16 @@ module LibTmux
         end
         version, pid, start_time = rows.first
         version = version.dup.force_encoding(Encoding::UTF_8)
-        match = /\A(?:next-)?([0-9]+)\.([0-9]+)([a-z]?)(?:-[A-Za-z0-9.-]+)?\z/.match(version) if version.valid_encoding?
-        unless match
-          raise UnsupportedFeatureError.new("unrecognized tmux version for capture", delivery: :observed, phase: :capture)
-        end
-        supported = ([match[1].to_i, match[2].to_i, match[3]] <=> [3, 2, "a"]) >= 0
-        unless supported
-          raise UnsupportedFeatureError.new("captured metadata requires tmux 3.2a or newer", delivery: :observed, phase: :capture)
+        begin
+          TmuxVersion.require_supported(version)
+        rescue UnsupportedFeatureError => error
+          raise UnsupportedFeatureError.new(error.message, delivery: :observed, phase: :capture)
         end
         unless pid.match?(/\A[1-9][0-9]{0,9}\z/n) && start_time.match?(/\A-?[0-9]{1,19}\z/n)
           raise ProtocolError.new("invalid capture server identity metadata", delivery: :observed, phase: :capture)
         end
         {version: version, pid: Integer(pid, 10), start_time: Integer(start_time, 10),
-         capabilities: {metadata: :byte_counted, field_baseline: "3.2a"}}
+         capabilities: {metadata: :byte_counted, field_baseline: TmuxVersion::MINIMUM}}
       end
 
       def acquire_rows(budget, attempt, clients)

@@ -49,6 +49,9 @@ module LibTmux
               if @endpoint.socket_path.bytesize > 103
                 raise UnsupportedFeatureError.new("owned Unix socket path exceeds the platform limit", phase: :startup)
               end
+              Internal::TmuxVersion.executable(@endpoint.executable) do |argv|
+                ProcessExecutor.new.run(argv, timeout: deadline - clock, cancel: cancel)
+              end
               @readiness = SocketReadiness.new(@directory)
               @child = OwnedChild.new
               pid = nil

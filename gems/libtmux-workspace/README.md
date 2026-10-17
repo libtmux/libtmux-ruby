@@ -19,6 +19,9 @@ consult its exact per-revision results.
 
 </div>
 
+Requires tmux 3.3a or newer to load or apply a plan. Validation and offline
+planning need no running daemon.
+
 The gem declares Ruby 3.3 or newer and depends on the same-version `libtmux`
 gem, JSON 3.0 and Psych 5.5. See the repository's
 [contribution guide](../../.github/CONTRIBUTING.md) for local builds and checks.
@@ -142,7 +145,7 @@ option overrides disable renumbering and pane synchronization during setup;
 the plan then restores declared values or inheritance.
 
 Session options apply before subsequent windows and split panes are created.
-On tmux 3.2a–3.6, the reused initial pane retains the global `history-limit`
+On tmux 3.3a–3.6, the reused initial pane retains the global `history-limit`
 inherited at session creation. Later panes use the configured session value.
 For uniform history on these versions, configure the server's global value
 before applying the workspace. Apply does not change global options or replace

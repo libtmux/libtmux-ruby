@@ -204,21 +204,21 @@ class OperationsTest < Minitest::Test
       assert_equal "80:30\n", first.display('#{pane_width}:#{pane_height}').text
       first.resize(zoom: true)
       assert_equal "0\n", window.display('#{window_zoomed_flag}').text
-      assert_equal layout, window.display('#{window_layout}').text.strip
+      assert_equal without_focus(layout), without_focus(window.display('#{window_layout}').text.strip)
 
       second.select
       window.select_layout(:even_horizontal)
       assert_equal [30, 30], window.list_panes.map { |pane| pane.display('#{pane_height}').text.to_i }
       assert_equal "#{second.id}\n", window.display('#{pane_id}').text
       window.select_layout(layout)
-      assert_equal layout, window.display('#{window_layout}').text.strip
+      assert_equal without_focus(layout), without_focus(window.display('#{window_layout}').text.strip)
       assert_equal "#{second.id}\n", window.display('#{pane_id}').text
       ["not-a-layout", "", "abc", "deadbeef"].each do |invalid|
         assert_raises(ArgumentError) { window.select_layout(invalid) }
       end
-      invalid_checksum = "%04x" % (layout[0, 4].to_i(16) ^ 1) + layout[4..]
-      assert_raises(LibTmux::CommandError) { window.select_layout(invalid_checksum) }
-      assert_equal layout, window.display('#{window_layout}').text.strip
+      invalid = layout.start_with?("{") ? '{"V":2' : "%04x" % (layout[0, 4].to_i(16) ^ 1) + layout[4..]
+      assert_raises(LibTmux::CommandError) { window.select_layout(invalid) }
+      assert_equal without_focus(layout), without_focus(window.display('#{window_layout}').text.strip)
       release = Gem::Version.new(server.display('#{version}').text[/\d+\.\d+/])
       if release >= Gem::Version.new("3.5")
         assert_raises(ArgumentError) { window.select_layout("main-h") }
@@ -230,7 +230,7 @@ class OperationsTest < Minitest::Test
         assert_equal :not_sent, error.delivery
       end
       window.select_layout(layout)
-      assert_equal layout, window.display('#{window_layout}').text.strip
+      assert_equal without_focus(layout), without_focus(window.display('#{window_layout}').text.strip)
     end
   end
 
@@ -281,14 +281,24 @@ class OperationsTest < Minitest::Test
       blocked = assert_raises(LibTmux::DeadlineExceeded) { server.wait_for(channel, action: :lock, timeout: 0.1) }
       assert_equal :possibly_sent, blocked.delivery
       assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
-      # The retired client's queued lock still acquires in tmux after unlock.
-      assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
+      # Before 3.8 the retired client's queued lock still acquires in tmux after
+      # unlock; 3.8 drops it, so the channel is no longer locked.
+      if server.display('#{version}').text.strip.match?(/\A3\.[0-7][a-z]?\z/)
+        assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
+      else
+        assert_raises(LibTmux::CommandError) { server.wait_for(channel, action: :unlock, timeout: 0.5) }
+      end
       assert server.wait_for(channel, action: :lock, timeout: 0.5).success?
       assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
     end
   end
 
   private
+
+  # tmux 3.8 dumps layouts as JSON and marks the active or last pane in them.
+  def without_focus(layout)
+    layout.gsub(/,"(?:a":true|l":\d+)/, "")
+  end
 
   def with_server
     LibTmuxTest::TmuxFixture.open do |fixture|
