@@ -4,6 +4,7 @@ require_relative "endpoint"
 require_relative "process"
 require_relative "metadata"
 require_relative "entity"
+require_relative "tmux_version"
 
 module LibTmux
   # Connects to an existing endpoint. Closing retires clients, never the daemon.
@@ -69,6 +70,12 @@ module LibTmux
       @closed = false
       @executor = Internal::ProcessExecutor.new
       @pin = Internal::SocketIdentity.new(@endpoint)
+      begin
+        @release = Internal::TmuxVersion.connected(@pin.command_prefix) { |argv| @executor.run(argv, timeout: 5.0) }
+      rescue Exception
+        @pin.close
+        raise
+      end
     end
 
     # Raw tmux arguments retain tmux's separators and format semantics.
@@ -79,8 +86,10 @@ module LibTmux
       raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
       raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
       perform_request(cancel: cancel) do |view|
-        @executor.run(@pin.command_prefix + argv, input: input,
+        fence, marker = Internal::TmuxVersion.fence(@release)
+        result = @executor.run(@pin.command_prefix + fence + argv, input: input,
           timeout: timeout - (monotonic - started), cancel: view)
+        Internal::TmuxVersion.check_fence(result, marker, @release)
       end
     end
 
@@ -283,6 +292,10 @@ module LibTmux
     end
     private_constant :CancellationView
 
+    def tmux_release
+      with_bound_endpoint { |_endpoint, _pin, release| release }
+    end
+
     def monotonic
       Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
@@ -298,7 +311,7 @@ module LibTmux
       ensure_owner
       @mutex.synchronize do
         ensure_open
-        yield @endpoint, @pin
+        yield @endpoint, @pin, @release
       end
     end
 

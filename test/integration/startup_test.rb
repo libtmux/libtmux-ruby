@@ -40,6 +40,7 @@ class StartupTest < Minitest::Test
       executable = File.join(directory, "writer")
       record = File.join(directory, "owned-path")
       File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\n" \
+        "if ARGV == ['-V']; puts 'tmux 3.3a'; exit; end\n" \
         "File.write(#{record.inspect}, Dir.pwd)\n" \
         "File.binwrite(\"tmux-server-\#{Process.pid}.log\", 'x' * ((1 << 20) + 1))\nIO.select([])\n")
       File.chmod(0o700, executable)
@@ -103,7 +104,7 @@ class StartupTest < Minitest::Test
   def test_early_daemon_exit_is_reported_and_reaped
     Dir.mktmpdir("libtmux-ruby-early-exit-") do |directory|
       executable = File.join(directory, "exit")
-      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nexit 1\n")
+      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nif ARGV == ['-V']; puts 'tmux 3.3a'; exit; end\nexit 1\n")
       File.chmod(0o700, executable)
       error = assert_raises(LibTmux::TransportError) { LibTmux::Server.start(executable: executable) }
       assert_equal :startup, error.phase
@@ -143,6 +144,8 @@ class StartupTest < Minitest::Test
     original = Process.method(:spawn)
     path = nil
     replacement = lambda do |*argv, **options|
+      next original.call(*argv, **options) if argv.include?("-V")
+
       path = argv.fetch(argv.index("-S") + 1)
       child = original.call("/bin/cat", in: held_input, out: File::NULL, err: File::NULL, close_others: true)
       token.cancel
@@ -243,6 +246,8 @@ class StartupTest < Minitest::Test
     original = Process.method(:spawn)
     path = nil
     Process.define_singleton_method(:spawn) do |*argv, **options|
+      next original.call(*argv, **options) if argv.include?("-V")
+
       path = argv.fetch(argv.index("-S") + 1)
       raise Errno::ENOENT, "private-executable-name"
     end
