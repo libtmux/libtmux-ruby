@@ -10,6 +10,16 @@
   applies to Async, MCP and the workspace CLI. Update the daemon, or point the
   endpoint at a supported one. tmux master (`next-3.9`) and release candidates
   are supported. [Supported tmux](docs/reference/behavior.md#supported-tmux).
+- Gate optional features by daemon release instead of raising the floor:
+  control connections (`open_control`, Async control, MCP `screen_contains`
+  waits) need tmux 3.7; named buffer deletion and rename need 3.4; raw
+  `break-pane` and colon or period names are refused on exact 3.7; raw
+  `split-window -p` is refused on 3.4; malformed layouts are refused before
+  3.4. `Pane#break_out` repairs exact 3.7 and sole-pane breaks. Refusals raise
+  `UnsupportedFeatureError` before any effect.
+  [Optional features](docs/reference/behavior.md#optional-tmux-features).
+- Snapshots and the Darwin identity check no longer fire `after-display-message`
+  hooks.
 - Support tmux 3.8: decode escaped line feeds in captured metadata, accept
   its JSON saved layouts in `select_layout`, and report the PID of a dead pane
   as `nil`. **Breaking:** `PaneSnapshot#pid` is now `Integer?` on every tmux
