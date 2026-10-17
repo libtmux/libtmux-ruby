@@ -14,13 +14,12 @@ class MatrixTest < Minitest::Test
     output, error, status = Open3.capture3(Gem.ruby, path, "--plan")
     assert status.success?, error
     report = JSON.parse(output)
-    assert_equal 36, report.fetch("cells").length
-    assert_equal 36, report.fetch("cells").map { |cell| cell.fetch("id") }.uniq.length
+    assert_equal 30, report.fetch("cells").length
+    assert_equal 30, report.fetch("cells").map { |cell| cell.fetch("id") }.uniq.length
     assert_equal "PARTIAL", report.fetch("status")
     assert report.fetch("cells").all? { |cell| cell.fetch("status") == "UNVERIFIED" }
-    assert_equal %w[3.2a 3.3a 3.4 3.5a 3.6 3.7c], report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
-    assert_equal ["structured_unsupported_not_sent"], report.fetch("cells").select { |cell| cell.fetch("tmux") == "3.2a" }.map { |cell| cell["process_bound_mcp"] }.uniq
-    assert_equal ["positive_native_identity"], report.fetch("cells").reject { |cell| cell.fetch("tmux") == "3.2a" }.map { |cell| cell["process_bound_mcp"] }.uniq
+    assert_equal %w[3.3a 3.4 3.5a 3.6 3.7c], report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
+    assert_equal ["positive_native_identity"], report.fetch("cells").map { |cell| cell["process_bound_mcp"] }.uniq
     output, _, status = Open3.capture3(Gem.ruby, path, "--require-all")
     refute status.success?
     assert_equal "PARTIAL", JSON.parse(output).fetch("status")
@@ -55,7 +54,7 @@ class MatrixTest < Minitest::Test
 
       evidence = report.fetch("cells").first
       expected_contract = evidence["process_bound_mcp"]
-      evidence["process_bound_mcp"] = "positive_native_identity"
+      evidence["process_bound_mcp"] = "structured_unsupported_not_sent"
       File.delete(File.join(directory, "result/matrix.json"))
       File.write(File.join(directory, "matrix.json"), JSON.generate(report))
       output, = capture_io do

@@ -57,7 +57,7 @@ jobs:
       matrix:
         platform: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '[{"system":"macos","runner":"macos-15"}]' || '[{"system":"linux","runner":"ubuntu-24.04"},{"system":"macos","runner":"macos-15"}]') }}
         ruby: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["4.0.7"]' || '["3.3.12","3.4.10","4.0.7"]') }}
-        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["3.7c"]' || '["3.2a","3.3a","3.4","3.5a","3.6","3.7c"]') }}
+        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["3.7c"]' || '["3.3a","3.4","3.5a","3.6","3.7c"]') }}
     env:
       BUNDLE_FROZEN: 'true'
       TMUX_VERSION: ${{ matrix.tmux }}
@@ -178,10 +178,53 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  unsupported:
+    name: Refuse tmux ${{ matrix.tmux }} before effects
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        tmux: ['3.2a', '3.3']
+    env:
+      BUNDLE_FROZEN: 'true'
+      TMUX_VERSION: ${{ matrix.tmux }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+        with:
+          ruby-version: '4.0.7'
+          bundler-cache: true
+      - name: Install native build dependencies and supported client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes tmux libevent-dev libncurses-dev bison pkg-config
+      - name: Build the unsupported daemon
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/tmux-$TMUX_VERSION.tar.gz"
+          curl --location --fail --silent --show-error \
+            "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
+            --output "$archive"
+          expected=$(ruby -rjson -e 'print JSON.parse(File.read("scripts/tmux-releases.json")).fetch(ENV.fetch("TMUX_VERSION"))')
+          echo "$expected  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
+          ./configure --prefix="$RUNNER_TEMP/unsupported-tmux"
+          make -j2
+          make install
+      - name: Exercise native refusal through a supported client
+        env:
+          LIBTMUX_ADMISSION_CLIENT_TMUX: /usr/bin/tmux
+        run: LIBTMUX_TEST_TMUX="$RUNNER_TEMP/unsupported-tmux/bin/tmux" bundle exec ruby -Itest test/integration/tmux_admission_test.rb
+
   report:
-    name: All 36 required cells
+    name: All 30 required cells
     if: ${{ always() && !(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only)) }}
-    needs: cell
+    needs: [cell, admission]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -195,6 +238,9 @@ jobs:
         with:
           pattern: matrix-*
           path: build/matrix-input
+      - name: Require unsupported-daemon version checks
+        if: ${{ needs.unsupported.result != 'success' }}
+        run: exit 1
       - name: Reject missing, failed, skipped or stale cells
         if: always()
         run: scripts/matrix --merge build/matrix-input --require-all --output build/matrix
