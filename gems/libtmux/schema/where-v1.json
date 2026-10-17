@@ -994,9 +994,16 @@
     "pane.pid": {
       "anyOf": [
         {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 2147483647
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         {
           "type": "object",
@@ -1004,9 +1011,16 @@
           "additionalProperties": false,
           "properties": {
             "equals": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 2147483647
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 2147483647
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "not": {
               "$ref": "#/$defs/pane.pid"
@@ -1015,9 +1029,16 @@
               "type": "array",
               "maxItems": 1024,
               "items": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 2147483647
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "lt": {

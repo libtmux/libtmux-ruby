@@ -266,6 +266,9 @@ module LibTmux
       private
 
       def acquire_identity(snapshot, pane)
+        # tmux 3.8 reports no PID for a dead pane; there is no process to bind.
+        raise TargetNotFoundError.new("pane process has exited", phase: :admission) if pane.pid.nil?
+
         identity = ProcessIdentity.acquire(@server, server_pid: snapshot.server_info.fetch(:pid), pane_pid: pane.pid,
           budget: @budget, on_retire: ->(resource) { @owned << resource })
         @owned << identity

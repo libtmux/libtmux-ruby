@@ -28,7 +28,7 @@ module LibTmux
     def id: () -> String
     def window_id: () -> String
     def index: () -> Integer
-    def pid: () -> Integer
+    def pid: () -> Integer?
     def current_command: () -> String
     def current_path: () -> String?
     def title: () -> String

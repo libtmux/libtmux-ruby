@@ -72,7 +72,7 @@ module LibTmux
           field(:pane, "pane.id", :id, "id", "pane_id", :text, operators: EQUALITY),
           field(:pane, "pane.window_id", :window_id, "windowId", "window_id", :text, operators: EQUALITY),
           field(:pane, "pane.index", :index, "index", "pane_index", :integer, min: 0, max: UINT_MAX),
-          field(:pane, "pane.pid", :pid, "pid", "pane_pid", :integer, min: 0, max: INT_MAX),
+          field(:pane, "pane.pid", :pid, "pid", "pane_pid", :integer, nullable: true, empty_is_null: true, min: 0, max: INT_MAX),
           field(:pane, "pane.current_command", :current_command, "currentCommand", "pane_current_command", :text),
           field(:pane, "pane.current_path", :current_path, "currentPath", "pane_current_path", :text, nullable: true, empty_is_null: true),
           field(:pane, "pane.title", :title, "title", "pane_title", :text),

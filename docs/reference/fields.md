@@ -54,7 +54,7 @@ captures describe attached clients; client names are selectors, not stable IDs.
 | `id` | `id` | `String` | no |  | `equals`, `not`, `in` | `pane_id` | 3.3a |
 | `window_id` | `windowId` | `String` | no |  | `equals`, `not`, `in` | `window_id` | 3.3a |
 | `index` | `index` | `Integer` | no | 0..4294967295 | `equals`, `not`, `in`, `lt`, `lte`, `gt`, `gte` | `pane_index` | 3.3a |
-| `pid` | `pid` | `Integer` | no | 0..2147483647 | `equals`, `not`, `in`, `lt`, `lte`, `gt`, `gte` | `pane_pid` | 3.3a |
+| `pid` | `pid` | `Integer?` | yes | 0..2147483647 | `equals`, `not`, `in`, `lt`, `lte`, `gt`, `gte` | `pane_pid` | 3.3a |
 | `current_command` | `currentCommand` | `String` | no |  | `equals`, `not`, `in`, `contains`, `starts_with`, `ends_with` | `pane_current_command` | 3.3a |
 | `current_path` | `currentPath` | `String?` | yes |  | `equals`, `not`, `in`, `contains`, `starts_with`, `ends_with` | `pane_current_path` | 3.3a |
 | `title` | `title` | `String` | no |  | `equals`, `not`, `in`, `contains`, `starts_with`, `ends_with` | `pane_title` | 3.3a |
