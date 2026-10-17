@@ -29,15 +29,19 @@ Example.run("workspace_apply") do |server|
     Example.check(status.success? && JSON.parse(output).is_a?(Hash), "installed CLI #{operation} failed")
   end
   result.created_refs.fetch("session").then { |ref| server.session(ref).kill }
-  server.open_control(session: borrowed.ref) do |control|
-    control.exchange("display-message -p ready")
-    selector = server.list_clients.find { |client| client.fetch(:pid) == control.pid }.fetch(:name)
-    output, status = Open3.capture2e(Gem.ruby, executable, "load", "--json", "--socket", server.endpoint.socket_path,
-      "--switch", selector, File.join(__dir__, "workspace.yaml"))
-    applied = JSON.parse(output)
-    Example.check(status.success? && applied.fetch("success"), "installed CLI load/switch failed")
-    client = server.list_clients.find { |entry| entry.fetch(:pid) == control.pid }
-    Example.check(client.fetch(:session_id) == applied.fetch("created_refs").fetch("session").fetch("id"),
-      "installed CLI did not switch the explicit current client")
+  if Example.control?(server)
+    server.open_control(session: borrowed.ref) do |control|
+      control.exchange("display-message -p ready")
+      selector = server.list_clients.find { |client| client.fetch(:pid) == control.pid }.fetch(:name)
+      output, status = Open3.capture2e(Gem.ruby, executable, "load", "--json", "--socket", server.endpoint.socket_path,
+        "--switch", selector, File.join(__dir__, "workspace.yaml"))
+      applied = JSON.parse(output)
+      Example.check(status.success? && applied.fetch("success"), "installed CLI load/switch failed")
+      client = server.list_clients.find { |entry| entry.fetch(:pid) == control.pid }
+      Example.check(client.fetch(:session_id) == applied.fetch("created_refs").fetch("session").fetch("id"),
+        "installed CLI did not switch the explicit current client")
+    end
+  else
+    Example.refuses_control(server, borrowed)
   end
 end

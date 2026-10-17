@@ -3,24 +3,31 @@
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
 require_relative "../support/process_cursor_support"
+require_relative "../support/control_support"
 require "libtmux/mcp"
 require "async/queue"
 
 class MCPWaitTest < Minitest::Test
   include LibTmuxTest::ProcessCursorSupport
+  include LibTmuxTest::ControlSupport
+
   def test_wait_observes_screen_events_and_initial_process_exit
     with_application do |app, scope, source|
       pane = scope.server.list_panes.first
       target = wire_ref(pane.ref)
-      ready = signal_after_first_capture(app)
-      pending = Async::Task.current.async { call(app, target, {type: "screen_contains", text: "event-visible"}) }
-      await_ready(ready, pending)
-      refute pending.finished?
-      pane.send_text("event-visible")
-      result = pending.wait(timeout: 0.5)
-      assert result.fetch("ok"), "#{result.inspect}; #{@observation_failure.inspect}"
-      assert result.dig("data", "capture", "rows").join.include?("event-visible")
-      assert_empty scope.server.list_clients
+      if control_supported?(scope.server)
+        ready = signal_after_first_capture(app)
+        pending = Async::Task.current.async { call(app, target, {type: "screen_contains", text: "event-visible"}) }
+        await_ready(ready, pending)
+        refute pending.finished?
+        pane.send_text("event-visible")
+        result = pending.wait(timeout: 0.5)
+        assert result.fetch("ok"), "#{result.inspect}; #{@observation_failure.inspect}"
+        assert result.dig("data", "capture", "rows").join.include?("event-visible")
+        assert_empty scope.server.list_clients
+      else
+        assert_screen_wait_refused(app, scope)
+      end
 
       child = pane.split(direction: :vertical, command: [Gem.ruby, "--disable=rubyopt,gems", "-e", "STDIN.gets"])
       ready = signal_after_first_capture(app)
@@ -39,14 +46,18 @@ class MCPWaitTest < Minitest::Test
     with_application do |app, scope, source|
       pane = scope.server.list_panes.first
       target = wire_ref(pane.ref)
-      ready = signal_after_first_capture(app)
-      cancellation = ::MCP::Cancellation.new(request_id: 14)
-      pending = Async::Task.current.async { call(app, target, {type: "screen_contains", text: "never"}, cancellation: cancellation) }
-      await_ready(ready, pending)
-      cancellation.cancel
-      failure = pending.wait(timeout: 0.5)
-      assert_equal "cancelled", failure.dig("error", "code")
-      assert_empty scope.server.list_clients
+      if control_supported?(scope.server)
+        ready = signal_after_first_capture(app)
+        cancellation = ::MCP::Cancellation.new(request_id: 14)
+        pending = Async::Task.current.async { call(app, target, {type: "screen_contains", text: "never"}, cancellation: cancellation) }
+        await_ready(ready, pending)
+        cancellation.cancel
+        failure = pending.wait(timeout: 0.5)
+        assert_equal "cancelled", failure.dig("error", "code")
+        assert_empty scope.server.list_clients
+      else
+        assert_screen_wait_refused(app, scope)
+      end
       failure = call(app, target, {type: "process_exit"}, timeout: 0.1)
       assert_equal "deadline", failure.dig("error", "code")
       assert scope.server.snapshot.panes.any? { |entry| entry.id == pane.id && !entry.dead }
@@ -55,7 +66,7 @@ class MCPWaitTest < Minitest::Test
   end
 
   def test_control_gap_and_repeated_cancellation_retire_all_owned_observers
-    with_application do |app, scope, source|
+    with_application(control: true) do |app, scope, source|
       pane = scope.server.list_panes.first
       control = nil
       factory = scope.server.method(:open_control)
@@ -105,7 +116,7 @@ class MCPWaitTest < Minitest::Test
   end
 
   def test_pending_control_retirement_keeps_process_descriptors_until_application_retry
-    with_application do |app, scope, source|
+    with_application(control: true) do |app, scope, source|
       pane = scope.server.list_panes.first
       control = nil
       factory = scope.server.method(:open_control)
@@ -145,7 +156,7 @@ class MCPWaitTest < Minitest::Test
   end
 
   def test_application_close_cancels_and_joins_an_active_wait_before_returning
-    with_application do |app, scope, source|
+    with_application(control: true) do |app, scope, source|
       pane = scope.server.list_panes.first
       ready = signal_after_first_capture(app)
       pending = Async::Task.current.async { call(app, wire_ref(pane.ref), {type: "screen_contains", text: "not-present"}) }
@@ -164,7 +175,7 @@ class MCPWaitTest < Minitest::Test
   end
 
   def test_application_close_keeps_request_ownership_through_repeated_cancellation
-    with_application do |app, scope, source|
+    with_application(control: true) do |app, scope, source|
       pane = scope.server.list_panes.first
       control = nil
       factory = scope.server.method(:open_control)
@@ -247,14 +258,28 @@ class MCPWaitTest < Minitest::Test
     signal
   end
 
-  def with_application
+  def assert_screen_wait_refused(app, scope)
+    pane = scope.server.list_panes.first
+    failure = call(app, wire_ref(pane.ref), {type: "screen_contains", text: "unreachable"})
+    assert_equal "unsupported", failure.dig("error", "code"), failure.inspect
+    assert_equal "not_sent", failure.dig("error", "delivery"), failure.inspect
+    assert_empty scope.server.list_clients
+  end
+
+  def with_application(control: false)
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |source|
         Async do |task|
           LibTmux::Async.open(server: source, parent: task) do |scope|
             app = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "test", enabled_tools: ["tmux_wait"])
             begin
-              yield app, scope, source if require_process_cursor_support(app, scope, tool: "tmux_wait")
+              if require_process_cursor_support(app, scope, tool: "tmux_wait")
+                if control && !control_supported?(scope.server)
+                  assert_screen_wait_refused(app, scope)
+                else
+                  yield app, scope, source
+                end
+              end
             ensure
               app.close
             end

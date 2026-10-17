@@ -49,6 +49,9 @@ records its version and file digest. The harness addresses only its private
 socket; production client spawning clears inherited `TMUX` and `TMUX_PANE`.
 It never starts or kills the default server.
 
+The harness compares subprocess transport with control transport, so it needs a
+daemon at tmux 3.7 or newer and refuses an older one before measuring.
+
 The output directory must be new. Every run takes the same nonblocking
 measurement lock regardless of its output directory or selected binary.
 Run no other tests, builds or benchmarks concurrently. The lock only excludes
