@@ -97,6 +97,23 @@ class TmuxFeaturesTest < Minitest::Test
     end
   end
 
+  def test_exact_tmux_3_7_refuses_colon_and_period_in_names_before_dispatch
+    with_server do |server, _fixture|
+      sessions = server.list_sessions.map(&:id)
+      if exact_release?(server, 3, 7)
+        ["dotted.name", "colon:name"].each do |name|
+          error = assert_raises(LibTmux::UnsupportedFeatureError) { server.new_session(name: name, command: ["/bin/cat"]) }
+          assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+          assert_raises(LibTmux::UnsupportedFeatureError) { server.list_sessions.first.rename(name) }
+        end
+        assert_equal sessions, server.list_sessions.map(&:id)
+      else
+        assert_kind_of LibTmux::Session, server.new_session(name: "dotted.name", command: ["/bin/cat"])
+      end
+      assert_kind_of LibTmux::Session, server.new_session(name: "plain-name", command: ["/bin/cat"])
+    end
+  end
+
   def test_percentage_splits_use_the_portable_size_flag_and_raw_p_is_refused_on_3_4
     with_server do |server, _fixture|
       pane = server.list_panes.first
