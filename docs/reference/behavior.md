@@ -163,7 +163,10 @@ workspace builds or MCP tools that do not need them.
 
 tmux 3.8 saved layouts are JSON; `select_layout` accepts them from 3.8.
 
-Admission, the snapshot's server identity and the break-out read-back avoid
+`Server#supports_control?` reports whether the checked daemon accepts control
+clients, so callers can choose a polling path before asking for one.
+
+The version check, the snapshot's server identity and the break-out read-back avoid
 `display-message`, so a user's `after-display-message` hook never runs as a side
 effect of them.
 

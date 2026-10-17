@@ -22,7 +22,7 @@ module Example
 
   # Control clients attach only to tmux 3.7 and newer.
   def self.control?(server)
-    (server.__send__(:tmux_release) <=> LibTmux::Internal::TmuxVersion.parse("3.7")) >= 0
+    server.supports_control?
   end
 
   def self.refuses_control(server, session)

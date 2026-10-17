@@ -408,7 +408,7 @@ module TmuxBenchmark
       mirror.window.kill(timeout: budget)
       @stage = "control_readiness"
       # Every lane compares against control transport, which needs tmux 3.7.
-      LibTmux::Internal::TmuxVersion.require_control(@server.__send__(:tmux_release))
+      raise "the benchmark's control lanes need tmux 3.7 or newer; the daemon reports #{@server.tmux_version}" unless @server.supports_control?
       @control = @server.open_control(session: @session.ref)
       @control.events.close
       @peaks.control(@control)

@@ -77,33 +77,34 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L18) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#endpoint](../../gems/libtmux/lib/libtmux/server.rb#L13) | `::LibTmux::Endpoint` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#environment](../../gems/libtmux/lib/libtmux/operations.rb#L85) | `::String?` | [Environment](behavior.md#environment) |
-| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L248) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
+| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L253) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
 | [#hooks](../../gems/libtmux/lib/libtmux/operations.rb#L11) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L149) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
+| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L154) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
 | [#list_buffers](../../gems/libtmux/lib/libtmux/operations.rb#L66) | `::Array[{ name: ::String, size: ::Integer }]` | [Buffers](behavior.md#buffers) |
 | [#list_clients](../../gems/libtmux/lib/libtmux/operations.rb#L93) | `::Array[{ name: ::String, pid: ::Integer, created: ::Integer, tty: ::String?, session_id: ::String?, control: bool }]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L175) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L167) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L180) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L172) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#list_window_links](../../gems/libtmux/lib/libtmux/operations.rb#L73) | `::Array[::LibTmux::WindowLink]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L171) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L153) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
+| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L176) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L158) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
 | [#open_control](../../gems/libtmux-async/lib/libtmux/async/server.rb#L27) | `T` / `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L7) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L16) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L187) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
+| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L192) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
 | [#read_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L58) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [#run](../../gems/libtmux-async/lib/libtmux/async/server.rb#L14) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
 | [#run_group](../../gems/libtmux/lib/libtmux/group.rb#L32) | `::LibTmux::GroupResult` | [Command groups](behavior.md#command-groups) |
-| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L244) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
-| [#session](../../gems/libtmux/lib/libtmux/server.rb#L179) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
+| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L249) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
+| [#session](../../gems/libtmux/lib/libtmux/server.rb#L184) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
 | [#set_environment](../../gems/libtmux/lib/libtmux/operations.rb#L81) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
-| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L238) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
+| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L243) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
 | [#source_file](../../gems/libtmux/lib/libtmux/operations.rb#L42) | `::LibTmux::CommandResult` | [Source files](behavior.md#source-files) |
+| [#supports_control?](../../gems/libtmux/lib/libtmux/server.rb#L96) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#switch_client](../../gems/libtmux/lib/libtmux/terminal.rb#L34) | `::LibTmux::CommandResult` | [Client switching](behavior.md#client-switching) |
 | [#tmux_version](../../gems/libtmux/lib/libtmux/server.rb#L91) | `::String` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#unset_environment](../../gems/libtmux/lib/libtmux/operations.rb#L89) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
 | [#wait_for](../../gems/libtmux/lib/libtmux/operations.rb#L47) | `::LibTmux::CommandResult` | [Wait channels](behavior.md#wait-channels) |
-| [#window](../../gems/libtmux/lib/libtmux/server.rb#L183) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
+| [#window](../../gems/libtmux/lib/libtmux/server.rb#L188) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
 | [#window_link](../../gems/libtmux/lib/libtmux/operations.rb#L77) | `::LibTmux::WindowLink` | [Live handles](behavior.md#live-handles) |
 | [#write_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L54) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [.new](../../gems/libtmux-async/lib/libtmux/async/server.rb#L6) | `::LibTmux::Async::Server` | [Async scope](behavior.md#async-scope) |
@@ -673,39 +674,40 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#attach](../../gems/libtmux/lib/libtmux/terminal.rb#L47) | `::LibTmux::TerminalResult` | [Terminal attachment](behavior.md#terminal-attachment) |
-| [#close](../../gems/libtmux/lib/libtmux/server.rb#L100) | `nil` | [Closing bindings](behavior.md#closing-bindings) |
+| [#close](../../gems/libtmux/lib/libtmux/server.rb#L105) | `nil` | [Closing bindings](behavior.md#closing-bindings) |
 | [#delete_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L62) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/server.rb#L139) | `{ admitted_requests: ::Integer, reserved_process_slots: ::Integer, control_connections: ::Integer, closed: bool, limits: { max_requests: ::Integer, max_controls: ::Integer, close_timeout: ::Numeric } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/server.rb#L144) | `{ admitted_requests: ::Integer, reserved_process_slots: ::Integer, control_connections: ::Integer, closed: bool, limits: { max_requests: ::Integer, max_controls: ::Integer, close_timeout: ::Numeric } }` | [Diagnostics](behavior.md#diagnostics) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L18) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#endpoint](../../gems/libtmux/lib/libtmux/server.rb#L13) | `::LibTmux::Endpoint` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#environment](../../gems/libtmux/lib/libtmux/operations.rb#L85) | `::String?` | [Environment](behavior.md#environment) |
-| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L248) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
+| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L253) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
 | [#hooks](../../gems/libtmux/lib/libtmux/operations.rb#L11) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L149) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
+| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L154) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
 | [#list_buffers](../../gems/libtmux/lib/libtmux/operations.rb#L66) | `::Array[{ name: ::String, size: ::Integer }]` | [Buffers](behavior.md#buffers) |
 | [#list_clients](../../gems/libtmux/lib/libtmux/operations.rb#L93) | `::Array[{ name: ::String, pid: ::Integer, created: ::Integer, tty: ::String?, session_id: ::String?, control: bool }]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L175) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L167) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L180) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L172) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#list_window_links](../../gems/libtmux/lib/libtmux/operations.rb#L73) | `::Array[::LibTmux::WindowLink]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L171) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L153) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
-| [#open_control](../../gems/libtmux/lib/libtmux/server.rb#L191) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L176) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L158) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
+| [#open_control](../../gems/libtmux/lib/libtmux/server.rb#L196) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L7) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L16) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L187) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
+| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L192) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
 | [#read_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L58) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [#run](../../gems/libtmux/lib/libtmux/server.rb#L96) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
+| [#run](../../gems/libtmux/lib/libtmux/server.rb#L101) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
 | [#run_group](../../gems/libtmux/lib/libtmux/group.rb#L32) | `::LibTmux::GroupResult` | [Command groups](behavior.md#command-groups) |
-| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L244) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
-| [#session](../../gems/libtmux/lib/libtmux/server.rb#L179) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
+| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L249) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
+| [#session](../../gems/libtmux/lib/libtmux/server.rb#L184) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
 | [#set_environment](../../gems/libtmux/lib/libtmux/operations.rb#L81) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
-| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L238) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
+| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L243) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
 | [#source_file](../../gems/libtmux/lib/libtmux/operations.rb#L42) | `::LibTmux::CommandResult` | [Source files](behavior.md#source-files) |
+| [#supports_control?](../../gems/libtmux/lib/libtmux/server.rb#L96) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#switch_client](../../gems/libtmux/lib/libtmux/terminal.rb#L34) | `::LibTmux::CommandResult` | [Client switching](behavior.md#client-switching) |
 | [#tmux_version](../../gems/libtmux/lib/libtmux/server.rb#L91) | `::String` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#unset_environment](../../gems/libtmux/lib/libtmux/operations.rb#L89) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
 | [#wait_for](../../gems/libtmux/lib/libtmux/operations.rb#L47) | `::LibTmux::CommandResult` | [Wait channels](behavior.md#wait-channels) |
-| [#window](../../gems/libtmux/lib/libtmux/server.rb#L183) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
+| [#window](../../gems/libtmux/lib/libtmux/server.rb#L188) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
 | [#window_link](../../gems/libtmux/lib/libtmux/operations.rb#L77) | `::LibTmux::WindowLink` | [Live handles](behavior.md#live-handles) |
 | [#write_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L54) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [.new](../../gems/libtmux/lib/libtmux/server.rb#L47) | `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
