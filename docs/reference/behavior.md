@@ -133,7 +133,8 @@ release. If the daemon behind the route stops reporting it, tmux rejects a
 private marker before any requested command runs and the call raises
 `UnsupportedFeatureError`. On tmux 3.5 and newer that rejection fires
 `command-error`. Control connections and terminal attachments use the same
-route and are not probed again.
+route and are not probed again: the route pins the checked daemon's socket
+inode, and an interactive client's output cannot carry a fence marker.
 
 The probe and the fence spell `run-shell` and `if-shell` as the unique
 prefixes `run-shel` and `if-shel`, because tmux resolves a `command-alias`
@@ -148,6 +149,14 @@ redefinitions of built-ins, are outside the contract.
 
 `version_timeout:` (default five seconds) bounds each version read made by
 `Server.new`, which blocks while it runs.
+
+`Server#tmux_version` returns the checked release text, such as `3.7d` or
+`next-3.9`.
+
+`LibTmux::Support` exposes the version check: `Support::MINIMUM`,
+`Support.require_supported(text)` and `Support.server_version(server)`, also
+reachable as `Support::Versions`. Here "support" means tmux version support,
+not helper code.
 
 ## Raw commands
 

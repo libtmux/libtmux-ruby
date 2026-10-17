@@ -176,6 +176,11 @@ module LibTmux
       end
     end
 
+    # The daemon's release text, such as "3.7d" or "next-3.9".
+    def tmux_version
+      @release.text
+    end
+
     # Raw tmux arguments retain tmux's separators and format semantics.
     def run(argv, input: "".b, timeout: 5.0, cancel: nil)
       ensure_owner

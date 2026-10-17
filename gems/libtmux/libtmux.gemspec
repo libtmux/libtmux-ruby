@@ -22,6 +22,7 @@ Gem::Specification.new do |spec|
     lib/libtmux.rb
     lib/libtmux/version.rb
     lib/libtmux/tmux_version.rb
+    lib/libtmux/support.rb
     lib/libtmux/errors.rb
     lib/libtmux/process.rb
     lib/libtmux/child.rb
