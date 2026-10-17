@@ -19,7 +19,7 @@ class StartupTest < Minitest::Test
       pid = Integer(server.run(["display-message", "-p", '#{pid}']).text)
       assert log_readiness.stopped?
       assert_operator log_readiness.bytes_read, :>, 0
-      assert_operator log_readiness.bytes_read, :<=, 1 << 20
+      assert_operator log_readiness.bytes_read, :<=, LibTmux::Internal.const_get(:LogSocketReadiness, false)::LIMIT
       assert_empty Dir[File.join(path, "*.log")]
       assert_equal "ready-without-logging\n", server.run(["display-message", "-p", "ready-without-logging"]).text
       assert_empty Dir[File.join(path, "*.log")]
@@ -42,7 +42,7 @@ class StartupTest < Minitest::Test
       File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\n" \
         "if ARGV == ['-V']; puts 'tmux 3.3a'; exit; end\n" \
         "File.write(#{record.inspect}, Dir.pwd)\n" \
-        "File.binwrite(\"tmux-server-\#{Process.pid}.log\", 'x' * ((1 << 20) + 1))\nIO.select([])\n")
+        "File.binwrite(\"tmux-server-\#{Process.pid}.log\", 'x' * ((1 << 22) + 1))\nIO.select([])\n")
       File.chmod(0o700, executable)
       error = assert_raises(LibTmux::CapacityError) { LibTmux::Server.start(executable: executable, timeout: 0.5) }
       assert_equal :possibly_sent, error.delivery
