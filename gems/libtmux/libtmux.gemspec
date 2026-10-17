@@ -44,6 +44,7 @@ Gem::Specification.new do |spec|
     lib/libtmux/terminal.rb
     lib/libtmux/criteria.rb
     lib/libtmux/process_wait.rb
+    lib/libtmux/native_guard.rb
     sig/libtmux.rbs
     sig/criteria.rbs
     sig/operations.rbs

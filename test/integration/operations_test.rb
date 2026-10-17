@@ -64,7 +64,12 @@ class OperationsTest < Minitest::Test
       assert_equal "1\n", pane.display('#{pane_in_mode}').text
       assert pane.copy_command("cancel").success?
       assert_equal "0\n", pane.display('#{pane_in_mode}').text
-      server.delete_buffer("literal ;")
+      if LibTmux::Internal::TmuxVersion.parse(server.tmux_version) < LibTmux::Internal::TmuxVersion.parse("3.4")
+        # Exact named-buffer deletion needs 3.4; the newest buffer is the only one left.
+        server.run(["delete-buffer"])
+      else
+        server.delete_buffer("literal ;")
+      end
       assert_empty server.list_buffers
     end
   end

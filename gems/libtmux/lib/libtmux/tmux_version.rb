@@ -45,6 +45,12 @@ module LibTmux
       Release = Data.define(:text, :key) do
         include Comparable
 
+        # True only for the numbered release itself, not a patch letter,
+        # candidate or development build of it.
+        def exactly?(major, minor)
+          key == [major, minor, 0, STABLE]
+        end
+
         def <=>(other)
           key <=> other.key if other.is_a?(Release)
         end

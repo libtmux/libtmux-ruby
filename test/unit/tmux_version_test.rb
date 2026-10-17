@@ -73,6 +73,11 @@ class TmuxVersionTest < Minitest::Test
     assert_raises(LibTmux::UnsupportedFeatureError) { version.require_supported("3.8-rc2000000") }
   end
 
+  def test_exactly_matches_only_the_numbered_release
+    assert version.parse("3.7").exactly?(3, 7)
+    %w[3.7a 3.7-rc 3.7-rc2 next-3.7 3.8].each { |value| refute version.parse(value).exactly?(3, 7), value }
+  end
+
   def test_the_floor_itself_is_met_only_by_its_release
     version.require_supported("3.3a")
     %w[next-3.3a 3.3a-rc1].each do |value|
