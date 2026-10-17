@@ -279,7 +279,7 @@ class ControlIntegrationTest < Minitest::Test
 
   def test_outside_wait_output_is_an_event_and_corruption_fails_closed
     with_control do |fixture, _, control|
-      assert_run_shell_routing(control, fixture.tmux("-V").first)
+      assert_run_shell_routing(control, fixture.tmux("-V").first.strip.delete_prefix("tmux "))
     end
   end
 

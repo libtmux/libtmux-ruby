@@ -10,8 +10,6 @@ require "shellwords"
 class McpCLIIntegrationTest < Minitest::Test
   def test_explicit_enrollment_file_serves_protocol_and_retires_pending_accept_on_eof
     LibTmuxTest::TmuxFixture.open do |fixture|
-      next unless enrollment_supported?(fixture)
-
       LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |server|
         pane = server.list_panes.first
         setup = File.join(File.dirname(fixture.socket_path), "enroll shell's setup.zsh")
@@ -116,8 +114,6 @@ class McpCLIIntegrationTest < Minitest::Test
 
   def test_existing_setup_file_or_symlink_is_preserved_when_enrollment_startup_fails
     LibTmuxTest::TmuxFixture.open do |fixture|
-      next unless enrollment_supported?(fixture)
-
       LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |server|
         pane = server.list_panes.first
         other = pane.split(direction: :horizontal, command: ["cat"])
@@ -152,8 +148,6 @@ class McpCLIIntegrationTest < Minitest::Test
 
   def test_explicitly_sourced_cli_setup_runs_a_script_through_the_protocol
     LibTmuxTest::TmuxFixture.open do |fixture|
-      next unless enrollment_supported?(fixture)
-
       directory = File.dirname(fixture.socket_path)
       setup = File.join(directory, "source this setup.zsh")
       listener = UNIXServer.new(File.join(directory, "shell-ready"))
@@ -232,33 +226,6 @@ class McpCLIIntegrationTest < Minitest::Test
   end
 
   private
-
-  def enrollment_supported?(fixture)
-    values, error, status = fixture.tmux("display-message", "-p", '#{version}|#{pane_id}')
-    assert status.success?, error
-    version, pane_id = values.strip.split("|")
-    parts = /\A(\d+)\.(\d+)/.match(version)
-    refute_nil parts, "tmux version must be known for the enrollment contract"
-    return true if ([parts[1].to_i, parts[2].to_i] <=> [3, 3]) >= 0
-
-    setup = File.join(File.dirname(fixture.socket_path), "unsupported-enrollment.zsh")
-    reader, input = IO.pipe
-    output, writer = IO.pipe
-    errors = StringIO.new
-    status = LibTmux::MCP::CLI.run(["--socket", fixture.socket_path, "--tmux", fixture.executable,
-      "--enable-tool", "tmux_run", "--enroll-pane", "#{pane_id}=#{setup}"],
-      input: reader, out: writer, err: errors)
-    assert_equal 1, status
-    assert_includes errors.string, "LibTmux::UnsupportedFeatureError"
-    writer.close
-    assert_empty output.read
-    refute File.exist?(setup)
-    assert_empty Dir[File.join(File.dirname(fixture.socket_path), ".libtmux-ruby-shell-*")]
-    assert fixture.tmux("has-session").last.success?
-    false
-  ensure
-    [reader, input, output, writer].compact.each { |io| io.close unless io.closed? }
-  end
 
   def send_frame(io, **message)
     io.write(JSON.generate({jsonrpc: "2.0", **message}) + "\n")

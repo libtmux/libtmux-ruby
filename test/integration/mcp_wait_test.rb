@@ -254,7 +254,8 @@ class MCPWaitTest < Minitest::Test
           LibTmux::Async.open(server: source, parent: task) do |scope|
             app = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "test", enabled_tools: ["tmux_wait"])
             begin
-              yield app, scope, source if require_process_cursor_support(app, scope, tool: "tmux_wait")
+              require_process_cursor_support(scope)
+              yield app, scope, source
             ensure
               app.close
             end
