@@ -135,16 +135,16 @@ module LibTmux
       value = layout.is_a?(Symbol) ? layout.to_s.tr("_", "-") : layout
       budget = server.__send__(:operation_budget, timeout, cancel)
       # Older tmux can access an invalid pointer for a malformed layout header.
-      unless LAYOUTS.include?(value) || /\A[0-9a-fA-F]{4},/.match?(value)
+      # tmux 3.8 reports and accepts saved layouts as JSON.
+      saved = /\A[0-9a-fA-F]{4},/.match?(value) ||
+        (value.start_with?("{") && server.__send__(:tmux_release) >= Internal::TmuxVersion.parse("3.8-rc"))
+      unless LAYOUTS.include?(value) || saved
         choices = (LAYOUTS + MIRRORED_LAYOUTS).select { |name| name.start_with?(value) }
         raise ArgumentError, "layout must be a native name or a saved layout" if value.empty? || choices.empty?
 
         if choices.any? { |name| MIRRORED_LAYOUTS.include?(name) }
-          version = server.display('#{version}', **budget.options).text
-          release = /\A(\d+)\.(\d+)/.match(version)
-          raise ProtocolError.new("tmux version is invalid", phase: :decode, delivery: :observed) unless release
-
-          if ([release[1].to_i, release[2].to_i] <=> [3, 5]).negative?
+          release = server.__send__(:tmux_release)
+          if (release.key.first(2) <=> [3, 5]).negative?
             choices &= LAYOUTS
             if choices.empty?
               raise UnsupportedFeatureError.new("mirrored layouts require tmux 3.5+", phase: :admission)
