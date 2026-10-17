@@ -33,7 +33,7 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def test_supported_daemons_keep_raw_batches_and_typed_reads
     with_fixture do |fixture|
-      return if refused?(fixture)
+      next assert_refused(fixture) if refused?(fixture)
       open_server(fixture) do |server|
         assert_equal ["$0"], server.list_sessions.map(&:id)
         result = server.run(["set-option", "-g", "@libtmux-version-check", "accepted;", "display-message", "-p", "--", '#{version}'])
@@ -46,7 +46,7 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def test_unsupported_daemon_is_refused_by_the_workspace_and_mcp_entry_points_without_effects
     with_fixture do |fixture|
-      return unless refused?(fixture)
+      next assert_supported(fixture) unless refused?(fixture)
       config = File.join(File.dirname(fixture.socket_path), "refused.json")
       File.write(config, JSON.generate({session_name: "refused-workspace", windows: [{window_name: "one", panes: [{}]}]}))
       out, err = StringIO.new, StringIO.new
@@ -70,7 +70,7 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def test_unsupported_daemon_is_refused_by_owned_startup_before_the_daemon_starts
     with_fixture do |fixture|
-      return unless refused?(fixture)
+      next assert_supported(fixture) unless refused?(fixture)
       error = assert_raises(LibTmux::UnsupportedFeatureError) { LibTmux::Server.start(executable: EXECUTABLE) }
       assert_equal :not_sent, error.delivery
     end
@@ -81,7 +81,7 @@ class TmuxVersionCheckTest < Minitest::Test
   # fence are neither.
   def test_version_check_and_dispatch_fire_no_user_hooks
     with_fixture do |fixture|
-      return if refused?(fixture)
+      next assert_refused(fixture) if refused?(fixture)
       assert fixture.tmux("set-hook", "-g", "after-display-message", "set-option -g @hook-display fired ; wait-for -S hook-display").last.success?
       error_hook = fixture.tmux("set-hook", "-g", "command-error", "set-option -g @hook-error fired ; wait-for -S hook-error").last.success?
       open_server(fixture) do |server|
@@ -94,7 +94,7 @@ class TmuxVersionCheckTest < Minitest::Test
       fixture.tmux("display-message", "-p", "control")
       assert fixture.tmux("wait-for", "hook-display").last.success?
       assert_equal "fired", fixture.tmux("show-option", "-gqv", "@hook-display").first.strip
-      return unless error_hook
+      next refute(error_hook, "command-error hooks exist only from tmux 3.5") unless error_hook
 
       fixture.tmux("has-session", "-t", "=no-such-session")
       assert fixture.tmux("wait-for", "hook-error").last.success?
@@ -104,8 +104,8 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def test_a_dispatch_after_the_daemon_changes_is_refused_without_effects
     with_fixture do |fixture|
-      return if refused?(fixture)
-      Dir.mktmpdir("libtmux-ruby-admission-") do |directory|
+      next assert_refused(fixture) if refused?(fixture)
+      Dir.mktmpdir("libtmux-ruby-version-check-") do |directory|
         wrapper, claim = %w[selected-tmux claimed-version].map { |name| File.join(directory, name) }
         File.write(wrapper, <<~SH)
           #!/bin/sh
@@ -155,8 +155,8 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def test_owned_startup_checks_the_executable_before_every_daemon
     with_fixture do |fixture|
-      return if refused?(fixture)
-      Dir.mktmpdir("libtmux-ruby-admission-") do |directory|
+      next assert_refused(fixture) if refused?(fixture)
+      Dir.mktmpdir("libtmux-ruby-version-check-") do |directory|
         wrapper, calls, rejected = %w[selected-tmux calls rejected].map { |name| File.join(directory, name) }
         File.write(wrapper, <<~SH)
           #!/bin/sh
@@ -177,8 +177,8 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def test_owned_startup_accepts_renamed_and_binary_executable_names
     with_fixture do |fixture|
-      return if refused?(fixture)
-      Dir.mktmpdir("libtmux-ruby-admission-") do |directory|
+      next assert_refused(fixture) if refused?(fixture)
+      Dir.mktmpdir("libtmux-ruby-version-check-") do |directory|
         ["selected tmux", "selected-\xFF".b].each do |name|
           selected = File.join(directory, name)
           begin
@@ -207,6 +207,16 @@ class TmuxVersionCheckTest < Minitest::Test
 
   CLIENT_PATH = -> { LibTmux::Endpoint.new(socket_name: "unused", executable: CLIENT).executable }
   private_constant :CLIENT_PATH
+
+  # A test that applies to one kind of daemon asserts the other kind instead,
+  # so a mis-set LIBTMUX_TEST_TMUX cannot pass vacuously.
+  def assert_refused(fixture)
+    assert_raises(LibTmux::UnsupportedFeatureError) { open_server(fixture) }
+  end
+
+  def assert_supported(fixture)
+    open_server(fixture) { |server| assert_equal daemon_version(fixture), server.tmux_version }
+  end
 
   def with_fixture
     fixture = LibTmuxTest::TmuxFixture.new(executable: EXECUTABLE)
