@@ -135,7 +135,10 @@ module LibTmux
       value = layout.is_a?(Symbol) ? layout.to_s.tr("_", "-") : layout
       budget = server.__send__(:operation_budget, timeout, cancel)
       # Older tmux can access an invalid pointer for a malformed layout header.
-      unless LAYOUTS.include?(value) || /\A[0-9a-fA-F]{4},/.match?(value)
+      # tmux 3.8-rc2 and later report and accept saved layouts as JSON.
+      saved = /\A[0-9a-fA-F]{4},/.match?(value) ||
+        (value.start_with?("{") && server.__send__(:tmux_release) >= Internal::TmuxVersion.parse("3.8-rc2"))
+      unless LAYOUTS.include?(value) || saved
         choices = (LAYOUTS + MIRRORED_LAYOUTS).select { |name| name.start_with?(value) }
         raise ArgumentError, "layout must be a native name or a saved layout" if value.empty? || choices.empty?
 

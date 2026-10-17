@@ -210,6 +210,29 @@ class TmuxVersionTest < Minitest::Test
     end
   end
 
+  # tmux 3.8-rc2 is the earliest build measured to print and accept JSON
+  # layouts, so the gate opens there and not at the 3.8 release.
+  def test_the_json_layout_gate_opens_at_3_8_rc2
+    ref = Struct.new(:kind, :id).new(:window, "@1")
+    json = '{"V":2,"L":{}}'
+    {"3.7d" => false, "3.8-rc" => false, "3.8-rc2" => true, "3.8-rc3" => true, "3.8" => true, "next-3.9" => true}.each do |release, allowed|
+      calls = []
+      server = Object.new
+      server.define_singleton_method(:operation_budget) { |*| Struct.new(:options).new({}) }
+      server.define_singleton_method(:tmux_release) { LibTmux::Internal::TmuxVersion.parse(release) }
+      server.define_singleton_method(:target) { |*| "@1" }
+      server.define_singleton_method(:execute_typed) { |argv, **| calls << argv }
+      window = LibTmux::Window.send(:new, server, ref)
+      if allowed
+        window.select_layout(json)
+        assert_equal [["select-layout", "-t", "@1", "--", json]], calls, release
+      else
+        assert_raises(ArgumentError, release) { window.select_layout(json) }
+        assert_empty calls, release
+      end
+    end
+  end
+
   def test_connected_probe_separates_an_absent_server_from_other_failures
     ["no server running on /tmp/route\n", "error connecting to /tmp/route (No such file or directory)\n",
       "error connecting to /tmp/route (Connection refused)\n"].each do |stderr|
