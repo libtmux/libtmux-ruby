@@ -147,6 +147,10 @@ module LibTmux
     end
 
     class LogSocketReadiness
+      # tmux 3.8 parses more default key bindings under -v than 3.7, so the
+      # log reaches "server loop enter" past 1 MiB.
+      LIMIT = 1 << 22
+
       attr_reader :bytes_read
 
       def initialize(directory)
@@ -184,7 +188,7 @@ module LibTmux
         end
         while (bytes = @log.read(16_384))
           @bytes_read += bytes.bytesize
-          if @bytes_read > 1 << 20
+          if @bytes_read > LIMIT
             raise CapacityError.new("owned startup log exceeded byte limit", phase: :startup, pid: child.pid, delivery: :possibly_sent)
           end
           text = @tail + bytes
