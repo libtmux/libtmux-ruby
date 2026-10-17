@@ -219,8 +219,8 @@ class OperationsTest < Minitest::Test
       invalid_checksum = "%04x" % (layout[0, 4].to_i(16) ^ 1) + layout[4..]
       assert_raises(LibTmux::CommandError) { window.select_layout(invalid_checksum) }
       assert_equal layout, window.display('#{window_layout}').text.strip
-      release = Gem::Version.new(server.display('#{version}').text[/\d+\.\d+/])
-      if release >= Gem::Version.new("3.5")
+      release = LibTmux::Internal::TmuxVersion.parse(server.display('#{version}').text.strip)
+      if release >= LibTmux::Internal::TmuxVersion.parse("3.5")
         assert_raises(ArgumentError) { window.select_layout("main-h") }
         window.select_layout(:main_vertical_mirrored)
         assert_operator first.display('#{pane_left}').text.to_i, :>, second.display('#{pane_left}').text.to_i

@@ -140,11 +140,8 @@ module LibTmux
         raise ArgumentError, "layout must be a native name or a saved layout" if value.empty? || choices.empty?
 
         if choices.any? { |name| MIRRORED_LAYOUTS.include?(name) }
-          version = server.display('#{version}', **budget.options).text
-          release = /\A(\d+)\.(\d+)/.match(version)
-          raise ProtocolError.new("tmux version is invalid", phase: :decode, delivery: :observed) unless release
-
-          if ([release[1].to_i, release[2].to_i] <=> [3, 5]).negative?
+          release = server.__send__(:tmux_release)
+          if release < Internal::TmuxVersion.parse("3.5")
             choices &= LAYOUTS
             if choices.empty?
               raise UnsupportedFeatureError.new("mirrored layouts require tmux 3.5+", phase: :admission)

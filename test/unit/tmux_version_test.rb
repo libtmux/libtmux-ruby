@@ -187,6 +187,29 @@ class TmuxVersionTest < Minitest::Test
     end
   end
 
+  # Every gate orders releases through the shared ranking, so a development
+  # build or candidate of a release stays below the gate that release opens.
+  def test_the_mirrored_layout_gate_ranks_development_builds_below_3_5
+    ref = Struct.new(:kind, :id).new(:window, "@1")
+    {"next-3.5" => false, "3.5-rc" => false, "3.4" => false, "3.5" => true, "3.5a" => true, "next-3.9" => true, "3.8-rc" => true}.each do |release, allowed|
+      calls = []
+      server = Object.new
+      server.define_singleton_method(:operation_budget) { |*| Struct.new(:options).new({}) }
+      server.define_singleton_method(:tmux_release) { LibTmux::Internal::TmuxVersion.parse(release) }
+      server.define_singleton_method(:target) { |*| "@1" }
+      server.define_singleton_method(:execute_typed) { |argv, **| calls << argv }
+      window = LibTmux::Window.send(:new, server, ref)
+      if allowed
+        window.select_layout(:main_vertical_mirrored)
+        assert_equal [["select-layout", "-t", "@1", "--", "main-vertical-mirrored"]], calls, release
+      else
+        error = assert_raises(LibTmux::UnsupportedFeatureError, release) { window.select_layout(:main_vertical_mirrored) }
+        assert_equal :not_sent, error.delivery
+        assert_empty calls
+      end
+    end
+  end
+
   def test_connected_probe_separates_an_absent_server_from_other_failures
     ["no server running on /tmp/route\n", "error connecting to /tmp/route (No such file or directory)\n",
       "error connecting to /tmp/route (Connection refused)\n"].each do |stderr|
