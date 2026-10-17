@@ -12,7 +12,11 @@
   are supported. [Supported tmux](docs/reference/behavior.md#supported-tmux).
 - Support tmux 3.8: decode escaped line feeds in captured metadata, accept
   its JSON saved layouts in `select_layout`, and report the PID of a dead pane
-  as `nil` (`PaneSnapshot#pid` is now `Integer?`).
+  as `nil`. **Breaking:** `PaneSnapshot#pid` is now `Integer?` on every tmux
+  release in the RBS, the `where` schema and the field catalog, although only a
+  dead pane on 3.8 reports an empty PID. See [migration guidance](MIGRATION.md).
+- Add `Server#tmux_version` and the `admission_timeout:` option. `Server.new`
+  now reads the daemon release and blocks for up to that long.
 
 ### libtmux-mcp
 
