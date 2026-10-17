@@ -152,7 +152,7 @@ workspace builds or MCP tools that do not need them.
 | Feature | Daemon | Older or affected daemon | State |
 | --- | --- | --- | --- |
 | Control connections: `open_control`, Async control, reconnect | 3.7 and newer | Refused before a control client attaches | Refusal qualified by tests; acquisition operative with synchronization |
-| MCP `tmux_wait` condition `screen_contains` | 3.7 and newer | Refused; `process_exit` stays available | Same as control connections |
+| MCP `tmux_wait` condition `screen_contains` | Control events from 3.7 | Polls the pane screen with `capture-pane` and attaches no control client | Qualified in the stated evidence |
 | Named buffer deletion and rename (`delete_buffer`, `delete-buffer -b`, `set-buffer -b -n`) | 3.4 and newer | Refused: an absent name acts on an unrelated buffer | Refusal qualified by tests |
 | Named paste and delete (`Pane#paste` with `delete: true`) | 3.3a and newer | Exact lookup, available | Qualified in the stated evidence |
 | `Pane#break_out` | All supported | Exact 3.7 applies the name again after the move; 3.3a through 3.5 read a sole pane's window back because break-pane prints no ID | Qualified in the stated evidence |
