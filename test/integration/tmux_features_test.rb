@@ -82,6 +82,24 @@ class TmuxFeaturesTest < Minitest::Test
     end
   end
 
+  # display-message fires after-display-message on every release, so identity
+  # and read-back reads that used it ran a user's hook as a side effect.
+  def test_identity_and_readback_reads_fire_no_display_message_hook
+    with_server do |server, fixture|
+      assert fixture.tmux("set-hook", "-g", "after-display-message", "set-option -g @hook-display fired ; wait-for -S hook-display").last.success?
+      snapshot = server.snapshot
+      assert_equal server.__send__(:tmux_release).text, snapshot.server_info.fetch(:version)
+      home = server.list_sessions.first
+      other = server.new_session(name: "other", command: ["/bin/cat"])
+      other.list_windows.first.list_panes.first.break_out(session: home.ref, name: "moved")
+      assert_equal "", fixture.tmux("show-option", "-gqv", "@hook-display").first
+
+      fixture.tmux("display-message", "-p", "control")
+      assert fixture.tmux("wait-for", "hook-display").last.success?
+      assert_equal "fired", fixture.tmux("show-option", "-gqv", "@hook-display").first.strip
+    end
+  end
+
   def test_exact_tmux_3_7_refuses_raw_break_pane_without_effect
     with_server do |server, _fixture|
       pane = server.list_panes.first.split(direction: :vertical, command: ["/bin/cat"])
