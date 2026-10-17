@@ -14,8 +14,8 @@
   its JSON saved layouts in `select_layout`, and report the PID of a dead pane
   as `nil`. **Breaking:** `PaneSnapshot#pid` is now `Integer?` on every tmux
   release in the RBS, the `where` schema and the field catalog, although only a
-  dead pane on 3.8 reports an empty PID. See [migration guidance](MIGRATION.md).
-- Add `Server#tmux_version` and the `admission_timeout:` option. `Server.new`
+  dead pane on 3.8 reports an empty PID. See [migration guidance](https://github.com/libtmux/libtmux-ruby/blob/master/MIGRATION.md).
+- Add `Server#tmux_version` and the `version_timeout:` option. `Server.new`
   now reads the daemon release and blocks for up to that long.
 
 ### libtmux-mcp
