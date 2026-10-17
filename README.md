@@ -57,8 +57,9 @@ unpatched 3.3 is below the minimum. A server handle checks the connected
 daemon's release, not the client's, and refuses an older daemon before any
 requested command runs. The
 [compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
-tests Ruby 3.3, 3.4, and 4.0 with tmux 3.3a–3.7c on Linux and macOS, and
-checks that tmux 3.2a and 3.3 daemons are refused. Check the results for your
+tests Ruby 3.3, 3.4, and 4.0 with tmux 3.3a–3.8 on Linux and macOS, runs the
+suite against a pinned tmux master build, and checks that tmux 3.2a and 3.3
+daemons are refused. Check the results for your
 revision before relying on a particular combination.
 
 ## Quick start
