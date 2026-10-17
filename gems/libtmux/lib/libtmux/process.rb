@@ -104,14 +104,17 @@ module LibTmux
         @drain_timeout = drain_timeout
       end
 
-      def run(argv, input: "".b, env: {}, timeout: 5.0, cancel: nil)
-        Execution.new(argv, input, env, timeout, cancel, @limits, @cleanup_timeout, @drain_timeout).call
+      # +discard_stdout+ gives the child the null device for stdout, so the
+      # result reports no stdout and the call does not wait for a descriptor
+      # that a daemon older than tmux 3.2 keeps open after its client exits.
+      def run(argv, input: "".b, env: {}, timeout: 5.0, cancel: nil, discard_stdout: false)
+        Execution.new(argv, input, env, timeout, cancel, @limits, @cleanup_timeout, @drain_timeout, discard_stdout).call
       end
 
       class Execution
         CHUNK_BYTES = 16_384
 
-        def initialize(argv, input, env, timeout, cancel, limits, cleanup_timeout, drain_timeout)
+        def initialize(argv, input, env, timeout, cancel, limits, cleanup_timeout, drain_timeout, discard_stdout)
           @started = monotonic
           unless argv.is_a?(Array) && !argv.empty? && argv.all? { |argument| argument.is_a?(String) && !argument.include?("\0") }
             raise ArgumentError, "argv must contain strings without NUL"
@@ -130,6 +133,7 @@ module LibTmux
           @limits = limits
           @cleanup_timeout = cleanup_timeout
           @drain_timeout = drain_timeout
+          @discard_stdout = discard_stdout
           @process_wait = ProcessWait.new
           @owned = []
           @buffers = {stdout: +"".b, stderr: +"".b}
@@ -180,7 +184,12 @@ module LibTmux
 
         def spawn
           child_input, @input_writer = pipe
-          @output_reader, child_output = pipe
+          if @discard_stdout
+            child_output = File.open(File::NULL, "wb")
+            @owned << child_output
+          else
+            @output_reader, child_output = pipe
+          end
           @error_reader, child_error = pipe
           @child = OwnedChild.new(@process_wait)
           @exit_reader = @child.reader
@@ -198,7 +207,8 @@ module LibTmux
         end
 
         def communicate
-          reading = {@output_reader => :stdout, @error_reader => :stderr}
+          reading = {@error_reader => :stderr}
+          reading[@output_reader] = :stdout if @output_reader
           loop do
             return result if @status && reading.empty?
 
