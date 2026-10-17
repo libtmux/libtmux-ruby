@@ -78,6 +78,16 @@ class TmuxVersionTest < Minitest::Test
     %w[3.7a 3.7-rc 3.7-rc2 next-3.7 3.8].each { |value| refute version.parse(value).exactly?(3, 7), value }
   end
 
+  def test_control_gate_vectors
+    %w[3.7 3.7a 3.7d 3.8-rc2 next-3.8 3.8 next-3.9 3.10 4.0].each do |value|
+      assert_equal value, version.require_control(version.parse(value)).text
+    end
+    %w[3.3a 3.6b 3.7-rc 3.7-rc2 next-3.7].each do |value|
+      error = assert_raises(LibTmux::UnsupportedFeatureError, value) { version.require_control(version.parse(value)) }
+      assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+    end
+  end
+
   def test_the_floor_itself_is_met_only_by_its_release
     version.require_supported("3.3a")
     %w[next-3.3a 3.3a-rc1].each do |value|
