@@ -119,12 +119,16 @@ the daemon behind the route stops reporting it, tmux rejects a private marker
 before any requested command runs and the call raises
 `UnsupportedFeatureError`. On tmux 3.5 and newer that rejection fires
 `command-error`. Control connections and terminal attachments use the same
-route and are not probed again.
+route and are not probed again: the route pins the checked daemon's socket
+inode, and an interactive client's output cannot carry a fence marker.
 
 The probe and the fence spell `run-shell` and `if-shell` as unambiguous
 abbreviations, so a `command-alias` entry named for the full command does not
 reach them. Qualification assumes these built-ins keep their tmux semantics;
 other redefinitions are outside the contract.
+
+`Server#tmux_version` returns the admitted release text, such as `3.7d` or
+`next-3.9`.
 
 ## Raw commands
 
