@@ -5,7 +5,6 @@ require "libtmux/mcp"
 
 class MCPCatalogToolTest < Minitest::Test
   def test_advertised_output_schemas_declare_the_mcp_object_root
-    skip "known bug: output schemas omit their object root"
     Async do
       application = LibTmux::MCP::Application.new(server: LibTmux::Async::Server.allocate,
         endpoint_name: "catalog", enabled_tools: LibTmux::MCP.const_get(:Catalog)::NAMES)
