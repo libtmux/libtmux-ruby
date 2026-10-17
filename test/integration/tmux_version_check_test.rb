@@ -20,6 +20,7 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def test_the_connected_daemon_decides_support_not_the_client
     with_fixture do |fixture|
+      plant_sentinels(fixture)
       if refused?(fixture)
         error = assert_raises(LibTmux::UnsupportedFeatureError) { open_server(fixture) }
         assert_match(/tmux 3\.3a or newer is required/, error.message)
@@ -28,6 +29,21 @@ class TmuxVersionCheckTest < Minitest::Test
         open_server(fixture) { |server| assert_equal ["$0"], server.list_sessions.map(&:id) }
       end
       assert fixture.tmux("has-session", "-t", "fixture").last.success?
+      assert_sentinels_unchanged(fixture)
+    end
+  end
+
+  # CI names the lane it means to exercise, so a missing or mis-set
+  # LIBTMUX_TEST_TMUX fails here instead of passing the other lane's tests.
+  def test_the_selected_daemon_is_the_lane_under_test
+    expected = ENV["LIBTMUX_VERSION_CHECK_EXPECT"]
+    flunk "the rejection lane must set LIBTMUX_VERSION_CHECK_EXPECT" if ENV["GITHUB_JOB"] == "unsupported" && expected.nil?
+    with_fixture do |fixture|
+      case expected
+      when "refused" then assert refused?(fixture)
+      when "supported" then refute refused?(fixture)
+      else assert_nil expected
+      end
     end
   end
 
@@ -242,6 +258,18 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def assert_supported(fixture)
     open_server(fixture) { |server| assert_equal daemon_version(fixture), server.tmux_version }
+  end
+
+  def plant_sentinels(fixture)
+    assert fixture.tmux("set-option", "-g", "@sentinel", "planted").last.success?
+    assert fixture.tmux("set-buffer", "-b", "sentinel", "planted").last.success?
+  end
+
+  def assert_sentinels_unchanged(fixture)
+    assert_equal "planted", fixture.tmux("show-option", "-gqv", "@sentinel").first.strip
+    assert_equal ["sentinel"], fixture.tmux("list-buffers", "-F", '#{buffer_name}').first.lines.map(&:chomp)
+    assert_equal "planted", fixture.tmux("show-buffer", "-b", "sentinel").first
+    assert_equal ["fixture"], fixture.tmux("list-sessions", "-F", '#{session_name}').first.lines.map(&:chomp)
   end
 
   def with_fixture

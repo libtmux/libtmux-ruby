@@ -218,8 +218,9 @@ jobs:
           make install
       - name: Exercise native refusal through a supported client
         env:
-          LIBTMUX_ADMISSION_CLIENT_TMUX: /usr/bin/tmux
-        run: LIBTMUX_TEST_TMUX="$RUNNER_TEMP/unsupported-tmux/bin/tmux" bundle exec ruby -Itest test/integration/tmux_admission_test.rb
+          LIBTMUX_VERSION_CHECK_CLIENT_TMUX: /usr/bin/tmux
+          LIBTMUX_VERSION_CHECK_EXPECT: refused
+        run: LIBTMUX_TEST_TMUX="$RUNNER_TEMP/unsupported-tmux/bin/tmux" bundle exec ruby -Itest test/integration/tmux_version_check_test.rb
 
   development:
     name: tmux development build (next-3.9)
