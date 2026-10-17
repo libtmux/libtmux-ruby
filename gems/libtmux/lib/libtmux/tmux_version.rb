@@ -123,6 +123,25 @@ module LibTmux
         raise not_sent(error), cause: nil
       end
 
+      # Reads daemon values through the probe's error text, which fires no
+      # hook, unlike display-message. tmux reports only the first unparseable
+      # word, so the fields expand to one comma-joined word.
+      def identity_argv(fields)
+        marker = "libtmux-identity-#{SecureRandom.hex(16)}-"
+        [[PROBE_COMMAND, "-C", marker + fields.map { |field| "\#{#{field}}" }.join(",")], marker]
+      end
+
+      def parse_identity(result, marker, count)
+        stderr = result.stderr.b
+        match = /\Aunknown command: #{Regexp.escape(marker.b)}([^\n ]*)\n\z/n.match(stderr)
+        values = match && match[1].split(",", -1)
+        unless !result.success? && result.stdout.empty? && values && values.length == count
+          raise ProtocolError.new("tmux did not report the requested identity", delivery: :observed, phase: :decode)
+        end
+
+        values.map(&:freeze)
+      end
+
       # Leading commands for one dispatch. A daemon that no longer reports
       # +release+ fails the if-shell condition and reaches the private marker,
       # which tmux rejects before the commands that follow.
