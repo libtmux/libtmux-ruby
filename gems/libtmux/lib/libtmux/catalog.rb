@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "tmux_version"
+
 module LibTmux
   module Internal
     # Names and bounds are explicit: wire spelling is not Ruby case conversion.
@@ -23,7 +25,7 @@ module LibTmux
         Field.new(id: id, name: name, wire_name: wire_name, format: format, type: type,
           nullable: nullable, empty_is_null: empty_is_null, min: min, max: max,
           operators: operators || {text: TEXT, integer: INTEGER, boolean: EQUALITY}.fetch(type),
-          min_version: "3.2a", scope: scope, capture_requirements: [scope].freeze)
+          min_version: Internal::TmuxVersion::MINIMUM, scope: scope, capture_requirements: [scope].freeze)
       end
       private_class_method :field
 
@@ -40,7 +42,7 @@ module LibTmux
       end
       private_class_method :schema
 
-      # 3.2a is the supported capture baseline, not a claim about first introduction.
+      # The minimum supported tmux is the capture baseline, not a claim about first introduction.
       SCHEMAS = {
         session: schema(:session, "session", [
           field(:session, "session.id", :id, "id", "session_id", :text, operators: EQUALITY),
