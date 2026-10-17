@@ -43,7 +43,8 @@ module LibTmux
       result
     end
 
-    def initialize(endpoint: nil, socket_path: nil, socket_name: nil, executable: "tmux", max_requests: 32, max_controls: 4, close_timeout: 0.5)
+    def initialize(endpoint: nil, socket_path: nil, socket_name: nil, executable: "tmux", max_requests: 32, max_controls: 4, close_timeout: 0.5,
+      version_timeout: 5.0)
       if endpoint && (socket_path || socket_name || executable != "tmux")
         raise ArgumentError, "endpoint cannot be combined with socket or executable options"
       end
@@ -56,6 +57,10 @@ module LibTmux
       end
       unless close_timeout.is_a?(Numeric) && close_timeout.finite? && close_timeout.positive?
         raise ArgumentError, "close_timeout must be positive and finite"
+      end
+
+      unless version_timeout.is_a?(Numeric) && version_timeout.finite? && version_timeout.positive?
+        raise ArgumentError, "version_timeout must be positive and finite"
       end
 
       @endpoint = endpoint || Endpoint.new(socket_path: socket_path, socket_name: socket_name, executable: executable)
@@ -71,7 +76,9 @@ module LibTmux
       @executor = Internal::ProcessExecutor.new
       @pin = Internal::SocketIdentity.new(@endpoint)
       begin
-        @release = Internal::TmuxVersion.connected(@pin.command_prefix) { |argv| @executor.run(argv, timeout: 5.0) }
+        @release = Internal::TmuxVersion.connected(@pin.command_prefix) { |argv| @executor.run(argv, timeout: version_timeout) }
+        argv, marker = Internal::TmuxVersion.fence_check_argv
+        Internal::TmuxVersion.verify_fence(@executor.run(@pin.command_prefix + argv, timeout: version_timeout), marker)
       rescue Exception
         @pin.close
         raise

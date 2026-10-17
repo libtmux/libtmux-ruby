@@ -153,9 +153,9 @@ module LibTmux
 
   class Server
     attr_reader endpoint: Endpoint
-    def self.open: [T] (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) { (Server) -> T } -> T
-                 | (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> Server
-    def initialize: (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric) -> void
+    def self.open: [T] (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric, ?version_timeout: Numeric) { (Server) -> T } -> T
+                 | (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric, ?version_timeout: Numeric) -> Server
+    def initialize: (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric, ?version_timeout: Numeric) -> void
     def tmux_version: () -> String
     def run: (Array[String], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def close: () -> nil

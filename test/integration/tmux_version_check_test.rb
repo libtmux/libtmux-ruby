@@ -31,6 +31,32 @@ class TmuxVersionCheckTest < Minitest::Test
     end
   end
 
+  def test_an_alias_named_for_the_fence_or_the_probe_refuses_the_server
+    with_fixture do |fixture|
+      next assert_refused(fixture) if refused?(fixture)
+
+      ["if-shel", "run-shel"].each do |name|
+        assert fixture.tmux("set-option", "-s", "command-alias[77]", "#{name}=display-message -p hijacked").last.success?
+        error = assert_raises(LibTmux::Error, name) { open_server(fixture) }
+        assert_equal :not_sent, error.delivery
+        assert_equal :admission, error.phase
+        assert fixture.tmux("set-option", "-su", "command-alias[77]").last.success?
+      end
+      open_server(fixture) { |server| assert_equal daemon_version(fixture), server.tmux_version }
+    end
+  end
+
+  def test_version_timeout_is_a_validated_option
+    with_fixture do |fixture|
+      next assert_refused(fixture) if refused?(fixture)
+
+      [0, -1, "5", Float::INFINITY].each do |value|
+        assert_raises(ArgumentError) { open_server(fixture, version_timeout: value) }
+      end
+      open_server(fixture, version_timeout: 10) { |server| assert_equal ["$0"], server.list_sessions.map(&:id) }
+    end
+  end
+
   def test_supported_daemons_keep_raw_batches_and_typed_reads
     with_fixture do |fixture|
       next assert_refused(fixture) if refused?(fixture)
@@ -226,8 +252,8 @@ class TmuxVersionCheckTest < Minitest::Test
     fixture&.close
   end
 
-  def open_server(fixture, &block)
-    LibTmux::Server.open(socket_path: fixture.socket_path, executable: CLIENT, &block)
+  def open_server(fixture, **options, &block)
+    LibTmux::Server.open(socket_path: fixture.socket_path, executable: CLIENT, **options, &block)
   end
 
   def daemon_version(fixture)

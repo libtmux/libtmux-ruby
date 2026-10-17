@@ -144,4 +144,19 @@ class TmuxVersionTest < Minitest::Test
       assert_same result, version.check_fence(result, marker, release)
     end
   end
+
+  def test_fence_self_check_accepts_only_the_marker_error_from_the_real_commands
+    argv, marker = version.fence_check_argv
+    assert_equal ["if-shel", "-F", "1", "run-shel -C #{marker}"], argv
+    good = Report.new(stdout: "", stderr: "unknown command: #{marker}\n", ok: false)
+    assert_same good, version.verify_fence(good, marker)
+    ["", "command display-message: too many arguments (need at most 1)\n", "ambiguous command: if-shel\n",
+      "unknown command: #{marker}\nextra\n"].each do |stderr|
+      error = assert_raises(LibTmux::UnsupportedFeatureError, stderr) do
+        version.verify_fence(Report.new(stdout: "", stderr: stderr, ok: false), marker)
+      end
+      assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+    end
+    assert_raises(LibTmux::UnsupportedFeatureError) { version.verify_fence(Report.new(stdout: "", stderr: "unknown command: #{marker}\n", ok: true), marker) }
+  end
 end

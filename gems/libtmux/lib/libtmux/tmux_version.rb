@@ -13,8 +13,13 @@ module LibTmux
     module TmuxVersion
       MINIMUM = "3.3a"
       PATTERN = /\A(?<next>next-)?(?<major>\d+)\.(?<minor>\d+)(?<patch>[a-z]?)(?<candidate>-rc\d*)?\z/
-      # Abbreviations resolve to if-shell and run-shell, but a command-alias
-      # entry named for the full command does not reach them.
+      # tmux resolves a command-alias entry by exact name before it resolves a
+      # command, so the full names run-shell and if-shell can be hijacked by one
+      # alias, as the existing link guards avoid with builtin_spellings. These
+      # unique prefixes are out of reach of such an entry, and verify_fence
+      # proves at the version check that the fence still rejects its marker, so an alias
+      # named for a prefix, or a future command sharing it, refuses the server
+      # instead of silently disabling the fence.
       FENCE_COMMAND = "if-shel"
       PROBE_COMMAND = "run-shel"
       ABSENT = /no server running|error connecting to .*\((?:No such file or directory|Connection refused)\)/
@@ -97,6 +102,22 @@ module LibTmux
       def fence(release)
         marker = "libtmux-version-#{SecureRandom.hex(16)}"
         [[FENCE_COMMAND, "-F", "\#{==:\#{version},#{release.text}}", "", marker, ";"], marker]
+      end
+
+      # A server runs this once when it is checked. A true if-shell condition
+      # runs a probe whose parse error names the marker, which shows that the
+      # fence command and the probe command are the real ones, with no failing
+      # command and so no hook.
+      def fence_check_argv
+        marker = "libtmux-fence-#{SecureRandom.hex(16)}"
+        [[FENCE_COMMAND, "-F", "1", "#{PROBE_COMMAND} -C #{marker}"], marker]
+      end
+
+      def verify_fence(result, marker)
+        return result if !result.success? && result.stdout.empty? && result.stderr.b == "unknown command: #{marker}\n".b
+
+        raise UnsupportedFeatureError.new("a tmux command-alias or command shadows #{FENCE_COMMAND} or " \
+          "#{PROBE_COMMAND}; remove it before opening a server", phase: :admission, delivery: :not_sent)
       end
 
       def check_fence(result, marker, release)
