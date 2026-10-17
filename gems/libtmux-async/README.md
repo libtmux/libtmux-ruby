@@ -18,7 +18,8 @@ subscriptions. Imports start no scheduler, tmux server or background task.
 </div>
 
 Requires tmux 3.3a or newer. The Async facade dispatches through a version-checked
-core server and carries the same daemon release check.
+core server and carries the same daemon release check. `open_control` needs
+tmux 3.7 or newer; older daemons refuse it before a control client attaches.
 
 Install the alpha with `gem install libtmux-async --pre`.
 

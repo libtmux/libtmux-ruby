@@ -24,6 +24,10 @@ retains exact per-revision platform and version results.
 Requires tmux 3.3a or newer; unpatched 3.3 is below the minimum. A server
 handle checks the connected daemon's release before any command is
 dispatched, and refuses an older daemon even when its client is newer.
+Control connections need tmux 3.7 or newer and are refused before a control
+client attaches on older daemons; subprocess operations and snapshots do not.
+The [optional feature table](../../docs/reference/behavior.md#optional-tmux-features)
+lists the other per-release requirements.
 
 Install the alpha with `gem install libtmux --pre`, then require `libtmux`.
 Imports do not

@@ -141,6 +141,44 @@ checked release text, such as `3.7d` or `next-3.9`.
 reachable as `Support::Versions`. Here "support" means tmux version support,
 not helper code.
 
+## Optional tmux features
+
+Optional features keep their own requirements. The checked daemon release
+decides each one before any effect, and a refusal raises
+`UnsupportedFeatureError` with `delivery: :not_sent` and `phase: :admission`.
+None of them raises the 3.3a minimum for subprocess operations, snapshots,
+workspace builds or MCP tools that do not need them.
+
+| Feature | Daemon | Older or affected daemon | State |
+| --- | --- | --- | --- |
+| Control connections: `open_control`, Async control, reconnect | 3.7 and newer | Refused before a control client attaches | Refusal qualified by tests; acquisition operative with synchronization |
+| MCP `tmux_wait` condition `screen_contains` | 3.7 and newer | Refused; `process_exit` stays available | Same as control connections |
+| Named buffer deletion and rename (`delete_buffer`, `delete-buffer -b`, `set-buffer -b -n`) | 3.4 and newer | Refused: an absent name acts on an unrelated buffer | Refusal qualified by tests |
+| Named paste and delete (`Pane#paste` with `delete: true`) | 3.3a and newer | Exact lookup, available | Qualified in the stated evidence |
+| `Pane#break_out` | All supported | Exact 3.7 applies the name again after the move; 3.3a through 3.5 read a sole pane's window back because break-pane prints no ID | Qualified in the stated evidence |
+| Raw `break-pane` | All except exact 3.7 | Refused on exact 3.7, which crashes without a name | Refusal qualified by tests |
+| Session and window names with `:` or `.` | All except exact 3.7 | Refused on exact 3.7 before dispatch | Refusal qualified by tests |
+| Raw `split-window -p` | All except 3.4 | Refused on 3.4; typed splits always send `-l N%` | Refusal qualified by tests |
+| Malformed layouts | 3.4 and newer | tmux 3.3a faults on a malformed header, so `select_layout` and raw `select-layout` accept only a checksummed layout or a unique built-in name | Refusal qualified by tests |
+
+tmux 3.8 saved layouts are JSON; `select_layout` accepts them from 3.8.
+
+Admission, the snapshot's server identity and the break-out read-back avoid
+`display-message`, so a user's `after-display-message` hook never runs as a side
+effect of them.
+
+Raw `run` reads literal argv, including `;` separated batches and tmux's
+command abbreviations, for the buffer, `break-pane`, `split-window` and
+`select-layout` rows. Opaque programs, such as the command string given to
+`if-shell` or `run-shell`, and the contents of `command-alias` entries are not
+read. The library promises no captured `run-shell` stdout: raw output is what
+the client prints, and control event routing of `run-shell` output differs by
+release.
+
+Control acquisition already reaches the daemon through the retained private
+socket route, which keeps the path short and pins the socket. Unverified:
+concurrent acquisition beyond idle attachment on 3.7 and newer.
+
 ## Raw commands
 
 `Server#run` submits an argv array without a shell. Raw tmux separators,
@@ -485,6 +523,8 @@ preserves the daemon. Output remains on the terminal and the return value is
 
 ## Control connections
 
+Control connections require tmux 3.7 or newer and are refused earlier on the
+checked release (see [Optional tmux features](#optional-tmux-features)).
 Prefer `Server#open_control(session: ref)` so the binding accounts for the
 connection. Blocks close it on exit; without a block the caller must close
 it. Low-level constructors require an internal binding and exact session ID.
