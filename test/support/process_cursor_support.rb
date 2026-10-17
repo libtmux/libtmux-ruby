@@ -46,9 +46,7 @@ module LibTmuxTest
 
     def process_cursor_tmux_supported?(scope)
       version = scope.server.run(["display-message", "-p", '#{version}']).text.strip
-      parts = /\A(\d+)\.(\d+)/.match(version)
-      assert parts, "tmux did not report a parseable version"
-      ([parts[1].to_i, parts[2].to_i] <=> [3, 3]) >= 0
+      (LibTmux::Internal::TmuxVersion.parse(version) <=> LibTmux::Internal::TmuxVersion.parse("3.3a")) >= 0
     end
   end
 end
