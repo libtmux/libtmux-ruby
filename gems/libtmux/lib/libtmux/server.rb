@@ -5,6 +5,7 @@ require_relative "process"
 require_relative "metadata"
 require_relative "entity"
 require_relative "tmux_version"
+require_relative "native_guard"
 
 module LibTmux
   # Connects to an existing endpoint. Closing retires clients, never the daemon.
@@ -93,17 +94,7 @@ module LibTmux
 
     # Raw tmux arguments retain tmux's separators and format semantics.
     def run(argv, input: "".b, timeout: 5.0, cancel: nil)
-      ensure_owner
-      started = monotonic
-      validate_argv(argv)
-      raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
-      raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
-      perform_request(cancel: cancel) do |view|
-        fence, marker = Internal::TmuxVersion.fence(@release)
-        result = @executor.run(@pin.command_prefix + fence + argv, input: input,
-          timeout: timeout - (monotonic - started), cancel: view)
-        Internal::TmuxVersion.check_fence(result, marker, @release)
-      end
+      dispatch(argv, input: input, timeout: timeout, cancel: cancel)
     end
 
     def close
@@ -309,10 +300,6 @@ module LibTmux
       with_bound_endpoint { |_endpoint, _pin, release| release }
     end
 
-    def tmux_release
-      with_bound_endpoint { |_endpoint, _pin, release| release }
-    end
-
     def monotonic
       Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
@@ -420,8 +407,25 @@ module LibTmux
       end
     end
 
-    def execute_typed(arguments, **options)
-      result = run(encode_arguments(arguments), **options)
+    # Library operations that repair exact tmux 3.7's break-pane say so here.
+    def dispatch(argv, input: "".b, timeout: 5.0, cancel: nil, repaired_break: false)
+      ensure_owner
+      started = monotonic
+      validate_argv(argv)
+      raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
+      raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
+      Internal::NativeGuard.check(argv, @release, repaired_break: repaired_break)
+      perform_request(cancel: cancel) do |view|
+        fence, marker = Internal::TmuxVersion.fence(@release)
+        result = @executor.run(@pin.command_prefix + fence + argv, input: input,
+          timeout: timeout - (monotonic - started), cancel: view)
+        Internal::TmuxVersion.check_fence(result, marker, @release)
+      end
+    end
+
+    def execute_typed(arguments, repaired_break: false, **options)
+      arguments = encode_arguments(arguments)
+      result = repaired_break ? dispatch(arguments, repaired_break: true, **options) : run(arguments, **options)
       raise CommandError.new(result: result, phase: :command) unless result.success?
 
       result

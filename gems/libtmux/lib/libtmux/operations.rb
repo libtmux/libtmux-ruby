@@ -345,10 +345,30 @@ module LibTmux
       reposition("move-pane", other, direction: direction, before: before, timeout: timeout, cancel: cancel)
     end
 
+    # Exact tmux 3.7 ignores -n on break-pane and crashes without it, so the
+    # name is applied again afterwards. Before 3.6 a sole pane's break prints
+    # no ID, so the window is read back from the pane.
     def break_out(session:, name:, timeout: 5.0, cancel: nil)
+      budget = server.__send__(:operation_budget, timeout, cancel)
       destination = server.__send__(:target, session, :session)
-      server.__send__(:create_entity, :window, ["break-pane", "-d", "-P", "-F", server.__send__(:id_format, :window),
-        "-s", target, "-t", "#{destination}:", "-n", server.__send__(:literal_name, name)], timeout: timeout, cancel: cancel)
+      literal = server.__send__(:literal_name, name)
+      repaired = server.__send__(:tmux_release).key == [3, 7, 0, 1]
+      result = server.__send__(:execute_typed, ["break-pane", "-d", "-P", "-F", server.__send__(:id_format, :window),
+        "-s", target, "-t", "#{destination}:", "-n", literal], repaired_break: repaired, **budget.options)
+      id = result.stdout.empty? ? nil : result.stdout
+      if id.nil?
+        located = server.__send__(:execute_typed, ["list-panes", "-t", target, "-F", server.__send__(:id_format, :window)],
+          **budget.options)
+        id = located.stdout.lines.first.to_s
+      end
+      rows = Internal::Metadata.decode(id, fields: 1, max_rows: 1)
+      raise ProtocolError.new("tmux did not return the broken-out window ID", delivery: :observed, phase: :decode) unless rows.length == 1
+
+      window = server.__send__(:build_entity, :window, rows.first.first)
+      if repaired
+        server.__send__(:execute_typed, ["rename-window", "-t", window.id, "--", literal], **budget.options)
+      end
+      window
     end
 
     def respawn(command:, kill: false, cwd: nil, environment: {}, timeout: 5.0, cancel: nil)
