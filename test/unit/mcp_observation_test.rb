@@ -19,6 +19,9 @@ class MCPObservationTest < Minitest::Test
       assert_equal "conditional", observation.capabilities("3.3a").fetch("process_cursor")
       assert_equal "unsupported", observation.capabilities("3.2a").fetch("process_cursor")
       assert_equal "unsupported", observation.capabilities("unknown").fetch("process_cursor")
+      %w[3.3a 3.6b 3.7 next-3.7 3.8].each do |value|
+        assert_equal %w[screen_contains process_exit], observation.capabilities(value).fetch("wait_conditions")
+      end
       observation.send(:remove_const, :RUBY_PLATFORM)
     end
     observation.const_set(:RUBY_PLATFORM, "x64-mingw32")

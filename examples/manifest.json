@@ -154,7 +154,7 @@
           "LibTmux::Pane#send_keys",
           "LibTmux::Pane#capture"
         ],
-        "description": "Send a command to a shell, wait for its output notification, then capture the pane. Match a whole output line so the echoed command cannot satisfy the check.",
+        "description": "Send a command to a shell, poll the pane until its output line appears, then capture it. Match a whole output line so the echoed command cannot satisfy the check.",
         "output": "libtmux capture ready\n"
       }
     }

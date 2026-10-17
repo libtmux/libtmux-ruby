@@ -2,12 +2,17 @@
 
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
+require_relative "../support/control_support"
 require "libtmux"
 
 class ServerControlTest < Minitest::Test
+  include LibTmuxTest::ControlSupport
+
   def test_server_owns_bounded_control_clients_and_closes_pending_exchanges
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path, max_controls: 1) do |server|
+        next unless require_control_support(server)
+
         session = server.list_sessions.first
         control = server.open_control(session: session.ref)
         assert_equal "ready\n", control.exchange("display-message -p ready", timeout: 0.5).blocks.last.body
@@ -39,6 +44,8 @@ class ServerControlTest < Minitest::Test
   def test_control_block_preserves_result_exception_and_binding_checks
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
+        next unless require_control_support(server)
+
         session = server.list_sessions.first
         pid = nil
         assert_equal :returned, server.open_control(session: session.ref) { |control| pid = control.pid; :returned }

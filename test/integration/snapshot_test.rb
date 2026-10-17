@@ -2,12 +2,16 @@
 
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
+require_relative "../support/control_support"
 require "libtmux"
+require "pty"
 require "libtmux/control"
 require "socket"
 require "libtmux/capture" if File.exist?(File.expand_path("../../gems/libtmux/lib/libtmux/capture.rb", __dir__))
 
 class SnapshotIntegrationTest < Minitest::Test
+  include LibTmuxTest::ControlSupport
+
   def test_three_links_have_one_global_window_and_local_readers_outlive_server
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
@@ -129,21 +133,26 @@ class SnapshotIntegrationTest < Minitest::Test
 
   def test_requested_clients_are_observations_and_empty_server_is_a_complete_graph
     LibTmuxTest::TmuxFixture.open do |fixture|
-      LibTmux::Server.open(socket_path: fixture.socket_path) do |server|
+      LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |server|
         pin = LibTmux::Internal::SocketIdentity.new(server.endpoint)
         begin
-          LibTmux::ControlConnection.open(binding: pin, session_id: "$0") do |control|
-            control.exchange("display-message -p ready", timeout: 0.5)
-            capture = acquire(server, clients: true)
-            client = capture.clients.one
-            assert_equal control.pid, client.pid
-            assert_equal "$0", client.session_id
-            assert client.control_mode?
-            assert client.utf8?
-            assert_nil client.height
-            assert_same capture.sessions.one, client.session
-            assert client.name.frozen?
-            assert_raises(LibTmux::UnsupportedFeatureError) { client.ref }
+          if require_control_binding(pin)
+            LibTmux::ControlConnection.open(binding: pin, session_id: "$0") do |control|
+              control.exchange("display-message -p ready", timeout: 0.5)
+              capture = acquire(server, clients: true)
+              client = capture.clients.one
+              assert_equal control.pid, client.pid
+              assert_equal "$0", client.session_id
+              assert client.control_mode?
+              assert client.utf8?
+              assert_nil client.height
+              assert_same capture.sessions.one, client.session
+              assert client.name.frozen?
+              assert_raises(LibTmux::UnsupportedFeatureError) { client.ref }
+            end
+          else
+            # Control clients are refused here, so observe a terminal client.
+            observe_terminal_client(server)
           end
         ensure
           pin.close
@@ -161,6 +170,33 @@ class SnapshotIntegrationTest < Minitest::Test
   end
 
   private
+
+  def observe_terminal_client(server)
+    token = LibTmux::Internal::Cancellation.new
+    PTY.open do |_master, terminal|
+      terminal.winsize = [24, 80]
+      session = server.list_sessions.first
+      worker = Thread.new do
+        server.attach(session: session.ref, terminal: terminal, term: "xterm", cancel: token)
+      rescue LibTmux::Cancelled
+        nil
+      end
+      begin
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+        sleep 0.01 until !server.list_clients.empty? || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        capture = acquire(server, clients: true)
+        client = capture.clients.one
+        assert_equal "$0", client.session_id
+        refute client.control_mode?
+        assert_same capture.sessions.one, client.session
+      ensure
+        token.cancel
+        worker.join(1)
+      end
+    end
+  ensure
+    token.close
+  end
 
   def acquire(server, **options)
     server.snapshot(**options)

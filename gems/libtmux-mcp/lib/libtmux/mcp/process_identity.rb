@@ -193,9 +193,9 @@ module LibTmux
         end
         # Registration may find a recycled PID. A fresh pinned-route reply must
         # name that same daemon while its retained process observer stays live.
-        name = server.__send__(:builtin_spellings, "display-message", budget: budget).fetch("display-message")
-        result = server.__send__(:execute_typed, [name, "-p", '#{pid}'], **budget.options)
-        unless result.stdout == "#{server_pid}\n".b && !readable?(peer)
+        argv, marker = LibTmux::Internal::TmuxVersion.identity_argv(%w[pid])
+        reported = LibTmux::Internal::TmuxVersion.parse_identity(server.run(argv, **budget.options), marker, 1).first
+        unless reported == server_pid.to_s && !readable?(peer)
           raise UnsupportedFeatureError.new("bound response does not establish the tmux process", phase: :admission)
         end
         budget.options

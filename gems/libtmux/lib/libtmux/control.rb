@@ -2,6 +2,8 @@
 
 require "libtmux/endpoint"
 require "libtmux/child"
+require "libtmux/process"
+require "libtmux/tmux_version"
 
 module LibTmux
   class GuardedBlock
@@ -386,6 +388,10 @@ module LibTmux
           begin
             process_wait = Internal::ProcessWait.new
             prefix = binding.command_prefix
+            release = binding.release || Internal::TmuxVersion.connected(prefix) do |probe|
+              Internal::ProcessExecutor.new.run(probe, timeout: 5.0)
+            end
+            Internal::TmuxVersion.require_control(release)
             @pin = Internal::SocketIdentity.new(Endpoint.new(socket_path: prefix.last, executable: prefix.first))
             @wake_reader, @wake_writer = pipe
             input_reader, @input = pipe

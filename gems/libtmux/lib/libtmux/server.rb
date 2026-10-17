@@ -5,6 +5,7 @@ require_relative "process"
 require_relative "metadata"
 require_relative "entity"
 require_relative "tmux_version"
+require_relative "native_guard"
 
 module LibTmux
   # Connects to an existing endpoint. Closing retires clients, never the daemon.
@@ -77,6 +78,7 @@ module LibTmux
       @pin = Internal::SocketIdentity.new(@endpoint)
       begin
         @release = Internal::TmuxVersion.connected(@pin.command_prefix) { |argv| @executor.run(argv, timeout: version_timeout) }
+        @pin.record_release(@release)
         argv, marker = Internal::TmuxVersion.fence_check_argv
         Internal::TmuxVersion.verify_fence(@executor.run(@pin.command_prefix + argv, timeout: version_timeout), marker)
       rescue Exception
@@ -90,19 +92,14 @@ module LibTmux
       @release.text
     end
 
+    # True when the checked daemon accepts control clients (tmux 3.7 and newer).
+    def supports_control?
+      (@release <=> Internal::TmuxVersion.parse(Internal::TmuxVersion::CONTROL_MINIMUM)) >= 0
+    end
+
     # Raw tmux arguments retain tmux's separators and format semantics.
     def run(argv, input: "".b, timeout: 5.0, cancel: nil)
-      ensure_owner
-      started = monotonic
-      validate_argv(argv)
-      raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
-      raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
-      perform_request(cancel: cancel) do |view|
-        fence, marker = Internal::TmuxVersion.fence(@release)
-        result = @executor.run(@pin.command_prefix + fence + argv, input: input,
-          timeout: timeout - (monotonic - started), cancel: view)
-        Internal::TmuxVersion.check_fence(result, marker, @release)
-      end
+      dispatch(argv, input: input, timeout: timeout, cancel: cancel)
     end
 
     def close
@@ -415,8 +412,25 @@ module LibTmux
       end
     end
 
-    def execute_typed(arguments, **options)
-      result = run(encode_arguments(arguments), **options)
+    # Library operations that repair exact tmux 3.7's break-pane say so here.
+    def dispatch(argv, input: "".b, timeout: 5.0, cancel: nil, repaired_break: false)
+      ensure_owner
+      started = monotonic
+      validate_argv(argv)
+      raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
+      raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
+      Internal::NativeGuard.check(argv, @release, repaired_break: repaired_break)
+      perform_request(cancel: cancel) do |view|
+        fence, marker = Internal::TmuxVersion.fence(@release)
+        result = @executor.run(@pin.command_prefix + fence + argv, input: input,
+          timeout: timeout - (monotonic - started), cancel: view)
+        Internal::TmuxVersion.check_fence(result, marker, @release)
+      end
+    end
+
+    def execute_typed(arguments, repaired_break: false, **options)
+      arguments = encode_arguments(arguments)
+      result = repaired_break ? dispatch(arguments, repaired_break: true, **options) : run(arguments, **options)
       raise CommandError.new(result: result, phase: :command) unless result.success?
 
       result
@@ -431,6 +445,12 @@ module LibTmux
     def literal_name(name)
       unless name.is_a?(String) && !name.empty? && !name.include?("\0")
         raise ArgumentError, "name must be a nonempty String without NUL"
+      end
+      # Exact tmux 3.7 rejects these in session and window names, so the
+      # refusal comes before any effect.
+      if @release.exactly?(3, 7) && name.match?(/[:.]/)
+        raise UnsupportedFeatureError.new("tmux 3.7 rejects ':' and '.' in session and window names",
+          phase: :admission, delivery: :not_sent)
       end
       name.gsub("#", "##")
     end

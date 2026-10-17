@@ -102,28 +102,40 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
     consumer.call("::LibTmux::CommandResult", result, :stdout, expected: "String")
     consumer.call("::LibTmux::CommandResult", result, :success?, expected: "bool")
     consumer.verify_rejects_wrong_return
-    consumer.call("::LibTmux::Server", server, :open_control, session: session.ref, expected: ":checked") do |control|
-      reply = consumer.call("::LibTmux::ControlConnection", control, :exchange, "display-message -p typed", expected: "::LibTmux::GuardedReply")
-      counters = consumer.call("::LibTmux::ControlConnection", control, :diagnostics,
-        expected: "Hash[Symbol, Integer | bool | Hash[Symbol, Integer]]")
-      raise "consumed reply is still retained" unless counters.fetch(:retained_reply_bytes).zero?
-      blocks = consumer.call("::LibTmux::GuardedReply", reply, :blocks, expected: "Array[::LibTmux::GuardedBlock]")
-      consumer.call("::LibTmux::GuardedBlock", blocks.last, :raw, expected: "String")
-      client = server.list_clients.find { |entry| entry.fetch(:pid) == control.pid }.fetch(:name)
-      consumer.call("::LibTmux::Server", server, :switch_client, client: client, session: session.ref,
-        expected: "::LibTmux::CommandResult")
-      stream = consumer.call("::LibTmux::ControlConnection", control, :subscribe, max_events: 2,
-        expected: "::LibTmux::ControlSubscription")
-      consumer.call("::LibTmux::ControlSubscription", stream, :close, expected: "nil")
-      consumer.call("::LibTmux::ControlSubscription", stream, :diagnostics,
-        expected: "{queued_events: Integer, retained_event_bytes: Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable | :tail, limits: Hash[Symbol, Integer]}")
-      :checked
+    # Control clients attach only to tmux 3.7 and newer; older daemons refuse.
+    control_daemon = server.supports_control?
+    if control_daemon
+      consumer.call("::LibTmux::Server", server, :open_control, session: session.ref, expected: ":checked") do |control|
+        reply = consumer.call("::LibTmux::ControlConnection", control, :exchange, "display-message -p typed", expected: "::LibTmux::GuardedReply")
+        counters = consumer.call("::LibTmux::ControlConnection", control, :diagnostics,
+          expected: "Hash[Symbol, Integer | bool | Hash[Symbol, Integer]]")
+        raise "consumed reply is still retained" unless counters.fetch(:retained_reply_bytes).zero?
+        blocks = consumer.call("::LibTmux::GuardedReply", reply, :blocks, expected: "Array[::LibTmux::GuardedBlock]")
+        consumer.call("::LibTmux::GuardedBlock", blocks.last, :raw, expected: "String")
+        client = server.list_clients.find { |entry| entry.fetch(:pid) == control.pid }.fetch(:name)
+        consumer.call("::LibTmux::Server", server, :switch_client, client: client, session: session.ref,
+          expected: "::LibTmux::CommandResult")
+        stream = consumer.call("::LibTmux::ControlConnection", control, :subscribe, max_events: 2,
+          expected: "::LibTmux::ControlSubscription")
+        consumer.call("::LibTmux::ControlSubscription", stream, :close, expected: "nil")
+        consumer.call("::LibTmux::ControlSubscription", stream, :diagnostics,
+          expected: "{queued_events: Integer, retained_event_bytes: Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable | :tail, limits: Hash[Symbol, Integer]}")
+        :checked
+      end
+    else
+      begin
+        server.open_control(session: session.ref)
+        raise "control client attached to a daemon older than 3.7"
+      rescue LibTmux::UnsupportedFeatureError
+        nil
+      end
     end
     consumer.call("singleton(::LibTmux::ControlEvent)", LibTmux::ControlEvent, :new,
       kind: :output, raw: "%output %0 typed\n", data: "typed", expected: "::LibTmux::ControlEvent")
     raise "consumer fixture unexpectedly empty" unless records.length == 2
   when "libtmux-async"
     session = server.new_session(name: "async-types", command: ["/bin/cat"])
+    control_daemon = server.supports_control?
     Async do |parent|
       consumer.call("singleton(::LibTmux::Async)", LibTmux::Async, :open, parent: parent, server: server, expected: ":checked") do |scope|
         facade = consumer.call("::LibTmux::Async::Scope", scope, :server, expected: "::LibTmux::Async::Server")
@@ -133,12 +145,21 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
         consumer.call("::LibTmux::Async::Server", facade, :diagnostics, expected: "::LibTmux::Async::scope_diagnostics")
         panes = consumer.call("::LibTmux::Async::Server", facade, :list_panes, expected: "Array[::LibTmux::Pane]")
         consumer.call("::LibTmux::Async::Scope", scope, :map, panes, concurrency: 2, expected: "Array[::LibTmux::CommandResult]") { |pane| pane.capture }
-        consumer.call("::LibTmux::Async::Server", facade, :open_control, session: session.ref, expected: ":checked") do |control|
-          consumer.call("::LibTmux::Async::ControlConnection", control, :exchange, "display-message -p typed", expected: "::LibTmux::GuardedReply")
-          client = facade.list_clients.find { |entry| entry.fetch(:pid) == control.pid }.fetch(:name)
-          consumer.call("::LibTmux::Async::Server", facade, :switch_client, client: client, session: session.ref,
-            expected: "::LibTmux::CommandResult")
-          :checked
+        if control_daemon
+          consumer.call("::LibTmux::Async::Server", facade, :open_control, session: session.ref, expected: ":checked") do |control|
+            consumer.call("::LibTmux::Async::ControlConnection", control, :exchange, "display-message -p typed", expected: "::LibTmux::GuardedReply")
+            client = facade.list_clients.find { |entry| entry.fetch(:pid) == control.pid }.fetch(:name)
+            consumer.call("::LibTmux::Async::Server", facade, :switch_client, client: client, session: session.ref,
+              expected: "::LibTmux::CommandResult")
+            :checked
+          end
+        else
+          begin
+            facade.open_control(session: session.ref)
+            raise "Async control client attached to a daemon older than 3.7"
+          rescue LibTmux::UnsupportedFeatureError
+            nil
+          end
         end
         :checked
       end

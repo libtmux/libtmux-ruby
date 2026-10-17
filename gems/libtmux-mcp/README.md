@@ -18,7 +18,9 @@ The official MCP SDK handles the protocol; bounded Async tasks handle transport.
 </div>
 
 Requires tmux 3.3a or newer. The server refuses an older daemon when it
-starts, before serving any tool.
+starts, before serving any tool. The `screen_contains` wait condition uses
+control events on tmux 3.7 and newer and polls the pane screen on older
+daemons, which take no control client.
 
 Install the alpha and its `libtmux-mcp` executable:
 

@@ -12,6 +12,7 @@ module LibTmux
     # then fenced against that exact text.
     module TmuxVersion
       MINIMUM = "3.3a"
+      CONTROL_MINIMUM = "3.7"
       # The forms tmux has reported: X.Y, X.Y plus a patch letter, X.Y-rc and
       # X.Y-rcN candidates, and next-X.Y development builds. Anything else,
       # including master and openbsd-*, is not a release number.
@@ -76,6 +77,16 @@ module LibTmux
         release
       end
 
+      # Control clients crash tmux servers older than 3.7 while they attach.
+      def require_control(release)
+        raise UnsupportedFeatureError.new("control connections need a version-checked server", phase: :admission) unless release
+
+        return release unless (release <=> parse(CONTROL_MINIMUM)).negative?
+
+        raise UnsupportedFeatureError.new("control connections require tmux #{CONTROL_MINIMUM} or newer " \
+          "(connected version #{release.text})", phase: :admission, delivery: :not_sent)
+      end
+
       # Reads the daemon behind +prefix+. The block runs the argv and returns a
       # CommandResult. Unlike display-message, run-shell -C fires no after-*
       # hook and no command-error hook: tmux parses the expanded string after
@@ -110,6 +121,25 @@ module LibTmux
         require_supported(match && match[1])
       rescue Error => error
         raise not_sent(error), cause: nil
+      end
+
+      # Reads daemon values through the probe's error text, which fires no
+      # hook, unlike display-message. tmux reports only the first unparseable
+      # word, so the fields expand to one comma-joined word.
+      def identity_argv(fields)
+        marker = "libtmux-identity-#{SecureRandom.hex(16)}-"
+        [[PROBE_COMMAND, "-C", marker + fields.map { |field| "\#{#{field}}" }.join(",")], marker]
+      end
+
+      def parse_identity(result, marker, count)
+        stderr = result.stderr.b
+        match = /\Aunknown command: #{Regexp.escape(marker.b)}([^\n ]*)\n\z/n.match(stderr)
+        values = match && match[1].split(",", -1)
+        unless !result.success? && result.stdout.empty? && values && values.length == count
+          raise ProtocolError.new("tmux did not report the requested identity", delivery: :observed, phase: :decode)
+        end
+
+        values.map(&:freeze)
       end
 
       # Leading commands for one dispatch. A daemon that no longer reports
