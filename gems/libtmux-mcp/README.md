@@ -15,13 +15,33 @@ Expose an existing tmux server over MCP stdio. Read snapshots, capture pane
 output, wait for events, or explicitly enable creation, input and shell commands.
 The official MCP SDK handles the protocol; bounded Async tasks handle transport.
 
+[API reference](https://libtmux.org/en/ruby/latest/mcp/reference/) ·
+[Tools](https://libtmux.org/en/ruby/latest/mcp/tools/) ·
+[Guides](https://libtmux.org/en/ruby/latest/mcp/guides/) ·
+[RubyGems](https://rubygems.org/gems/libtmux-mcp)
+
 </div>
 
-Requires tmux 3.3a or newer. The server refuses an older daemon when it
-starts, before serving any tool, and prints the reason and the remedy on
-stderr. If the daemon changes while the server runs, a tool call returns an
-`unsupported` result with `delivery: not_sent` and a fixed line that names the
-floor and says to upgrade tmux and restart the server.
+**Contents** — [Install](#install) · [Start the server](#start-the-server) ·
+[Connect a client](#connect-a-client) ·
+[Snapshots, capture and waits](#snapshots-capture-and-waits) ·
+[Create, send and close](#create-send-and-close) ·
+[Run authored commands](#run-authored-commands) ·
+[Embed in Ruby](#embed-in-ruby)
+
+Part of [libtmux for Ruby](https://github.com/libtmux/libtmux-ruby#readme).
+Built on [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux)
+and [libtmux-async](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-async).
+
+Requires tmux 3.3a or newer.
+
+- The server refuses an older daemon when it starts, before it serves any tool,
+  and prints the reason and the remedy on stderr.
+- If the daemon changes while the server runs, a tool call returns an
+  `unsupported` result with `delivery: not_sent`. The result names the floor
+  and says to upgrade tmux and restart the server.
+
+## Install
 
 Install the alpha and its `libtmux-mcp` executable:
 
@@ -44,14 +64,31 @@ Use `--socket-name NAME` instead of `--socket PATH` to select a named socket.
 `--endpoint` sets the public alias used in discovery and resource URIs; it does
 not select the socket. EOF retires owned clients and preserves the daemon.
 
+To try it, start a tmux server on a socket of its own, then serve it by name:
+
+```console
+$ tmux -L agent new-session -d -s work
+```
+
+```console
+$ libtmux-mcp \
+    --socket-name agent
+```
+
+An MCP client launches this command and speaks to it on stdin and stdout. Run
+by hand, it waits for input until EOF. The alias defaults to `local`, and
+`libtmux-mcp --help` lists every option.
+
 | Tools | Default | Purpose |
 | --- | --- | --- |
-| `tmux_capabilities`, `tmux_snapshot` | Enabled | Discover capabilities and query captured metadata |
-| `tmux_capture`, `tmux_wait` | Disabled | Capture a screen or wait for text/process exit |
-| `tmux_create`, `tmux_send`, `tmux_close` | Disabled | Create entities, send text/keys and tear down exact targets |
-| `tmux_run` | Disabled | Run a script in an explicitly enrolled zsh shell |
+| [`tmux_capabilities`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capabilities/), [`tmux_snapshot`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_snapshot/) | Enabled | Discover capabilities and query captured metadata |
+| [`tmux_capture`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capture/), [`tmux_wait`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_wait/) | Disabled | Capture a screen or wait for text/process exit |
+| [`tmux_create`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_create/), [`tmux_send`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_send/), [`tmux_close`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_close/) | Disabled | Create entities, send text/keys and tear down exact targets |
+| [`tmux_run`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_run/) | Disabled | Run a script in an explicitly enrolled zsh shell |
 
-Repeat `--enable-tool` for each additional tool. For screen capture and waits:
+Each tool name links to its page on libtmux.org, with the arguments, limits and
+result schema. Repeat `--enable-tool` for each additional tool. For screen
+capture and waits:
 
 ```console
 $ libtmux-mcp \
@@ -60,100 +97,182 @@ $ libtmux-mcp \
     --enable-tool tmux_wait
 ```
 
-Disabled tools are absent from discovery and denied on direct application calls.
+- Disabled tools are absent from discovery and denied on direct application
+  calls.
+- An unknown tool name is refused when the server starts.
+
 The [complete protocol recipe](../../examples/mcp_protocol.rb) exercises
 discovery, snapshots, default denial, enabled mutations, cancellation and EOF
 cleanup through actual pipes, including the installed executable.
 
+## Connect a client
+
+Start a tmux server as above, then give your client the command. Claude Code:
+
+```console
+$ claude mcp add tmux -- libtmux-mcp --socket-name agent --endpoint dev
+```
+
+Codex CLI:
+
+```console
+$ codex mcp add tmux -- libtmux-mcp --socket-name agent --endpoint dev
+```
+
+A client that reads a JSON configuration, such as Claude Desktop's
+`claude_desktop_config.json`, takes the same command as an `mcpServers` entry:
+
+<!-- example: mcp_client/config -->
+```json
+{
+  "mcpServers": {
+    "tmux": {
+      "command": "libtmux-mcp",
+      "args": ["--socket-name", "agent", "--endpoint", "dev"]
+    }
+  }
+}
+```
+<!-- /example -->
+
+If the client does not start servers with your shell's `PATH`, set `command` to
+the absolute path that `command -v libtmux-mcp` prints.
+
 ## Snapshots, capture and waits
 
-Snapshot pages retain one immutable capture and query. Cursor expiry or eviction
-returns an error; it never substitutes a new live listing. Defaults retain up to
-16 captures and 8 MiB for 30 seconds, with a five-second acquisition deadline and
-one-MiB structured response limit. A cursor pages captured metadata; it does not
-claim that an old pane process still exists. Schema validation supplements the
-core decoder's stricter byte, depth, node and duplicate-key rules.
+[`tmux_snapshot`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_snapshot/):
 
-Opt into `tmux_capture` for a bounded screen snapshot. Results retain line
-endings, encode invalid UTF-8 as base64, and distinguish truncated screen
-content from unknown history continuity. Tracking produces a retained cursor;
-subsequent calls return a splice against that exact captured state. A screen
-delta does not establish that every intervening output byte was observed.
+- Pages come from one immutable capture, and a cursor continues that capture.
+- An expired, evicted or foreign cursor returns an error. The server never
+  substitutes a fresh listing.
 
-Capture refuses nonempty effective `after-capture-pane` hooks, including
-inherited sparse entries. On tmux 3.3a–3.4, callers must keep capture-hook
-configuration stable throughout observation: those versions require a separate
-hook preflight. tmux 3.5+ checks the hook in the capture command queue. Both paths
-retain an explicit session/pane context and refuse its removal instead of
-switching to another session's hooks. Process tracking retains its native
-identity checks on every version that supports it.
+[`tmux_capture`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capture/):
 
-`tmux_wait` observes screen text or process exit through events. Canceling it
-retires its observation resources without signaling the pane program. Strong
-process tracking requires tmux 3.3a or later and a native identity backend:
-Linux peer pidfds with matching process namespaces, or Darwin kqueue process
-observation. Acquisition verifies the live daemon and pane before retaining
-a cursor; unavailable evidence produces an explicit refusal. The
-[compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
-records each exact platform/version result: positive identity cases on
-supported releases, and refusal jobs for tmux 3.0a, 3.1c, 3.2a and unpatched
-3.3.
+- Reads a bounded screen and keeps its line endings. Bytes that are not valid
+  UTF-8 come back base64-encoded.
+- With tracking, a call returns a cursor, and later calls return a splice
+  against that exact captured state. A cursor from another server generation
+  or from a respawned pane is refused.
+- Refuses a pane whose effective `after-capture-pane` hook is not empty,
+  including inherited entries. On tmux 3.3a to 3.4 the hook is checked before
+  the capture command runs, so keep hook configuration stable while observing.
 
-Resource templates expose metadata pages and pane screens under encoded
-endpoint/generation URIs. They enforce the same policy and response limits as
-their tools. Metadata pages preserve capture identity; screen resources
-include interval, truncation and history-continuity metadata. Resource
-subscriptions are not advertised.
+[`tmux_wait`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_wait/):
+
+- Watches for screen text or for the pane process to exit through events. It
+  does not poll.
+- A cancelled or expired wait closes its observers. It never signals the pane
+  program.
+- Process tracking needs a native identity backend: Linux peer pidfds with
+  matching PID namespaces, or Darwin kqueue. Without one, the call is refused.
+
+Resource templates expose metadata pages and pane screens under endpoint and
+generation URIs, with the same policy and limits as their tools. The server
+does not advertise resource subscriptions. See
+[resources](https://libtmux.org/en/ruby/latest/mcp/resources/) and
+[snapshots, cursors and references](https://libtmux.org/en/ruby/latest/mcp/topics/snapshots-and-references/)
+for the full contract.
 
 ## Create, send and close
 
-Add `--enable-tool tmux_create`, `--enable-tool tmux_send` or
-`--enable-tool tmux_close` to authorize those tools. Creation accepts argument
-arrays; sending text and sending named keys are separate variants. Mutation
-results contain delivery evidence and positively returned references.
-`dispatch_only` input results do not claim program completion, and unknown
-effects remain unknown after cancellation.
+Enable the three tools together:
+
+```console
+$ libtmux-mcp \
+    --socket-name agent \
+    --enable-tool tmux_create \
+    --enable-tool tmux_send \
+    --enable-tool tmux_close
+```
+
+- [`tmux_create`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_create/)
+  takes argument arrays as `argv`.
+- [`tmux_send`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_send/) sends
+  literal text or named keys, as separate variants.
+- [`tmux_close`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_close/)
+  takes an exact session, window or pane reference and never selects by name.
+- Results carry the references tmux returned.
+  [`tmux_send`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_send/)
+  reports `dispatch_only`: the input was dispatched, not run to completion.
+- After a cancellation, the effect stays unknown. It is not reported as none.
 
 ## Run authored commands
 
-`tmux_run` requires separate policy and shell enrollment. Add
-`--enable-tool tmux_run --enroll-pane %ID=FILE` for each exact pane, then
-explicitly source the generated file in that pane's interactive zsh 5.9.
-The CLI creates a private setup file and never types into the terminal.
-It refuses existing files and symlinks. Invitations expire after 60 seconds;
-`--enrollment-timeout` accepts at most 300 seconds. At most eight panes may be
-enrolled. EOF retires pending enrollment and removes only files the CLI owns.
+[`tmux_run`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_run/) runs a
+POSIX script in a pane's interactive zsh 5.9. It needs both the tool and an
+enrolled pane.
 
-The tool accepts an exact pane target, a POSIX `script`, and separate
-`stdout_limit`/`stderr_limit` byte counts. Scripts may contain at most 65,536
-bytes. Each output defaults to 65,536 bytes and is capped at 262,144; the
-application reserves its worst-case serialized response before authorization.
-The helper inherits the enrolled shell's cwd and exported environment, uses
-closed stdin, and reports separate UTF-8 or base64 outputs. Nonzero exit and
-signal termination are completion results. Output overflow is an error with
-completion unobserved, not silently truncated success. Shell variables,
-functions, options and cwd changes do not persist in the interactive parent.
+List the pane IDs of the server:
 
-An idle, empty primary ZLE editor receives the request through a private socket.
-A guarded tmux queue operation authorizes one script digest for one retained
-server, pane process and enrollment generation. Execution may follow that
-authorization; a later respawn does not redirect the prepared helper to its
-replacement. Error responses retain known authorization and native completion
-receipts. Cancellation does not prove that arbitrary descendants stopped.
-The Linux and macOS compatibility jobs exercise enrollment and the installed
-helper dependency closure; consult their results for the revision being used.
+```console
+$ tmux -L agent list-panes -a -F '#{pane_id}'
+```
+
+```text
+%0
+```
+
+Enable the tool and write a setup file for one exact pane:
+
+```console
+$ libtmux-mcp \
+    --socket-name agent \
+    --enable-tool tmux_run \
+    --enroll-pane %0=enroll.zsh
+```
+
+Then, in that pane's zsh, run `source enroll.zsh`. A relative path resolves
+from the directory where the server starts.
+
+- `--enroll-pane` requires `--enable-tool tmux_run`, and each pane and each
+  file may appear once.
+- The server writes a private file (mode `0600`) and never types into the
+  terminal. It refuses an existing file or a symlink.
+- Setup files expire. `--enrollment-timeout SECONDS` sets the lifetime, at most
+  300.
+- EOF retires pending enrollment and removes only the files the server wrote.
+- A call takes an exact pane `target`, a POSIX `script`, and optional
+  `stdout_limit` and `stderr_limit` byte counts.
+- The script runs with the shell's working directory and exported environment.
+- Stdout and stderr come back separately, as UTF-8 or base64.
+- A nonzero exit or a signal is a completion result. Output over its limit is
+  an error with completion unobserved, never a truncated success.
+- Cancelling a run does not prove that its child processes stopped.
 
 ## Embed in Ruby
 
-Require `libtmux/mcp`; imports start no tmux process, scheduler or MCP server.
-`Application` borrows an application-owned `LibTmux::Async::Server`. Its
-`sdk_server` supplies the SDK server consumed by `StdioTransport`. Both objects
-stay on that application's reactor thread. See the
-[execution guide](../../docs/modes.md) for result and ownership boundaries.
+Require `libtmux/mcp`. Imports start no tmux process, scheduler or MCP server.
 
-For shell enrollment, call `Application#invite_shell(reference, timeout:,
-expires_in:)` and pass the returned invitation to `accept_shell`. The invitation
-exposes an immutable `shell_arguments` array for an explicitly sourced setup
-command and a monotonic `expires_at`. Its acquisition deadline is separate from
-its enrollment lifetime. The application owns invitations and accepted
-connections until `close`; direct enrollment calls enforce tool policy.
+- [`Application`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application/) borrows an application-owned
+  [`LibTmux::Async::Server`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-server/).
+- Its [`sdk_server`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application-sdk_server/) supplies the SDK
+  server that [`StdioTransport`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-stdiotransport/) consumes.
+- The [execution guide](../../docs/modes.md) covers result and ownership
+  boundaries.
+
+The [complete program](../../examples/mcp_protocol.rb) runs this excerpt inside
+an Async task with an open [`LibTmux::Async`](https://libtmux.org/en/ruby/latest/reference/libtmux-async/) scope.
+
+<!-- example: mcp_protocol/main -->
+```ruby
+application = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "example")
+sdk = application.sdk_server
+input, client_input = IO.pipe
+client_output, output = IO.pipe
+transport = LibTmux::MCP::StdioTransport.new(server: sdk, parent: parent, input: input, output: output)
+runner = parent.async { transport.run }
+```
+<!-- /example -->
+
+To enroll a shell from Ruby, call
+[`Application#invite_shell`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application-invite_shell/) with a
+pane reference, `timeout:` and `expires_in:`, then pass the invitation to
+[`accept_shell`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application-accept_shell/).
+
+- The invitation's `shell_arguments` make up the setup command to source in
+  that pane's zsh.
+- `timeout:` bounds acquisition, and `expires_in:` sets the enrollment
+  lifetime.
+- The application owns invitations and accepted connections until
+  [`close`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application-close/). Direct enrollment calls
+  enforce tool policy.

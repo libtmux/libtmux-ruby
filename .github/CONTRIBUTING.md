@@ -96,6 +96,14 @@ availability is separate.
 The full support matrix, benchmarks and implementation type coverage remain
 separate required gates; one local outer pass does not establish them.
 
+README commands are tested too. The unit suite lints the READMEs in
+`test/unit/readme_blocks_test.rb`: one command per console block, `gem install`
+names, flags against each executable's `--help`, linked MCP tool names and gem
+headings. The integration suite in `test/integration/readme_commands_test.rb`
+runs every `tmux`, `libtmux-workspace` and `libtmux-mcp` command and client
+configuration a README prints, in a private directory, and compares printed
+output. A README command without a verifier fails; add one there.
+
 Check unstaged changes for whitespace errors:
 
 ```console

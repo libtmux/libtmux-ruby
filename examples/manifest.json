@@ -161,7 +161,8 @@
   ],
   "support": [
     "examples/support.rb",
-    "examples/workspace.yaml"
+    "examples/workspace.yaml",
+    "examples/mcp_client.json"
   ],
   "documents": [
     "CHANGELOG.md",
@@ -224,6 +225,12 @@
       "language": "ruby"
     },
     {
+      "id": "async_cancel/map",
+      "source": "examples/async_cancel.rb",
+      "region": "map",
+      "language": "ruby"
+    },
+    {
       "id": "control_overflow/main",
       "source": "examples/control_overflow.rb",
       "region": "main",
@@ -251,6 +258,11 @@
       "id": "workspace/config",
       "source": "examples/workspace.yaml",
       "language": "yaml"
+    },
+    {
+      "id": "mcp_client/config",
+      "source": "examples/mcp_client.json",
+      "language": "json"
     },
     {
       "id": "mcp_protocol/cli",
