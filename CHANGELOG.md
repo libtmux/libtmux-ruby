@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.0.alpha.2 (unreleased)
+## 0.1.0.alpha.3 (unreleased)
+
+## 0.1.0.alpha.2 (2026-10-18)
+
+Requires tmux 3.3a or newer, checked against the running daemon, and runs on
+tmux 3.8 and master. Upgraders must handle a `nil` `PaneSnapshot#pid` and a
+`Server.new` that contacts the daemon while it constructs.
 
 ### libtmux
 
