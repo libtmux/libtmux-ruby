@@ -59,10 +59,28 @@ class ReadmeBlocksTest < Minitest::Test
     assert_empty Blocks.tool_link_problems("Prose may name `tmux_send` once.\n", "control.md", tools: TOOLS)
   end
 
-  def test_the_mcp_readme_documents_every_tool_of_the_catalog_once
-    rows = Blocks.read("gems/libtmux-mcp/README.md").lines.grep(/\A\| \[`tmux_/)
-    names = rows.map { |row| row[/\[`(tmux_[a-z_]+)`\]/, 1] }
+  def test_the_mcp_readme_lists_every_tool_of_the_catalog_in_its_table
+    rows = Blocks.read("gems/libtmux-mcp/README.md").lines.grep(/\A\| .*\[`tmux_.* \| (?:Enabled|Disabled) \|/)
+    names = rows.flat_map { |row| row.split(" | ").first.scan(/\[`(tmux_[a-z_]+)`\]/).flatten }
     assert_equal TOOLS.sort, names.sort
+    assert_equal 4, rows.length
+  end
+
+  def test_the_gem_index_keeps_its_rows
+    {"README.md" => "[%s](gems/%s/README.md)", "gems/libtmux/README.md" => "[%s](#{Blocks::GEM_TREE}/%s)"}.each do |path, link|
+      assert_empty Blocks.gem_index_problems(Blocks.read(path), path, gems: Blocks::GEMS, link: link)
+    end
+    without = Blocks.read("README.md").lines.reject { |line| line.start_with?("| [libtmux-async]") }.join
+    refute_empty Blocks.gem_index_problems(without, "control.md", gems: Blocks::GEMS, link: "[%s](gems/%s/README.md)")
+  end
+
+  def test_links_stay_out_of_code_fences
+    Blocks::DOCUMENTS.each do |path|
+      assert_empty Blocks.fence_link_problems(Blocks.read(path), path)
+    end
+    linked = "```ruby\nputs 1 # see [docs](https://libtmux.org/)\n```\n"
+    refute_empty Blocks.fence_link_problems(linked, "control.md")
+    assert_empty Blocks.fence_link_problems("```ruby\nlist[0](x)\n```\n", "control.md")
   end
 
   def test_documented_flags_belong_to_the_executable

@@ -12,8 +12,9 @@
 # libtmux-async
 
 Run libtmux operations inside an application-owned Async task. This
-gem provides a subprocess facade, ordered mapping, control replies and event
-subscriptions. Imports start no scheduler, tmux server or background task.
+gem provides a [subprocess facade](https://libtmux.org/en/ruby/latest/reference/libtmux-async-server/), [ordered mapping](https://libtmux.org/en/ruby/latest/reference/libtmux-async-scope-map/),
+[control replies](https://libtmux.org/en/ruby/latest/reference/libtmux-guardedreply/) and [event subscriptions](https://libtmux.org/en/ruby/latest/reference/libtmux-async-controlsubscription/).
+Imports start no scheduler, tmux server or background task.
 
 [API reference](https://libtmux.org/en/ruby/latest/reference/libtmux-async/) ·
 [Guide](https://libtmux.org/en/ruby/latest/guides/async/) ·
@@ -37,8 +38,9 @@ $ gem install libtmux-async --pre
 
 ## Quick start
 
-Capture every pane concurrently inside an Async task. `server` is a core
-`LibTmux::Server` that outlives the scope. The
+Open a scope with [`LibTmux::Async.open`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-open/) and capture
+every pane concurrently with [`Scope#map`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-scope-map/).
+`server` is a core [`LibTmux::Server`](https://libtmux.org/en/ruby/latest/reference/libtmux-server/) that outlives the scope. The
 [complete program](../../examples/async_cancel.rb) owns an isolated server and
 its cleanup, and the excerpts on this page run inside it.
 
@@ -90,12 +92,12 @@ outlive the scope. References keep their source binding identity. Scope exit
 retires its clients and joins its owned tasks; it leaves the borrowed daemon
 alive. A scope rejects use from another thread, process or scheduler. Create a
 separate scope for each scheduler thread. Interactive terminal attachment stays
-on the blocking core facade and raises `UnsupportedFeatureError` on this facade.
+on the blocking core facade and raises [`UnsupportedFeatureError`](https://libtmux.org/en/ruby/latest/reference/libtmux-unsupportedfeatureerror/) on this facade.
 
-`scope.server.run` returns the same binary `CommandResult` as core. Its stdin,
+[`scope.server.run`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-server-run/) returns the same binary [`CommandResult`](https://libtmux.org/en/ruby/latest/reference/libtmux-commandresult/) as core. Its stdin,
 stdout and stderr are owned by scheduler tasks. A bounded native helper observes
 and reaps each child only after its final signalling handoff. Cancelling the
-calling task retires its client and raises `Cancelled` with `:not_sent` or
+calling task retires its client and raises [`Cancelled`](https://libtmux.org/en/ruby/latest/reference/libtmux-cancelled/) with `:not_sent` or
 `:possibly_sent` delivery. An already observed exit completes its bounded drain.
 Repeated cancellation does not restart cleanup deadlines or replace an earlier
 operation failure. Deadlines cannot undo tmux effects.
@@ -119,14 +121,14 @@ they are not exact Ruby heap measurements.
 | Ordinary command deadline | 5 seconds |
 
 Control connections use their own request, reply and subscriber limits. Obtain
-one with `scope.server.open_control(session: ref)`. `exchange` returns guarded
-`GuardedReply` blocks with `:boundary_window` attribution. It makes no claim of
-final command completion. Outside-block events arrive through `events.next` or
-an explicit `subscribe`; consumer callbacks run outside the parser. Reliable
+one with [`scope.server.open_control(session: ref)`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-server-open_control/). [`exchange`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-controlconnection-exchange/) returns guarded
+[`GuardedReply`](https://libtmux.org/en/ruby/latest/reference/libtmux-guardedreply/) blocks with `:boundary_window` attribution. It makes no claim of
+final command completion. Outside-block events arrive through [`events.next`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-controlconnection-events/) or
+an explicit [`subscribe`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-controlconnection-subscribe/); consumer callbacks run outside the parser. Reliable
 subscriptions raise on overflow. Tail subscriptions report dropped ranges.
 Cancelling a dispatched, undrained exchange closes that connection.
 
-`pause_output(pane_id:)` and `resume_output(pane_id:)` retain guarded evidence
+[`pause_output(pane_id:)`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-controlconnection-pause_output/) and [`resume_output(pane_id:)`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-controlconnection-resume_output/) retain guarded evidence
 and report possible output loss through gap events. A requested-action gap
 does not prove that the action took effect. Close a connection before passing
 it as `reconnect:` to `scope.server.open_control`; the replacement stays owned

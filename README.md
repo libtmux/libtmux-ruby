@@ -12,13 +12,14 @@
 # libtmux for Ruby
 
 Create tmux sessions, split windows, send input, and capture pane output from
-Ruby. Read server state into a snapshot, then query it with `where`, `select`,
-and the rest of `Enumerable`.
+Ruby. Read server state into a [snapshot](https://libtmux.org/en/ruby/latest/reference/libtmux-snapshot/), then query
+it with [`where`](https://libtmux.org/en/ruby/latest/reference/libtmux-selection-where/),
+[`select`](https://libtmux.org/en/ruby/latest/reference/libtmux-selection-select/), and the rest of `Enumerable`.
 
 [Quick start](#quick-start) · [Queries](#query-a-snapshot) · [Gems](#gems) ·
-[Guide](docs/index.md) ·
-[API reference](https://libtmux.org/en/ruby/latest/reference/) ·
-[Recipes](docs/recipes.md)
+[Guide](docs/index.md) · [API reference](docs/reference/api.md) ·
+[Recipes](docs/recipes.md) ·
+[API on libtmux.org](https://libtmux.org/en/ruby/latest/reference/)
 
 </div>
 
@@ -54,8 +55,8 @@ $ mise exec -- bundle install
 ```
 
 The gemspecs declare Ruby 3.3+ and the suite requires tmux 3.3a or newer;
-unpatched 3.3 is below the minimum. A server handle checks the connected
-daemon's release, not the client's, and refuses an older daemon before any
+unpatched 3.3 is below the minimum. A [server handle](https://libtmux.org/en/ruby/latest/reference/libtmux-server/)
+checks the connected daemon's release, not the client's, and refuses an older daemon before any
 requested command runs. The
 [compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
 tests Ruby 3.3, 3.4, and 4.0 with tmux 3.3a–3.8 on Linux and macOS, runs the
@@ -65,9 +66,9 @@ relying on a particular combination.
 
 ## Quick start
 
-Create a session and split its `logs` window. `Server.start` owns a private
-tmux server and closes it when the block exits. The snapshot remains readable
-afterward.
+Create a session and split its `logs` window.
+[`Server.start`](https://libtmux.org/en/ruby/latest/reference/libtmux-server-start/) owns a private tmux server and
+closes it when the block exits. The snapshot remains readable afterward.
 
 <!-- example: quickstart/main -->
 ```ruby
@@ -101,8 +102,9 @@ logs: %1, %2
 ```
 
 Pane commands take argument arrays. To use an existing server, open an explicit
-endpoint with `LibTmux::Server.open(socket_path: ...)`; closing that binding
-leaves the daemon running. See [ownership and errors](docs/ownership-errors.md).
+endpoint with
+[`LibTmux::Server.open(socket_path: ...)`](https://libtmux.org/en/ruby/latest/reference/libtmux-server-open/); closing
+that binding leaves the daemon running. See [ownership and errors](docs/ownership-errors.md).
 
 ## Query a snapshot
 
@@ -121,29 +123,64 @@ missing = snapshot.windows.one_or_nil(name: "missing")
 ```
 <!-- /example -->
 
-`one` raises `NoMatchError` or `MultipleMatchesError` unless exactly one record
-matches. `one_or_nil` returns `nil` for no match and still rejects duplicates.
-Both errors live under `LibTmux`.
+[`one`](https://libtmux.org/en/ruby/latest/reference/libtmux-selection-one/) raises
+[`NoMatchError`](https://libtmux.org/en/ruby/latest/reference/libtmux-nomatcherror/) or
+[`MultipleMatchesError`](https://libtmux.org/en/ruby/latest/reference/libtmux-multiplematcheserror/) unless exactly
+one record matches. [`one_or_nil`](https://libtmux.org/en/ruby/latest/reference/libtmux-selection-one_or_nil/) returns
+`nil` for no match and still rejects duplicates. Both errors live under
+`LibTmux`.
 
-Selections retain captured membership. Call `server.snapshot` again while the
-server is open to read later changes. The [field catalog](docs/reference/fields.md)
+Selections retain captured membership. Call
+[`server.snapshot`](https://libtmux.org/en/ruby/latest/reference/libtmux-server-snapshot/) again while the server is
+open to read later changes. The [field catalog](docs/reference/fields.md)
 lists query fields and wire names; the [list/filter recipe](examples/list_filter.rb)
 also covers exact matches and queries after close.
 
 ## Gems
 
-Four gems share one repository and one version. Start with `libtmux`, then add
-the companion for your caller. Each heading links to the gem's directory and
-README.
+Start with `libtmux`. Add the companion for your caller:
+
+| Gem | Require | Use it for |
+| --- | --- | --- |
+| [libtmux](gems/libtmux/README.md) | `libtmux` | Blocking scripts, snapshots, and control connections |
+| [libtmux-async](gems/libtmux-async/README.md) | `libtmux/async` | Concurrent commands and bounded streams in Async tasks |
+| [libtmux-mcp](gems/libtmux-mcp/README.md) | `libtmux/mcp` | An MCP server with explicit endpoints and tool policy |
+| [libtmux-workspace](gems/libtmux-workspace/README.md) | `libtmux/workspace` | YAML/JSON workspace plans and a CLI to apply them |
 
 Requiring a gem starts no tmux process, scheduler, or protocol server.
 [Execution modes](docs/modes.md) explains blocking calls, Async tasks, and
-control subscriptions.
+control subscriptions. Tracked MCP captures, waits, and authored runs require
+tmux 3.3a+ and native process identity; see the
+[MCP guide](gems/libtmux-mcp/README.md).
+Workspace client-switching semantics are in the
+[workspace guide](gems/libtmux-workspace/README.md).
+
+To use the core outside this checkout, build the artifacts:
+
+```console
+$ mise exec -- bundle exec rake build
+```
+
+Install into the Ruby environment that will run your application. The core's
+runtime dependencies must already be installed for this local-only command:
+
+```console
+$ gem install \
+    --local \
+    --no-document \
+    pkg/libtmux-0.1.0.alpha.2.gem
+```
+
+Companion gems need their declared runtime dependencies too. The
+[packaging check](.github/CONTRIBUTING.md#checks) verifies each gem in an
+isolated installation and runs the recipes outside the checkout.
 
 ### [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux)
 
-Blocking server, session, window and pane handles, immutable snapshots, and
-control connections. Require `libtmux`.
+Blocking [server](https://libtmux.org/en/ruby/latest/reference/libtmux-server/), [session](https://libtmux.org/en/ruby/latest/reference/libtmux-session-nvps/),
+[window](https://libtmux.org/en/ruby/latest/reference/libtmux-window-1vfx/) and [pane](https://libtmux.org/en/ruby/latest/reference/libtmux-pane-14z6/) handles,
+immutable [snapshots](https://libtmux.org/en/ruby/latest/reference/libtmux-snapshot/), and
+[control connections](https://libtmux.org/en/ruby/latest/reference/libtmux-controlconnection/). Require `libtmux`.
 
 [API reference](https://libtmux.org/en/ruby/latest/reference/) ·
 [Guides](https://libtmux.org/en/ruby/latest/guides/) ·
@@ -159,7 +196,8 @@ above run against this gem.
 ### [libtmux-async](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-async)
 
 Concurrent commands and bounded control streams inside an Async task that your
-application owns. Require `libtmux/async`.
+application owns. Require `libtmux/async`, then open a scope with
+[`LibTmux::Async.open`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-open/).
 
 [API reference](https://libtmux.org/en/ruby/latest/reference/libtmux-async/) ·
 [Guide](https://libtmux.org/en/ruby/latest/guides/async/) ·
@@ -169,7 +207,9 @@ application owns. Require `libtmux/async`.
 $ gem install libtmux-async --pre
 ```
 
-Capture every pane concurrently. `server` is an open `LibTmux::Server`:
+Capture every pane concurrently with
+[`Scope#map`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-scope-map/). `server` is an open
+`LibTmux::Server`:
 
 <!-- example: async_cancel/map -->
 ```ruby
@@ -186,7 +226,8 @@ end.wait
 ### [libtmux-mcp](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-mcp)
 
 An MCP server over stdio for one tmux server, with an explicit tool policy.
-Installs `libtmux-mcp`; require `libtmux/mcp` to embed it.
+Installs `libtmux-mcp`; require `libtmux/mcp` to embed it through
+[`LibTmux::MCP::Application`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application/).
 
 [API reference](https://libtmux.org/en/ruby/latest/mcp/reference/) ·
 [Tools](https://libtmux.org/en/ruby/latest/mcp/tools/) ·
@@ -220,7 +261,8 @@ and authored shell commands.
 
 YAML or JSON workspaces, validated, planned offline and applied to an open
 server. Installs `libtmux-workspace`; require `libtmux/workspace` to use it
-from Ruby.
+from Ruby through
+[`LibTmux::Workspace`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace/).
 
 [API reference](https://libtmux.org/en/ruby/latest/workspace/reference/) ·
 [Command reference](https://libtmux.org/en/ruby/latest/workspace/cli/) ·

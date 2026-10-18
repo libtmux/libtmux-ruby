@@ -22,6 +22,13 @@ The official MCP SDK handles the protocol; bounded Async tasks handle transport.
 
 </div>
 
+**Contents** — [Install](#install) · [Start the server](#start-the-server) ·
+[Connect a client](#connect-a-client) ·
+[Snapshots, capture and waits](#snapshots-capture-and-waits) ·
+[Create, send and close](#create-send-and-close) ·
+[Run authored commands](#run-authored-commands) ·
+[Embed in Ruby](#embed-in-ruby)
+
 Part of [libtmux for Ruby](https://github.com/libtmux/libtmux-ruby#readme).
 Built on [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux)
 and [libtmux-async](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-async).
@@ -44,14 +51,24 @@ $ gem install libtmux-mcp --pre
 
 ## Start the server
 
-The server borrows a tmux server that is already running. Start one on a
-socket of its own:
+Set `TMUX_SOCKET` to an existing tmux socket. This command borrows that daemon
+and serves MCP on stdin/stdout:
+
+```console
+$ libtmux-mcp \
+    --socket "$TMUX_SOCKET" \
+    --endpoint local
+```
+
+Use `--socket-name NAME` instead of `--socket PATH` to select a named socket.
+`--endpoint` sets the public alias used in discovery and resource URIs; it does
+not select the socket. EOF retires owned clients and preserves the daemon.
+
+To try it, start a tmux server on a socket of its own, then serve it by name:
 
 ```console
 $ tmux -L agent new-session -d -s work
 ```
-
-Serve it over MCP stdio:
 
 ```console
 $ libtmux-mcp \
@@ -59,19 +76,38 @@ $ libtmux-mcp \
 ```
 
 An MCP client launches this command and speaks to it on stdin and stdout. Run
-by hand, it waits for input until EOF.
+by hand, it waits for input until EOF. The alias defaults to `local`, and
+`libtmux-mcp --help` lists every option.
 
-- `--socket-name NAME` selects a named tmux socket. `--socket PATH` selects a
-  socket by path. Give exactly one.
-- `--endpoint NAME` sets the public alias used in discovery and resource URIs.
-  It does not select the socket, and it defaults to `local`.
-- EOF on stdin retires the clients the server opened and leaves the tmux
-  daemon running.
-- `libtmux-mcp --help` lists every option.
+| Tools | Default | Purpose |
+| --- | --- | --- |
+| [`tmux_capabilities`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capabilities/), [`tmux_snapshot`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_snapshot/) | Enabled | Discover capabilities and query captured metadata |
+| [`tmux_capture`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capture/), [`tmux_wait`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_wait/) | Disabled | Capture a screen or wait for text/process exit |
+| [`tmux_create`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_create/), [`tmux_send`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_send/), [`tmux_close`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_close/) | Disabled | Create entities, send text/keys and tear down exact targets |
+| [`tmux_run`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_run/) | Disabled | Run a script in an explicitly enrolled zsh shell |
+
+Each tool name links to its page on libtmux.org, with the arguments, limits and
+result schema. Repeat `--enable-tool` for each additional tool. For screen
+capture and waits:
+
+```console
+$ libtmux-mcp \
+    --socket "$TMUX_SOCKET" \
+    --enable-tool tmux_capture \
+    --enable-tool tmux_wait
+```
+
+- Disabled tools are absent from discovery and denied on direct application
+  calls.
+- An unknown tool name is refused when the server starts.
+
+The [complete protocol recipe](../../examples/mcp_protocol.rb) exercises
+discovery, snapshots, default denial, enabled mutations, cancellation and EOF
+cleanup through actual pipes, including the installed executable.
 
 ## Connect a client
 
-Start the tmux server above, then give your client the command. Claude Code:
+Start a tmux server as above, then give your client the command. Claude Code:
 
 ```console
 $ claude mcp add tmux -- libtmux-mcp --socket-name agent --endpoint dev
@@ -101,35 +137,6 @@ A client that reads a JSON configuration, such as Claude Desktop's
 
 If the client does not start servers with your shell's `PATH`, set `command` to
 the absolute path that `command -v libtmux-mcp` prints.
-
-## Tools
-
-Only the first two tools are enabled by default. Each name links to its page
-on libtmux.org, with the arguments, limits and result schema.
-
-| Tool | Default | Purpose |
-| --- | --- | --- |
-| [`tmux_capabilities`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capabilities/) | Enabled | Discover the endpoint, enabled tools, criteria schema and limits |
-| [`tmux_snapshot`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_snapshot/) | Enabled | Query captured session, window and pane metadata |
-| [`tmux_capture`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capture/) | Disabled | Read a pane's screen and history |
-| [`tmux_wait`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_wait/) | Disabled | Wait for text on a pane's screen or for its process to exit |
-| [`tmux_create`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_create/) | Disabled | Create a session, a window or a split pane |
-| [`tmux_send`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_send/) | Disabled | Send text or named keys to one pane |
-| [`tmux_close`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_close/) | Disabled | Destroy one session, window or pane |
-| [`tmux_run`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_run/) | Disabled | Run a POSIX script in an explicitly enrolled zsh pane |
-
-Repeat `--enable-tool` for each additional tool. This adds capture and waits:
-
-```console
-$ libtmux-mcp \
-    --socket-name agent \
-    --enable-tool tmux_capture \
-    --enable-tool tmux_wait
-```
-
-- A disabled tool is absent from discovery and denied on direct application
-  calls.
-- An unknown tool name is refused when the server starts.
 
 ## Snapshots, capture and waits
 
@@ -236,15 +243,15 @@ from the directory where the server starts.
 
 Require `libtmux/mcp`. Imports start no tmux process, scheduler or MCP server.
 
-- `Application` borrows an application-owned `LibTmux::Async::Server`.
-- Its `sdk_server` supplies the SDK server that `StdioTransport` consumes.
+- [`Application`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application/) borrows an application-owned
+  [`LibTmux::Async::Server`](https://libtmux.org/en/ruby/latest/reference/libtmux-async-server/).
+- Its [`sdk_server`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application-sdk_server/) supplies the SDK
+  server that [`StdioTransport`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-stdiotransport/) consumes.
 - The [execution guide](../../docs/modes.md) covers result and ownership
   boundaries.
 
 The [complete program](../../examples/mcp_protocol.rb) runs this excerpt inside
-an Async task with an open `LibTmux::Async` scope. It exercises discovery,
-snapshots, default denial, enabled mutations, cancellation and EOF cleanup
-through real pipes, including the installed executable.
+an Async task with an open [`LibTmux::Async`](https://libtmux.org/en/ruby/latest/reference/libtmux-async/) scope.
 
 <!-- example: mcp_protocol/main -->
 ```ruby
@@ -257,16 +264,15 @@ runner = parent.async { transport.run }
 ```
 <!-- /example -->
 
-To enroll a shell from Ruby, call `Application#invite_shell` with a pane
-reference, `timeout:` and `expires_in:`, then pass the invitation to
-`accept_shell`.
+To enroll a shell from Ruby, call
+[`Application#invite_shell`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application-invite_shell/) with a
+pane reference, `timeout:` and `expires_in:`, then pass the invitation to
+[`accept_shell`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application-accept_shell/).
 
 - The invitation's `shell_arguments` make up the setup command to source in
   that pane's zsh.
 - `timeout:` bounds acquisition, and `expires_in:` sets the enrollment
   lifetime.
-- The application owns invitations and accepted connections until `close`.
-  Direct enrollment calls enforce tool policy.
-
-API: [`Application`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application/)
-and [`StdioTransport`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-stdiotransport/).
+- The application owns invitations and accepted connections until
+  [`close`](https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application-close/). Direct enrollment calls
+  enforce tool policy.

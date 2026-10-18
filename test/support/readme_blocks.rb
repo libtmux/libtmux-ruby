@@ -143,6 +143,31 @@ module LibTmuxTest
       end
     end
 
+    # The Gem | Require | Use it for table lists every gem and the path to require.
+    REQUIRES = {"libtmux" => "libtmux", "libtmux-async" => "libtmux/async", "libtmux-mcp" => "libtmux/mcp",
+                "libtmux-workspace" => "libtmux/workspace"}.freeze
+
+    def gem_index_problems(markdown, path, gems:, link:)
+      header = "| Gem | Require | Use it for |"
+      return ["#{path}: no #{header} index"] unless markdown.lines.any? { |line| line.chomp == header }
+
+      gems.filter_map do |name|
+        row = markdown.lines.find { |line| line.start_with?("| #{format(link, name, name)} |") }
+        next "#{path}: the index has no row for #{name}" unless row
+
+        "#{path}: the #{name} row does not give its require path" unless row.include?("| `#{REQUIRES.fetch(name)}` |")
+      end
+    end
+
+    # Links belong in prose; a link inside a code fence is copied with the code.
+    def fence_link_problems(markdown, path)
+      fences(markdown).filter_map do |fence|
+        next unless fence.lines.any? { |line| line.match?(%r{\[[^\]]+\]\(https?://}) }
+
+        "#{path}:#{fence.line}: a #{fence.language} block contains a link"
+      end
+    end
+
     # A gems section heading links to the gem's directory on GitHub.
     def gem_heading_problems(markdown, path, gems:)
       gems.filter_map do |name|

@@ -72,6 +72,19 @@ class ReadmeCommandsTest < Minitest::Test
       run("/bin/sh", "-c", command)
     end
 
+    def variable(name)
+      @variables[name]
+    end
+
+    # A page that says "set TMUX_SOCKET to an existing tmux socket" gets one.
+    def provide_socket
+      socket = File.join(directory, "env.sock")
+      created = run(tmux, "-S", socket, "-f", "/dev/null", "new-session", "-d", "-s", "existing")
+      raise "could not start the TMUX_SOCKET server: #{created.stderr}" unless created.status.success?
+
+      @variables["TMUX_SOCKET"] = socket
+    end
+
     # `NAME=$(...)` keeps its value for the commands after it, as in a shell.
     def assign(command)
       name = command[/\A[A-Z][A-Z0-9_]*/]
@@ -188,6 +201,7 @@ class ReadmeCommandsTest < Minitest::Test
     yaml = Blocks.fences(markdown).find { |fence| fence.language == "yaml" }
     File.write(File.join(sandbox.work, "workspace.yaml"), yaml.lines.join("\n") + "\n") if yaml
     table = tool_table(markdown)
+    sandbox.provide_socket if markdown.include?("$TMUX_SOCKET")
     events = Blocks.steps(markdown).map { |step| [step.line, step] } +
       Blocks.fences(markdown).select { |fence| fence.language == "json" }.map { |fence| [fence.line, fence] }
     ran = false
@@ -252,6 +266,8 @@ class ReadmeCommandsTest < Minitest::Test
 
   # Runs `libtmux-mcp ARGS` against the server the page started, over stdio.
   def launch(sandbox, argv, table, where)
+    socket = sandbox.variable("TMUX_SOCKET")
+    argv = argv.map { |word| word.gsub("$TMUX_SOCKET", socket.to_s) }
     options = argv.each_cons(2).to_h { |flag, value| [flag, value] }
     enabled = CATALOG::READ_ONLY + argv.each_cons(2).filter_map { |flag, value| value if flag == "--enable-tool" }
     endpoint = options.fetch("--endpoint", "local")
@@ -277,11 +293,11 @@ class ReadmeCommandsTest < Minitest::Test
     assert sandbox.run(sandbox.tmux, *flag, "has-session").status.success?, "#{where}: EOF stopped the borrowed daemon"
   end
 
-  # Tool name => enabled by default, from the table rows of a page.
+  # Tool name => enabled by default, from the rows of the Tools | Default table.
   def tool_table(markdown)
-    markdown.lines.grep(/\A\| \[`tmux_[a-z_]+`\]\([^)]*\) \| (?:Enabled|Disabled) \|/).to_h do |row|
-      name, state = row.match(/\[`(tmux_[a-z_]+)`\].*?\| (Enabled|Disabled) \|/).captures
-      [name, state == "Enabled"]
+    markdown.lines.grep(/\A\| .*\[`tmux_[a-z_]+`\].* \| (?:Enabled|Disabled) \|/).each_with_object({}) do |row, table|
+      state = row[/\| (Enabled|Disabled) \|/, 1] == "Enabled"
+      row.split(" | ").first.scan(/\[`(tmux_[a-z_]+)`\]/) { |(name)| table[name] = state }
     end
   end
 end
