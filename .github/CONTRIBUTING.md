@@ -2,7 +2,10 @@
 
 This repository contains the libtmux gem suite. Installed-import
 tests establish package boundaries and execute consumer APIs and documentation
-recipes. Compatibility CI records the exact Ruby, tmux and operating-system cells.
+recipes. Compatibility CI records the exact Ruby and tmux cells on Linux.
+macOS is supported on a best-effort basis, and CI coverage for it is highly
+limited: no job runs there, so a macOS-only regression is not caught before
+merge.
 
 Read [AGENTS.md](../AGENTS.md) for change discipline and [WRITING.md](WRITING.md)
 for prose and commit conventions.
@@ -22,7 +25,7 @@ which tmux 3.2 clients cannot start; it also needs
 variable to `refused` or `supported` for the other version check tests, and
 they fail in CI when it is missing.
 The authored-shell tests use zsh's ZLE, `zsh/net/socket` and `zsh/system`
-modules. The Linux CI job installs zsh; the macOS runner supplies it.
+modules. The Linux CI job installs zsh.
 
 Install the pinned tool with mise:
 

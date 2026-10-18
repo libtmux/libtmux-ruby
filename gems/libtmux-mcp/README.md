@@ -335,7 +335,8 @@ pass the invitation to [`accept_shell`][mcp-application-accept_shell].
   and says to upgrade tmux and restart the server.
 - **Linux, including WSL, and macOS.** The core
   [compatibility workflow][compat] runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a
-  through 3.8 on Ubuntu 24.04 and macOS 15.
+  through 3.8 on Ubuntu 24.04. macOS is supported on a best-effort basis, and
+  CI coverage for it is highly limited.
 
 ## Documentation
 

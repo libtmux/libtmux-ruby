@@ -20,6 +20,7 @@ class MatrixTest < Minitest::Test
     assert_equal "PARTIAL", report.fetch("status")
     assert report.fetch("cells").all? { |cell| cell.fetch("status") == "UNVERIFIED" }
     assert_equal %w[3.3a 3.4 3.5a 3.6 3.7c 3.8], report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
+    assert_equal ["linux"], report.fetch("cells").map { |cell| cell.fetch("os") }.uniq
     assert_equal ["positive_native_identity"], report.fetch("cells").map { |cell| cell["process_bound_mcp"] }.uniq
     output, _, status = Open3.capture3(Gem.ruby, path, "--require-all")
     refute status.success?
@@ -83,8 +84,8 @@ class MatrixTest < Minitest::Test
       File.write(ruby, "#!/bin/sh\nif [ \"$1\" = --disable=gems ]; then printf 4.0.7; else touch '#{marker}'; exit 7; fi\n")
       File.write(tmux, "#!/bin/sh\nprintf 'tmux 3.7c\\n'\nexit 1\n")
       [ruby, tmux].each { |path| File.chmod(0o700, path) }
-      os = RUBY_PLATFORM.include?("darwin") ? "macos" : "linux"
-      cell = CompatibilityMatrix.cells.find { |item| item.fetch("id") == "#{os}/4.0.7/3.7c" }
+      skip "the matrix runs on Linux only" unless RUBY_PLATFORM.include?("linux")
+      cell = CompatibilityMatrix.cells.find { |item| item.fetch("id") == "linux/4.0.7/3.7c" }
       result = CompatibilityMatrix.execute(cell, {"4.0.7" => ruby}, {"3.7c" => tmux}, directory)
       assert_equal "WRONG_TOOLCHAIN", result.fetch("status")
       refute File.exist?(marker)

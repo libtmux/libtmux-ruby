@@ -10,7 +10,7 @@ require "open3"
 module CompatibilityMatrix
   RUBIES = %w[3.3.12 3.4.10 4.0.7].freeze
   TMUXES = %w[3.3a 3.4 3.5a 3.6 3.7c 3.8].freeze
-  SYSTEMS = %w[linux macos].freeze
+  SYSTEMS = %w[linux].freeze
   ROOT = File.expand_path("..", __dir__)
 
   def self.cells
@@ -34,7 +34,7 @@ module CompatibilityMatrix
   end
 
   def self.execute(cell, rubies, tmuxes, directory)
-    host = RUBY_PLATFORM.include?("linux") ? "linux" : RUBY_PLATFORM.include?("darwin") ? "macos" : "unsupported"
+    host = RUBY_PLATFORM.include?("linux") ? "linux" : "unsupported"
     return cell.merge("status" => "MISSING_RUNNER") unless host == cell.fetch("os")
 
     ruby, tmux = rubies[cell.fetch("ruby")], tmuxes[cell.fetch("tmux")]

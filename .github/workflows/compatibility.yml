@@ -5,15 +5,6 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
-    inputs:
-      debug_enabled:
-        type: boolean
-        description: Open tmate on the macOS Ruby 4.0.7 / tmux 3.7c cell
-        default: false
-      native_only:
-        type: boolean
-        description: Run only the macOS Ruby 4.0.7 / tmux 3.7c cell without tmate
-        default: false
 
 permissions:
   contents: read
@@ -55,9 +46,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '[{"system":"macos","runner":"macos-15"}]' || '[{"system":"linux","runner":"ubuntu-24.04"},{"system":"macos","runner":"macos-15"}]') }}
-        ruby: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["4.0.7"]' || '["3.3.12","3.4.10","4.0.7"]') }}
-        tmux: ${{ fromJSON(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only) && '["3.7c"]' || '["3.3a","3.4","3.5a","3.6","3.7c","3.8"]') }}
+        platform: [{system: linux, runner: ubuntu-24.04}]
+        ruby: ['3.3.12', '3.4.10', '4.0.7']
+        tmux: ['3.3a', '3.4', '3.5a', '3.6', '3.7c', '3.8']
     env:
       BUNDLE_FROZEN: 'true'
       LIBTMUX_VERSION_CHECK_EXPECT: supported
@@ -78,9 +69,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config zsh
-      - name: Install macOS build dependencies
-        if: runner.os == 'macOS'
-        run: brew install libevent ncurses bison pkg-config jemalloc
       - name: Build the exact tmux release
         shell: bash
         run: |
@@ -92,47 +80,11 @@ jobs:
           ruby -rjson -rdigest -e 'expected = JSON.parse(File.read("scripts/tmux-releases.json")).fetch(ENV.fetch("TMUX_VERSION")); abort "tmux archive checksum mismatch" unless Digest::SHA256.file(ARGV.fetch(0)).hexdigest == expected' "$archive"
           tar -xzf "$archive" -C "$RUNNER_TEMP"
           configure_options=(--disable-utf8proc)
-          if [ "$RUNNER_OS" = macOS ]; then
-            PATH="$(brew --prefix bison)/bin:$PATH"
-            PKG_CONFIG_PATH="$(brew --prefix libevent)/lib/pkgconfig:$(brew --prefix ncurses)/lib/pkgconfig"
-            CPPFLAGS="-I$(brew --prefix libevent)/include -I$(brew --prefix ncurses)/include"
-            LDFLAGS="-L$(brew --prefix libevent)/lib -L$(brew --prefix ncurses)/lib"
-            if [ "$TMUX_VERSION" = 3.7c ]; then
-              PKG_CONFIG_PATH="$(brew --prefix jemalloc)/lib/pkgconfig:$PKG_CONFIG_PATH"
-              CPPFLAGS="-I$(brew --prefix jemalloc)/include $CPPFLAGS"
-              LDFLAGS="-L$(brew --prefix jemalloc)/lib $LDFLAGS"
-              configure_options+=(--enable-jemalloc)
-            fi
-            export PATH PKG_CONFIG_PATH CPPFLAGS LDFLAGS
-          fi
           cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
           ./configure --prefix="$RUNNER_TEMP/tmux-install" "${configure_options[@]}"
           make -j2
           make install
           test "$("$RUNNER_TEMP/tmux-install/bin/tmux" -V)" = "tmux $TMUX_VERSION"
-      - name: Trace native child retirement samples
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
-        continue-on-error: true
-        timeout-minutes: 2
-        shell: bash
-        run: |
-          mkdir -p build/native-process-trace
-          bundle exec ruby .github/scripts/trace-process.rb --compare-waits \
-            > build/native-process-trace/wait-comparison.json
-          # Keep every sample and failure; these diagnostics are not a test retry gate.
-          for sample in 1 2 3 4 5 6; do
-            if CHILD_TRACE="build/native-process-trace/sample-$sample.json" \
-              bundle exec ruby -Igems/libtmux/lib -r./.github/scripts/trace-process.rb \
-              -Itest test/unit/process_test.rb \
-              --name '/test_cancellation_escalates_and_reaps_a_child_ignoring_term|test_repeated_thread_cancellation_does_not_replace_the_first_failure/' \
-              > "build/native-process-trace/sample-$sample.log" 2>&1; then
-              status=0
-            else
-              status=$?
-            fi
-            printf '{"sample":%d,"exit_status":%d}\n' "$sample" "$status" \
-              >> build/native-process-trace/samples.jsonl
-          done
       - name: Run the complete cell
         timeout-minutes: 5
         run: >-
@@ -148,36 +100,6 @@ jobs:
           name: matrix-${{ matrix.platform.system }}-${{ matrix.ruby }}-${{ matrix.tmux }}
           path: build/matrix/
           if-no-files-found: warn
-      - name: Retain every native child retirement sample
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled }}
-        continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: native-process-trace
-          path: build/native-process-trace/
-          retention-days: 7
-          if-no-files-found: error
-      - name: Debug the selected macOS cell
-        id: debug
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && matrix.platform.system == 'macos' && matrix.ruby == '4.0.7' && matrix.tmux == '3.7c' }}
-        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3
-        timeout-minutes: 10
-        with:
-          detached: true
-          limit-access-to-actor: true
-      - name: Save the restricted debug SSH address
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && steps.debug.outputs.ssh-address != '' }}
-        env:
-          TMATE_SSH_ADDRESS: ${{ steps.debug.outputs.ssh-address }}
-        run: printf '%s\n' "$TMATE_SSH_ADDRESS" > "$RUNNER_TEMP/tmate-ssh-address.txt"
-      - name: Retain the restricted debug connection
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.debug_enabled && steps.debug.outputs.ssh-address != '' }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: tmate-connection
-          path: ${{ runner.temp }}/tmate-ssh-address.txt
-          retention-days: 1
-          if-no-files-found: error
 
   unsupported:
     name: Refuse tmux ${{ matrix.tmux }} before effects
@@ -276,7 +198,7 @@ jobs:
 
   report:
     name: All required cells
-    if: ${{ always() && !(github.event_name == 'workflow_dispatch' && (inputs.debug_enabled || inputs.native_only)) }}
+    if: ${{ always() }}
     needs: [cell, unsupported, development]
     runs-on: ubuntu-24.04
     timeout-minutes: 5

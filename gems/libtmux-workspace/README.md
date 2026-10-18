@@ -380,7 +380,8 @@ values by design.
   `error.kind` is `tmux_unsupported`.
 - **Linux, including WSL, and macOS.** The library and the command share the
   core [compatibility workflow][compat]: Ruby 3.3, 3.4 and 4.0 with tmux 3.3a
-  through 3.8 on Ubuntu 24.04 and macOS 15, with per-revision results.
+  through 3.8 on Ubuntu 24.04, with per-revision results. macOS is supported on
+  a best-effort basis, and CI coverage for it is highly limited.
 - **History limit.** On tmux 3.3a to 3.6 the reused initial pane keeps the
   global `history-limit`. Set the server's global value before you apply to
   get one history size.
