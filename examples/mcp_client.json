@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "tmux": {
+      "command": "libtmux-mcp",
+      "args": ["--socket-name", "agent", "--endpoint", "dev"]
+    }
+  }
+}

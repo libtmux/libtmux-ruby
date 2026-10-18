@@ -161,7 +161,8 @@
   ],
   "support": [
     "examples/support.rb",
-    "examples/workspace.yaml"
+    "examples/workspace.yaml",
+    "examples/mcp_client.json"
   ],
   "documents": [
     "CHANGELOG.md",
@@ -257,6 +258,11 @@
       "id": "workspace/config",
       "source": "examples/workspace.yaml",
       "language": "yaml"
+    },
+    {
+      "id": "mcp_client/config",
+      "source": "examples/mcp_client.json",
+      "language": "json"
     },
     {
       "id": "mcp_protocol/cli",
