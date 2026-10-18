@@ -157,6 +157,152 @@
         "description": "Send a command to a shell, wait for its output notification, then capture the pane. Match a whole output line so the echoed command cannot satisfy the check.",
         "output": "libtmux capture ready\n"
       }
+    },
+    {
+      "id": "api_options",
+      "path": "examples/api/options.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Session#options",
+          "LibTmux::Options#set",
+          "LibTmux::Options#get",
+          "LibTmux::OptionValue#as",
+          "LibTmux::OptionValue#inherited?",
+          "LibTmux::Session#hooks",
+          "LibTmux::Hooks#set",
+          "LibTmux::Hooks#get"
+        ],
+        "description": "Set and read a session option, convert its value to an Integer, and attach a hook command to the same session.",
+        "output": "history-limit: 5000\ninherited: false\nhook: display-message created\n"
+      }
+    },
+    {
+      "id": "api_cancellation",
+      "path": "examples/api/cancellation.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Cancellation.new",
+          "LibTmux::Cancellation#cancel",
+          "LibTmux::Cancellation#close",
+          "LibTmux::Server#run",
+          "LibTmux::Server#wait_for"
+        ],
+        "description": "Wake a blocked request from another thread with a cancellation token and read the delivery evidence on the Cancelled error.",
+        "output": "request: LibTmux::Cancelled\ndelivery: possibly_sent\n"
+      }
+    },
+    {
+      "id": "api_link_window",
+      "path": "examples/api/link_window.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Session#link_window",
+          "LibTmux::Session#list_window_links"
+        ],
+        "description": "Link one window at two more indexes of its session and list the three links that share one window ID.",
+        "output": "indexes: 0, 4, 9\nwindows: @0\n"
+      }
+    },
+    {
+      "id": "api_control",
+      "path": "examples/api/control.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server#open_control",
+          "LibTmux::ControlConnection#exchange",
+          "LibTmux::ControlConnection#subscribe",
+          "LibTmux::ControlSubscription#next"
+        ],
+        "description": "Open a control connection, run one command through it, and read the notification tmux sends when a window is renamed.",
+        "output": "reply: ready\nevent: %window-renamed @0 renamed\n"
+      }
+    },
+    {
+      "id": "api_run_group",
+      "path": "examples/api/run_group.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server#run_group"
+        ],
+        "description": "Submit an ordered group whose second command fails. The group reports unknown per-step outcomes, keeps the first command's effect and never runs the third.",
+        "output": "success: false\nsteps: unknown, unknown, unknown\n@before: kept\n"
+      }
+    },
+    {
+      "id": "api_async_scope",
+      "path": "examples/api/async_scope.rb",
+      "gem": "libtmux-async",
+      "api": {
+        "symbols": [
+          "LibTmux::Async.open",
+          "LibTmux::Async::Scope#map"
+        ],
+        "description": "Open an Async scope over an existing server and capture every pane concurrently, in input order.",
+        "output": "captured panes: 2\nall succeeded: true\n"
+      }
+    },
+    {
+      "id": "api_async_run",
+      "path": "examples/api/async_run.rb",
+      "gem": "libtmux-async",
+      "api": {
+        "symbols": [
+          "LibTmux::Async::Server#run",
+          "LibTmux::Async::Server#wait_for"
+        ],
+        "description": "Cancel an Async task whose tmux request is waiting and read the delivery evidence on the Cancelled error.",
+        "output": "request: LibTmux::Cancelled\ndelivery: possibly_sent\n"
+      }
+    },
+    {
+      "id": "api_async_control",
+      "path": "examples/api/async_control.rb",
+      "gem": "libtmux-async",
+      "api": {
+        "symbols": [
+          "LibTmux::Async::Server#open_control",
+          "LibTmux::Async::ControlConnection#events",
+          "LibTmux::Async::ControlSubscription#next"
+        ],
+        "description": "Open a control connection inside an Async scope and read the notification tmux sends when a window is renamed.",
+        "output": "reply: ready\nevent: %window-renamed @0 renamed\n"
+      }
+    },
+    {
+      "id": "api_workspace_apply",
+      "path": "examples/api/workspace_apply.rb",
+      "gem": "libtmux-workspace",
+      "api": {
+        "symbols": [
+          "LibTmux::Workspace.load",
+          "LibTmux::Workspace#plan",
+          "LibTmux::Workspace::Plan#steps",
+          "LibTmux::Workspace::Plan#apply"
+        ],
+        "description": "Load the example workspace file, plan it against a snapshot, and apply the plan to an empty server.",
+        "output": "planned steps: 11\napplied: true\nsessions: work\n"
+      }
+    },
+    {
+      "id": "api_workspace_failure",
+      "path": "examples/api/workspace_failure.rb",
+      "gem": "libtmux-workspace",
+      "api": {
+        "symbols": [
+          "LibTmux::Workspace.parse",
+          "LibTmux::Workspace::ApplyError#result",
+          "LibTmux::Workspace::ApplyResult#created_refs",
+          "LibTmux::Workspace::ApplyResult#compensation",
+          "LibTmux::Workspace::ApplyResult#failed_action"
+        ],
+        "description": "Apply a workspace whose panes cannot fit with compensate: true. The failed split is reported, the created session is removed, and the borrowed session stays.",
+        "output": "failed action: split_pane\ncreated a session: true\ncompensation: completed\nsessions: borrowed\n"
+      }
     }
   ],
   "support": [
@@ -268,6 +414,102 @@
       "id": "mcp_protocol/cli",
       "source": "examples/mcp_protocol.rb",
       "region": "cli",
+      "language": "ruby"
+    },
+    {
+      "id": "api_server/main",
+      "source": "examples/api/server.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_list_sessions/main",
+      "source": "examples/api/list_sessions.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_new_session/main",
+      "source": "examples/api/new_session.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_new_window/main",
+      "source": "examples/api/new_window.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_query/main",
+      "source": "examples/api/query.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_capture/main",
+      "source": "examples/api/capture.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_options/main",
+      "source": "examples/api/options.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_cancellation/main",
+      "source": "examples/api/cancellation.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_link_window/main",
+      "source": "examples/api/link_window.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_control/main",
+      "source": "examples/api/control.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_run_group/main",
+      "source": "examples/api/run_group.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_async_scope/main",
+      "source": "examples/api/async_scope.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_async_run/main",
+      "source": "examples/api/async_run.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_async_control/main",
+      "source": "examples/api/async_control.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_workspace_apply/main",
+      "source": "examples/api/workspace_apply.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_workspace_failure/main",
+      "source": "examples/api/workspace_failure.rb",
+      "region": "main",
       "language": "ruby"
     }
   ]

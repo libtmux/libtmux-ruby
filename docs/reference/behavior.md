@@ -53,6 +53,7 @@ or yields it to a block. The default configuration is empty, the executable
 is `tmux`, and the startup deadline is five seconds. Readiness uses filesystem
 events, followed by a real client command. Unsupported platform readiness
 fails explicitly; support still requires the platform matrix.
+Owned startup has Linux and Darwin readiness backends.
 
 The returned binding owns that daemon, clients and files. Closing it or
 leaving the block retires those resources. Startup errors and cancellation
@@ -97,6 +98,9 @@ Window-link `window` and `session` accessors preserve that binding context.
 Handles are command targets, not caches of changing metadata. Subsequent I/O
 can raise `TargetNotFoundError` after the entity disappears or its guarded
 link context changes. Names are never fallback command targets.
+
+Reading an ID or a ref performs no I/O. `list_*`, `snapshot` and the command
+methods do.
 
 ## Supported tmux
 
@@ -170,6 +174,10 @@ It returns `CommandResult`, including a nonzero client status; typed
 operations raise `CommandError` for a failed command. Capacity, deadline,
 spawn, decoding and cancellation failures carry delivery evidence. No raw
 command automatically retries or rolls back a possibly dispatched effect.
+
+Typed arguments preserve literal semicolons and distinguish pane text from key
+names. Hook commands, display formats, pipe shell commands and `source_file`
+configuration are explicit executable inputs.
 
 ## Command evidence
 
@@ -386,6 +394,13 @@ last-link refusal, while explicit forced unlink can destroy the window.
 A window shared by several links is still one window. Removing a window
 through `kill` affects its links according to tmux semantics.
 
+Link selection, unlinking, movement, swapping and display check the complete
+link identity in the same tmux queue turn as their operation. They avoid
+configured command aliases by using unshadowed builtin spellings, and hook
+waits before dispatch cannot turn a stale link into its replacement.
+Concurrent rewriting of command aliases is outside this guarantee, so
+applications must coordinate configuration changes.
+
 ## Pane input and capture
 
 `send_text` sends literal text without interpreting key names; `send_keys`
@@ -394,6 +409,16 @@ completion. `capture` returns raw command evidence and defaults to the
 visible screen with all capture flags false. Start/end may be integers or
 `"-"`; alternate, mode-screen and pending capture modes are mutually
 exclusive. Version-dependent flags are checked before dispatch.
+
+`capture` can join wrapped lines, include attribute escapes, escape nonprintable
+bytes, preserve trailing spaces and trim unused trailing cells.
+`mode_screen: true` reads the mode's backing screen, which is the copy-mode
+snapshot without its UI. `alternate: true` reads tmux's saved screen and raises
+when it is absent; while an application occupies the alternate screen, this is
+the saved main screen. `pending: true` reads an incomplete escape sequence.
+Mode-screen and trailing-cell flags are checked against the daemon's advertised
+command usage, and unsupported requests raise explicitly. Command results and
+binary buffers preserve trailing newlines.
 
 `paste` requires a buffer and defaults `delete: false`, `bracketed: false`,
 `separator: nil`. Native newline conversion is CR unless a separator is
@@ -415,6 +440,8 @@ exit-on-bottom, cancellation and page-down flags default false. A source pane
 is optional and must have valid binding identity. `copy_command` sends a
 native copy-mode command and its arguments. Unsupported flags or commands
 fail explicitly; no emulated text-selection behavior is claimed.
+Copy-mode flags are checked against the connected daemon's advertised command
+usage.
 
 ## Options and hooks
 
@@ -429,6 +456,14 @@ Set accepts strings, integers and booleans, with booleans encoded as on/off.
 Append defaults false. Hook text is authored tmux command syntax, and `run`
 executes it. Inherited hook acquisition is unsupported. Array indexes,
 inheritance and presence are retained in `OptionValue`, not flattened away.
+
+The stable tmux option listing uses its escaped representation, including
+octal bytes, and does not split raw values on line breaks. Option names that
+contain whitespace are rejected. Indexed `get` acquires the array and selects
+locally, so a missing index raises `NoMatchError` while a present empty value
+remains present. Append follows tmux's lowest-free-index rule, and indexed
+hooks execute in index order. Empty arrays remain distinct from empty String
+values.
 
 ## Option values
 
@@ -517,6 +552,14 @@ Close defaults to half a second and never kills the borrowed daemon.
 Generation/PID/cleanup accessors describe this connection only. Reconnect
 creates a new generation and reports a continuity gap; it is not replay.
 
+To reconnect, close the old connection, then call
+`Server#open_control(session: ref, reconnect: old_connection)` on the same
+binding and session. The replacement has a new `generation` and retains
+`previous_generation`. Every new subscription begins with a `:reconnect` gap
+that names both generations and an unknown loss count. Old subscriptions stay
+closed, and requests are never replayed. Event sequences describe one
+connection's observations, not durable pane history.
+
 ## Control evidence
 
 `GuardedBlock` preserves opening/body/closing bytes and guard identifiers.
@@ -529,6 +572,7 @@ Native `run-shell` output routing depends on tmux: 3.3a–3.4 writes it into
 pane view mode; 3.5+ can emit it outside reply blocks as events.
 The adapter preserves this behavior. Shell output resembling an unmatched
 control terminator fails the connection closed when it reaches the raw stream.
+Guarded notification-looking text stays in its reply body.
 
 `ControlEvent` preserves raw bytes plus decoded kind, data, pane and sequence
 where available. Gaps expose lost sequence/byte evidence or a continuity
@@ -558,6 +602,12 @@ capability-gated; unsupported tmux versions refuse it. Events spanning
 pause/resume or reconnect include explicit continuity evidence. They do not
 promise lossless replay of output omitted by the server.
 
+A pause or resume gap event identifies `:pause_requested` or
+`:resume_requested` when no outside-block native notice was observed, including
+cancellation after possible dispatch. Native notices use `:pause` and
+`:resume`. Loss counts are unknown (`dropped_bytes: nil`), and resume does not
+replay skipped output.
+
 ## Async scope
 
 `Async.open` requires an existing core server and a live caller-owned Async
@@ -567,11 +617,31 @@ active requests, 32 admitted requests and four controls. Byte and cleanup
 limits are explicit constructor keywords. Queued requests count against
 capacity and deadline budgets.
 
+Omitting `parent:` uses the existing current Async task. The source server must
+outlive the scope, and references keep their source binding identity. A scope
+rejects use from another thread, process or scheduler; create a separate scope
+for each scheduler thread.
+
 `scope.server` creates scheduler-bound handles through the Async facade.
 Inherited operations share core targeting and result contracts but yield on
 this scheduler. Using facades/streams on another scheduler, thread or process
 raises `ClosedError`. Closing the facade closes its scope. Incomplete cleanup
 is reported; repeated successful close is harmless.
+
+`scope.server.run` returns the same binary `CommandResult` as the core. Scheduler
+tasks own its stdin, stdout and stderr, and a bounded native helper observes and
+reaps each child only after its final signalling handoff. Cancelling the
+calling task retires its client and raises `Cancelled` with `:not_sent` or
+`:possibly_sent` delivery. An already observed exit completes its bounded
+drain. Repeated cancellation does not restart cleanup deadlines or replace an
+earlier operation failure, and deadlines cannot undo tmux effects.
+
+An `exchange` on an Async control connection returns guarded blocks with
+`:boundary_window` attribution and makes no claim of final command completion.
+Outside-block events arrive through `events.next` or an explicit `subscribe`,
+and consumer callbacks run outside the parser. Cancelling a dispatched,
+undrained exchange closes that connection. A replacement from `reconnect:` stays
+owned by the scope and reports a new generation plus a gap with unknown loss.
 
 ## Async map
 
@@ -581,6 +651,12 @@ scope output-byte limit. Results count against retained bytes before return;
 a custom `result_bytes` callable supports application values. Failure or
 caller cancellation stops sibling work and retires owned clients. Empty
 input returns an empty array; unbounded input cannot bypass item/byte limits.
+
+Payload accounting covers strings, primitive values, `CommandResult`, Arrays
+and Hashes, and cycles and excessive nesting are refused. A `result_bytes`
+callable returns a nonnegative Integer for an application-defined result. Keep
+measured values unchanged until the map returns. The payload limits complement
+item counts and are not exact Ruby heap measurements.
 
 ## Async unsupported operations
 
@@ -658,6 +734,46 @@ Shell command text remains authored text. `to_h` returns the immutable
 canonical document; it includes normalized paths/expanded values and can be
 reloaded. Errors report a structural path without echoing private values.
 
+The declared subset has effective version 1. Optional `profile` and `version`
+must appear together as `libtmux-ruby.workspace` and `1`. The root accepts
+`session_name`, a nonempty `windows` list, `options` and `window_options`. A
+window accepts `window_name`, a nonempty `panes` list, `window_index`, `focus`,
+`layout` and `options`. Window indexes are unique nonnegative integers;
+unspecified indexes use the lowest available value starting at the declared
+`base-index` or zero. A pane is a command string or a mapping with `focus`,
+`split` and `size`. Split is `horizontal` or `vertical`. Size is a positive
+cell count or `1%` through `99%`; neither applies to the initial pane, and
+explicit sizes cannot accompany a final named layout.
+
+Root, window and pane mappings accept `start_directory`, `environment`,
+`shell_command` and `shell_command_before`. Environment maps merge from parent
+to child. Commands inherit unless overridden, and before-commands append in
+parent-to-child order. Command values accept a string or an array of strings.
+At most one window and one pane per window can declare focus; each defaults to
+the first. Layouts are `even-horizontal`, `even-vertical`, `main-horizontal`,
+`main-vertical` and `tiled`. Unknown fields and unsupported features fail with
+a `ConfigError` that identifies their configuration position.
+
+Session options accept the booleans `status`, `mouse` and `renumber-windows`;
+the nonnegative integers `base-index`, `history-limit` and `status-interval`;
+and the enumerated `status-position` and `status-justify`. Window options
+accept the booleans `automatic-rename`, `allow-rename`, `remain-on-exit`,
+`synchronize-panes` and `aggressive-resize`; the nonnegative integers
+`pane-base-index`, `main-pane-width` and `main-pane-height`; the text options
+`window-status-format` and `window-status-current-format`; and the enumerated
+`pane-border-status`. Option text remains tmux option text, including any
+formats that tmux evaluates. `pane-base-index` cannot exceed 65535, and the
+other numeric options accept integers through 2147483647.
+
+YAML tags, anchors, aliases, duplicate keys, multiple documents and complex
+mapping keys are rejected, and so are duplicate JSON keys. The corresponding
+`max_*` parse and load keywords adjust the positive limits. Configuration files
+must be regular files. With expansion on, only the supplied bounded mapping is
+consulted. Shell text and option values are unchanged, `~` has no special path
+meaning, and a missing variable fails validation. Parsing checks path syntax,
+and apply checks current accessibility; concurrent filesystem changes can still
+trigger tmux's cwd fallback.
+
 ## Workspace plans
 
 `plan(snapshot: nil)` and `Plan.new` create immutable ordered steps without
@@ -668,6 +784,10 @@ Data constructors, `members` and exports are local. Exports can contain
 commands and normalized paths; inspection summarizes without printing them.
 No planning method implicitly applies the plan.
 
+A plan creates a new session. It does not reconcile, replace or remove a
+preexisting workspace, and the first window and pane from each creation command
+are reused.
+
 ## Workspace apply
 
 `Plan#apply` explicitly authorizes authored configuration commands. It
@@ -676,10 +796,23 @@ deadline, `cancel: nil`, and `compensate: false`. It checks binding/conflicts,
 then executes ordered individually attributable operations. Shell command
 sending is recorded as dispatch only, not program completion.
 
+Apply is synchronous and uses one monotonic timeout across its core operations.
+Panes run `/bin/sh`, and explicit initial-pane environment overrides do not
+modify the session environment. Window indexes, splits, options, layout and
+focus follow the plan's order. Temporary local option overrides disable
+renumbering and pane synchronization during setup, and the plan then restores
+declared values or inheritance. Shell commands are sent as literal text
+followed by Enter. Both insertion and Enter are dispatch effects, so embedded
+newlines can execute during text insertion. Success proves that tmux accepted
+the dispatch, not that a shell command finished or succeeded, and shell
+commands can leave effects beyond tmux.
+
 Session options precede subsequent window/pane creation. On tmux 3.3a–3.6,
 the reused initial pane keeps the global history limit inherited at creation;
 later panes use the configured session value. Tmux 3.7+ updates existing grids
 when `history-limit` changes. Apply preserves global options and initial IDs.
+For uniform history on those versions, configure the server's global value
+before applying the workspace.
 
 Creation receipts populate a ledger only with positively returned IDs.
 Failure raises `ApplyError` carrying completed steps, known creations,
@@ -687,6 +820,11 @@ failed action and uncertainty. Opt-in compensation removes only positively
 created objects, guarded against newly linked/joined borrowed members; an
 unproven cleanup is refused. Compensation cannot undo shell effects or
 unknown dispatched creations and has its own bounded cleanup allowance.
+
+The cleanup allowance is 0.5 seconds. The default preserves partial state for
+inspection. Applying or compensating does not close the supplied server
+binding. Lost creation replies stay uncertain, and names are never used to
+guess ownership. Diagnostics omit command payloads and paths.
 
 ## Workspace results
 
@@ -710,6 +848,12 @@ client from the caller's pane or terminal. It is mutually exclusive with
 switch failure returns status three with the creation ledger and keeps the
 created session. Library `Plan#apply` does not attach or switch clients.
 
+Without a filename, discovery requires exactly one `.tmuxp.yaml`,
+`.tmuxp.yml` or `.tmuxp.json` in the current directory. `--attach` runs an owned
+terminal client on the CLI's `/dev/tty` until you detach, and requires a valid
+`TERM`. A missing client, or a failure to open or attach the terminal, keeps
+the created session and the apply ledger and returns status three.
+
 The CLI supports human or JSON output and returns exit status: zero for
 success, two for usage/configuration errors, three for partial/uncertain
 effects, one for failures before effects including preflight conflicts, and 130
@@ -731,6 +875,17 @@ classes. Closing a block-owned resource preserves its original failure while
 attaching supported cleanup diagnostics; a cleanup failure on a successful
 path still raises. A failure is not evidence that server mutations rolled
 back.
+
+## Typed command coverage
+
+Typed command coverage includes hierarchy creation and listing; rename, split,
+resize, swap, join, break, respawn and layout operations; link operations;
+options, hooks and environment; capture, send, paste, pipe and buffers; copy
+commands; and display, source-file and wait-for. It does not establish complete
+flag parity or every compatibility cell; consult the compatibility workflow
+results. Executable recipes run against installed artifacts, and the
+documentation gate renders YARD and the guides and checks local destinations
+and fragments.
 
 ## Signature proof
 

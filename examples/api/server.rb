@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-require "libtmux"
-
 begin
+  # docs:begin main
+  require "libtmux"
+
   LibTmux::Server.start do |owner|
     owner.new_session(name: "work", command: ["/bin/cat"])
     server = LibTmux::Server.new(endpoint: owner.endpoint)
@@ -13,6 +14,7 @@ begin
     end
     puts "sessions after client close: #{owner.list_sessions.length}"
   end
+  # docs:end main
 rescue StandardError => error
   warn "#{error.class}: #{error.message}"
   exit 1

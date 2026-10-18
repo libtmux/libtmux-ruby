@@ -75,13 +75,13 @@ Initial alpha of the Ruby tmux suite.
 
 - Serve an explicit tmux endpoint over MCP stdio with `libtmux-mcp`, or embed
   `Application` and `StdioTransport` in Ruby. Capability discovery and snapshot
-  queries are enabled by default. [Server setup](gems/libtmux-mcp/README.md#start-the-server).
+  queries are enabled by default. [Server setup](gems/libtmux-mcp/README.md#quick-start).
 - Opt into screen captures, event-driven waits, creation, input and close
   tools. Snapshot cursors page one retained capture; resources expose metadata
   and pane screens. [Protocol example](examples/mcp_protocol.rb).
 - Run scripts through `tmux_run` after explicitly enabling the tool and
   enrolling a zsh shell. Results distinguish stdout, stderr and observed
-  completion. [Shell enrollment](gems/libtmux-mcp/README.md#run-authored-commands).
+  completion. [Shell enrollment](gems/libtmux-mcp/README.md#run-a-script-in-a-pane).
 
 ### libtmux-workspace
 
@@ -91,11 +91,11 @@ Initial alpha of the Ruby tmux suite.
 - Validate, plan and load from the `libtmux-workspace` CLI; optionally attach
   or switch an explicit client after creation. `--version` reports the
   installed gem version without reading a configuration or contacting tmux.
-  [CLI guide](gems/libtmux-workspace/README.md#command-line-interface).
+  [CLI guide](gems/libtmux-workspace/README.md#script-it).
 - Inspect partial application through `ApplyError#result`. Optional
   compensation removes only a positively identified new session after
   checking that its windows and panes belong to the apply operation.
-  [Failure results](gems/libtmux-workspace/README.md#apply-and-failure-results).
+  [Failure results](gems/libtmux-workspace/README.md#recover-from-a-failed-apply).
 
 Each gem ships RBS declarations. The [API reference](docs/reference/api.md)
 links public methods to their contracts; [executable recipes](docs/recipes.md)

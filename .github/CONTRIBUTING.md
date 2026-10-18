@@ -98,11 +98,18 @@ separate required gates; one local outer pass does not establish them.
 
 README commands are tested too. The unit suite lints the READMEs in
 `test/unit/readme_blocks_test.rb`: one command per console block, `gem install`
-names, flags against each executable's `--help`, linked MCP tool names and gem
-headings. The integration suite in `test/integration/readme_commands_test.rb`
-runs every `tmux`, `libtmux-workspace` and `libtmux-mcp` command and client
-configuration a README prints, in a private directory, and compares printed
-output. A README command without a verifier fails; add one there.
+names, flags against each executable's `--help`, linked MCP tool names, gem
+headings, reference-link labels and in-page anchors. The integration suite in
+`test/integration/readme_commands_test.rb` runs every `tmux`,
+`libtmux-workspace` and `libtmux-mcp` command and client configuration a README
+prints, in a private directory, and compares printed output. A README command
+without a verifier fails; add one there.
+
+Ruby, YAML and JSON blocks in a README are excerpts of programs under
+`examples/`, registered in `examples/manifest.json` and kept current by
+`scripts/examples`. An API example lists the symbols it shows and the output it
+prints, and the packaging test runs it from the installed gems and compares
+that output.
 
 Check unstaged changes for whitespace errors:
 

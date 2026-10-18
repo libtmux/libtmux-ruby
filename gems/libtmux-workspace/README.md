@@ -11,12 +11,9 @@
 
 # libtmux-workspace
 
-[Load](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-load/) bounded YAML or JSON, inspect an immutable
-[creation plan](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-plan-1qko/), then explicitly
-[apply](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-plan-apply/) it to an open libtmux server. The library
-and installed command-line executable share the core
-[compatibility matrix](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml);
-consult its exact per-revision results.
+[Load][workspace-load] bounded YAML or JSON, inspect an immutable
+[creation plan][workspace-plan-class], then explicitly
+[apply][workspace-plan-apply] it to an open libtmux server.
 
 [API reference](https://libtmux.org/en/ruby/latest/workspace/reference/) ·
 [Command reference](https://libtmux.org/en/ruby/latest/workspace/cli/) ·
@@ -25,35 +22,32 @@ consult its exact per-revision results.
 
 </div>
 
-**Contents** — [Install](#install) · [Example](#example) ·
-[Configuration](#configuration) ·
-[Apply and failure results](#apply-and-failure-results) ·
-[Command-line interface](#command-line-interface)
-
 Part of [libtmux for Ruby](https://github.com/libtmux/libtmux-ruby#readme).
 Built on [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux).
 
-Requires tmux 3.3a or newer to load or apply a plan.
+Check a workspace file, see the ordered steps a load would run, and create the
+session on a running tmux server, from the `libtmux-workspace` command or from
+Ruby.
 
-- Validation and offline planning need no running daemon.
-- When the daemon is older, `load` creates nothing and prints the refusal with
-  the floor and the remedy, as text or in the `error.message` of the `--json`
-  result, whose `error.kind` is `tmux_unsupported`.
-- The gem declares Ruby 3.3 or newer and depends on the same-version
-  `libtmux` gem, JSON 3.0 and Psych 5.5. See the repository's
-  [contribution guide](../../.github/CONTRIBUTING.md) for local builds and
-  checks.
-- Imports and planning do not start tmux or run commands.
+Validation and offline planning need no running daemon, and imports start no
+tmux process.
 
-## Install
+**Contents** — [Quick start](#quick-start) ·
+[Write the file](#write-the-file) ·
+[Create the session](#create-the-session) ·
+[Failed apply](#recover-from-a-failed-apply) ·
+[Attach or switch](#attach-or-switch-to-the-new-session) ·
+[Scripts](#script-it) · [Leaves out](#what-it-leaves-out) ·
+[Support](#support-and-status) · [Documentation](#documentation)
 
-Install the alpha and its `libtmux-workspace` executable:
+## Quick start
+
+Install the alpha and its `libtmux-workspace` executable. It needs Ruby 3.3 or
+newer, and tmux 3.3a or newer to load a plan:
 
 ```console
 $ gem install libtmux-workspace --pre
 ```
-
-## Example
 
 Save this declared subset of tmuxp-style data as `workspace.yaml`. Relative
 directories resolve against the configuration file's directory.
@@ -73,9 +67,7 @@ windows:
 ```
 <!-- /example -->
 
-### From the command line
-
-Check the file. `validate` reads no tmux state:
+Check the file. [`validate`][cli-validate] reads no tmux state:
 
 ```console
 $ libtmux-workspace validate workspace.yaml
@@ -85,8 +77,8 @@ $ libtmux-workspace validate workspace.yaml
 Workspace configuration is valid.
 ```
 
-Print the ordered operations a load would run. Offline `plan` does not contact
-tmux either:
+Print the ordered operations a load would run. Offline [`plan`][cli-plan] does
+not contact tmux either:
 
 ```console
 $ libtmux-workspace plan workspace.yaml
@@ -106,6 +98,42 @@ offline_create: 11 ordered steps
 10. select_window window:0 (configuration)
 11. unset_session_option session (configuration)
 ```
+
+## Write the file
+
+### [`Workspace.load`][workspace-load]: the declared subset
+
+`load` reads a regular file of bounded size and infers JSON or YAML from its
+extension. [`Workspace.parse`][workspace-parse] takes the text and a base
+directory instead. Both return an immutable workspace:
+
+- Root: `session_name`, nonempty `windows`, `options`, `window_options`.
+- Window: `window_name`, nonempty `panes`, `window_index`, `focus`, `layout`,
+  `options`.
+- Pane: a command string, or a mapping with `focus`, `split` and `size`.
+- Root, windows and panes accept `start_directory`, `environment`,
+  `shell_command` and `shell_command_before`.
+- Layouts are `even-horizontal`, `even-vertical`, `main-horizontal`,
+  `main-vertical` and `tiled`.
+- At most one window and one pane per window declare focus.
+- Without a filename, the command looks for exactly one `.tmuxp.yaml`,
+  `.tmuxp.yml` or `.tmuxp.json` in the current directory.
+- An unknown field or an unsupported feature fails with a
+  [`ConfigError`][workspace-configerror] that names its position in the file.
+- YAML tags, anchors and aliases are rejected, and no Ruby, ERB, plugins or
+  callbacks run.
+- `${NAME}` substitution is opt-in: pass
+  `expand_environment: true, environment: {"NAME" => "value"}` to `load` or
+  `parse`, or `--expand-environment --env NAME=VALUE` to the command.
+- [`workspace.to_h`][workspace-to_h] exports an immutable, normalized and
+  reloadable configuration, with expanded values and absolute directories.
+
+The full field, option and limit lists are in
+[Workspace parsing][behavior-workspace-parsing].
+
+## Create the session
+
+### [`libtmux-workspace load`][cli-load]: build it on a running server
 
 `load` needs a running server. It never starts one, so start a private server
 with a keepalive session and no user configuration:
@@ -149,131 +177,125 @@ $ rm -rf "$WORKSPACE_TMP"
 Loading the same file again fails with status 1: a plan creates a new session
 and never reconciles an existing one.
 
-### From Ruby
+### [`Plan#apply`][workspace-plan-apply]: the same from Ruby
 
-The [complete workspace program](../../examples/workspace_apply.rb) creates an
-isolated server, applies this document and checks compensation after a later
-failure. Calling `apply` authorizes the configuration's shell commands. This
-excerpt runs inside that program's cleanup wrapper:
+[`Workspace.load`][workspace-load] reads the file,
+[`workspace.plan`][workspace-plan-method] plans it against a snapshot, and
+`apply` creates the session. Calling `apply` authorizes the configuration's
+shell commands:
 
-<!-- example: workspace_apply/main -->
+<!-- example: api_workspace_apply/main -->
 ```ruby
-workspace = LibTmux::Workspace.load(File.join(__dir__, "workspace.yaml"))
-plan = workspace.plan(snapshot: server.snapshot)
-Example.check(server.list_sessions.size == 1, "planning changed tmux")
-result = plan.apply(server: server)
-Example.check(result.success?, "workspace apply failed")
-Example.check(result.effects.any? { |effect| effect.outcome == :dispatch_only }, "shell dispatch overclaims completion")
-crowded = LibTmux::Workspace.parse(JSON.generate({
-  session_name: "crowded", windows: [{window_name: "small", panes: Array.new(40) { {} }}]
-}), format: :json, base_directory: __dir__)
-error = Example.raises(LibTmux::Workspace::ApplyError) do
-  crowded.plan.apply(server: server, compensate: true)
+require "libtmux"
+require "libtmux/workspace"
+
+LibTmux::Server.start do |server|
+  workspace = LibTmux::Workspace.load(File.expand_path("../workspace.yaml", __dir__))
+  plan = workspace.plan(snapshot: server.snapshot)
+  puts "planned steps: #{plan.steps.length}"
+  result = plan.apply(server: server)
+  puts "applied: #{result.success?}"
+  puts "sessions: #{server.list_sessions.map { |session| session.snapshot.name }.join(', ')}"
 end
-Example.check(!error.result.created_refs.empty?, "failure lost partial creation ledger")
-Example.check(error.result.compensation == :completed, "owned compensation failed")
-Example.check(server.list_sessions.map(&:ref).include?(borrowed.ref), "borrowed session was removed")
 ```
 <!-- /example -->
 
-## Configuration
+The program runs next to the `workspace.yaml` above, on a private server, and
+prints:
 
-The plain declared subset has effective version 1. Optional `profile` and
-`version` must appear together as `libtmux-ruby.workspace` and `1`.
-[`workspace.to_h`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-to_h/) exports an immutable, normalized, reloadable configuration.
-It contains expanded values and absolute directories; callers control its
-storage and disclosure.
+```text
+planned steps: 11
+applied: true
+sessions: work
+```
 
-- Root: `session_name`, nonempty `windows`, `options`, `window_options`.
-- Window: `window_name`, nonempty `panes`, `window_index`, `focus`, `layout`,
-  `options`. Indexes are unique nonnegative integers; unspecified indexes use
-  the lowest available value starting at the declared `base-index` or zero.
-- Pane: a command string or a mapping with `focus`, `split`, `size`. Split is
-  `horizontal` or `vertical`. Size is positive cells or `1%` through `99%`;
-  neither applies to the initial pane. Explicit sizes cannot accompany a
-  final named layout.
-- Root, windows and pane mappings accept `start_directory`, `environment`,
-  `shell_command` and `shell_command_before`. Environment maps merge from
-  parent to child. Commands inherit unless overridden; before-commands append
-  in parent-to-child order. Command values accept a string or string array.
+- A snapshot makes the plan reject a name that already exists, and every
+  `apply` takes a fresh snapshot and checks again.
+- The plan creates a new session. It does not reconcile, replace or remove an
+  existing one.
+- Success shows that tmux accepted the dispatch of each shell command. It does
+  not show that the command finished.
 
-At most one window and one pane per window can declare focus; each defaults
-to the first. Layouts are `even-horizontal`, `even-vertical`, `main-horizontal`,
-`main-vertical` and `tiled`. Unknown fields and unsupported features fail with
-a [`ConfigError`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-configerror/) identifying their configuration position.
+The [complete program](../../examples/workspace_apply.rb) also runs the
+installed command with `--switch`. The contract is in
+[Workspace apply][behavior-workspace-apply].
 
-Session options accept boolean `status`, `mouse`, `renumber-windows`;
-nonnegative `base-index`, `history-limit`, `status-interval`; and enumerated
-`status-position` and `status-justify`. Window options accept boolean
-`automatic-rename`, `allow-rename`, `remain-on-exit`, `synchronize-panes`,
-`aggressive-resize`; nonnegative `pane-base-index`, `main-pane-width`,
-`main-pane-height`; text `window-status-format`, `window-status-current-format`;
-and enumerated `pane-border-status`. Option text remains tmux option text,
-including any formats that tmux evaluates.
-`pane-base-index` cannot exceed 65535; the other numeric options accept
-integers through 2147483647.
+## Recover from a failed apply
 
-YAML tags, anchors, aliases, duplicate keys, multiple documents and complex
-mapping keys are rejected. JSON duplicate keys are rejected too. No Ruby,
-ERB, plugins or callbacks are evaluated. Defaults bound source and canonical
-bytes to 1 MiB, strings to 64 KiB, nesting to 32, nodes to 10,000, windows to
-128 and panes to 1,024. The corresponding `max_*` parse/load keywords can
-adjust these positive limits. Configuration files must be regular files.
+### [`ApplyError#result`][workspace-applyerror-result]: what exists after a failure
 
-`${NAME}` substitution is opt-in for directories and environment values:
-pass `expand_environment: true, environment: {"NAME" => "value"}` to
-[load](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-load/) or [parse](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-parse/). Only the supplied bounded mapping is consulted. Shell text and option
-values are unchanged; `~` has no special path meaning. Missing variables fail
-validation. Parsing checks path syntax; apply checks current accessibility.
-Concurrent filesystem changes can still trigger tmux's cwd fallback.
+A failed apply raises [`ApplyError`][workspace-applyerror]. Its immutable
+`result` holds the completed step IDs, the
+[`created_refs`][workspace-applyresult-created_refs] tmux returned, the
+effects it observed, and the failed action. Pass `compensate: true` to remove
+only the session the apply created:
 
-## Apply and failure results
+<!-- example: api_workspace_failure/main -->
+```ruby
+require "json"
+require "libtmux"
+require "libtmux/workspace"
 
-[`workspace.plan(snapshot: snapshot)`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-plan-1c5c/) retains that capture's binding identity
-and rejects a captured name conflict. Every apply takes a fresh snapshot and
-rechecks identity and name absence. The plan creates a new session; it does
-not reconcile, replace or remove a preexisting workspace. The first window
-and pane from each creation command are reused.
+LibTmux::Server.start do |server|
+  server.new_session(name: "borrowed", command: ["/bin/cat"])
+  crowded = LibTmux::Workspace.parse(
+    JSON.generate({session_name: "crowded", windows: [{window_name: "small", panes: Array.new(40) { {} }}]}),
+    format: :json, base_directory: __dir__
+  )
+  begin
+    crowded.plan.apply(server: server, compensate: true)
+  rescue LibTmux::Workspace::ApplyError => error
+    puts "failed action: #{error.result.failed_action}"
+    puts "created a session: #{error.result.created_refs.key?('session')}"
+    puts "compensation: #{error.result.compensation}"
+  end
+  puts "sessions: #{server.list_sessions.map { |session| session.snapshot.name }.join(', ')}"
+end
+```
+<!-- /example -->
 
-Apply is synchronous, uses one monotonic timeout across its core operations,
-and accepts a cancellation token. Panes run `/bin/sh`; explicit initial pane
-environment overrides do not modify the session environment. Window indexes,
-splits, options, layout and focus follow the plan's order. Temporary local
-option overrides disable renumbering and pane synchronization during setup;
-the plan then restores declared values or inheritance.
+That many panes do not fit in one window, so tmux refuses a split after the
+session exists. It prints:
 
-Session options apply before subsequent windows and split panes are created.
-On tmux 3.3a–3.6, the reused initial pane retains the global `history-limit`
-inherited at session creation. Later panes use the configured session value.
-For uniform history on these versions, configure the server's global value
-before applying the workspace. Apply does not change global options or replace
-the initial pane. On tmux 3.7+, setting the option also updates existing grids.
+```text
+failed action: split_pane
+created a session: true
+compensation: completed
+sessions: borrowed
+```
 
-Shell commands are sent as literal text followed by Enter. Both insertion
-and Enter are dispatch effects: embedded newlines can execute during text
-insertion. Success proves tmux accepted the dispatch, not that a shell
-command finished or succeeded. Shell commands can leave effects beyond tmux.
+- Compensation removes the new session only after a tmux guard shows that
+  every window and pane in it has a positively identified created reference.
+- An unknown initial entity, or a borrowed entity moved into the session,
+  makes it refuse.
+- Compensation cannot undo what shell commands did. Without it, the partial
+  state stays for you to inspect.
+- Diagnostics omit command payloads and paths. Names are never used to guess
+  ownership.
 
-An [`ApplyError`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-applyerror/) exposes an immutable
-[`result`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-applyerror-result/): completed step IDs, positively
-identified [`created_refs`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-applyresult-created_refs/), observed or dispatch-only effects, failed action,
-uncertainty and cleanup diagnostics. Diagnostics omit command payloads and
-paths. Lost creation replies stay uncertain; names are never used to guess
-ownership. A caller may pass `compensate: true` to kill only the positively
-returned new session on failure, after an atomic tmux guard proves that every
-current window and pane has a positively identified created reference. Unknown
-initial entities or borrowed entities moved into that session cause refusal.
-Cleanup uses a separate 0.5-second budget. Compensation status is explicit and
-cannot undo shell effects. The default
-preserves partial state for inspection. Applying or compensating does not
-close the supplied server binding.
+The command takes `--compensate`. The contracts are in
+[Workspace results][behavior-workspace-results].
 
-## Command-line interface
+## Attach or switch to the new session
 
-The gem installs `libtmux-workspace`. [`validate`](https://libtmux.org/en/ruby/latest/workspace/cli/validate/) and offline
-[`plan`](https://libtmux.org/en/ruby/latest/workspace/cli/plan/) do not contact tmux. Without a filename, discovery requires
-exactly one `.tmuxp.yaml`, `.tmuxp.yml` or `.tmuxp.json` in the current
-directory.
+### [`load --switch`][cli-load]: move a client to the session
+
+- `load --attach` opens the CLI's `/dev/tty` after creation and runs an owned
+  terminal client until you detach. It requires a valid `TERM`.
+- `load --switch CLIENT` switches a current tmux client to the created session
+  after apply, keeping the session's environment.
+- `CLIENT` is a client name, a full TTY path or a TTY path without `/dev/`.
+  Use `--switch=VALUE` for a selector that begins with `-`.
+- A missing client, or a failure to open or attach the terminal, keeps the
+  created session and returns status 3.
+- Attach and switch are mutually exclusive, and neither infers a latest
+  client. The library's [`Plan#apply`][workspace-plan-apply] does neither.
+
+The selector rules are in [Client switching][behavior-client-switching].
+
+## Script it
+
+### [`--json`][cli-load]: one object on stdout
 
 Check the installed gem version without reading a configuration or contacting
 tmux:
@@ -282,12 +304,9 @@ tmux:
 $ libtmux-workspace --version
 ```
 
-```console
-$ libtmux-workspace validate workspace.yaml
-```
-
 Human plans list ordered operations and their effects. `--json` prints the
-same plan data as [`Plan#to_h`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-plan-to_h/), including configured command text and paths.
+same plan data as [`Plan#to_h`][workspace-plan-to_h], including configured
+command text and paths:
 
 ```console
 $ libtmux-workspace plan \
@@ -295,7 +314,7 @@ $ libtmux-workspace plan \
     workspace.yaml
 ```
 
-[`load`](https://libtmux.org/en/ruby/latest/workspace/cli/load/) and `plan --live` require `--socket` for an existing
+[`load`][cli-load] and `plan --live` require `--socket` for an existing
 server. This detached creation example uses an explicitly supplied
 `TMUX_SOCKET` value:
 
@@ -307,7 +326,7 @@ $ libtmux-workspace load \
 ```
 
 `libtmux-workspace --help` lists every option. The
-[command reference](https://libtmux.org/en/ruby/latest/workspace/cli/) has a page for each command.
+[command reference][ws-cli] has a page for each command.
 
 | Option | Effect |
 | --- | --- |
@@ -321,24 +340,6 @@ $ libtmux-workspace load \
 | `--expand-environment` | Expand `${NAME}` in directories and environment values; requires `--env` |
 | `--env NAME=VALUE` | Supply a value for expansion; ambient environment variables are not copied |
 
-Attach and switch:
-
-- `load --attach` opens the CLI's `/dev/tty` after creation and runs an owned
-  terminal client until you detach. It requires a valid `TERM`.
-- `load --switch CLIENT` switches the explicit current tmux client selector to
-  the created session after apply, keeping the session's environment. It
-  accepts a current client name, a full TTY path or a TTY path without
-  `/dev/`; native first-match behavior applies. Use `--switch=VALUE` for a
-  selector that begins with `-`.
-- A missing client, or a failure to open or attach the terminal, keeps the
-  created session and the apply ledger and returns status 3. A missing or
-  invalid selector argument fails before creation.
-- The selector is resolved at dispatch, so a client that reconnects and matches
-  it is eligible. It is not a captured client reference or proof of terminal
-  ownership.
-- Attach and switch are mutually exclusive. Neither infers a latest client,
-  and library `Plan#apply` performs neither.
-
 | Exit status | Meaning |
 | --- | --- |
 | 0 | Validation, planning or apply succeeded; requested attach/switch succeeded |
@@ -347,7 +348,76 @@ Attach and switch:
 | 3 | Application was partial or uncertain, or a later attach/switch/cleanup failed |
 | 130 | Interrupted; available effect ledger is retained |
 
-JSON mode writes one result or error object to stdout. Apply errors include
-[`ApplyResult#to_h`](https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-applyresult-to_h/); human errors write the diagnostic and any ledger to stderr.
-Diagnostics omit configuration payloads. Explicit plan rendering and canonical
-configuration export contain those values by design.
+Apply errors include [`ApplyResult#to_h`][workspace-applyresult-to_h]. Human
+errors write the diagnostic and any ledger to stderr. Diagnostics omit
+configuration payloads; plan rendering and canonical export contain those
+values by design.
+
+## What it leaves out
+
+- **Reconciliation.** A plan creates a new session and never replaces or
+  removes an existing workspace. The contract is in
+  [Workspace plans][behavior-workspace-plans].
+- **Shell command completion.** Apply records a shell command as dispatched.
+  Embedded newlines can execute while the text is inserted. See
+  [Workspace apply][behavior-workspace-apply].
+- **Rollback of shell effects.** Compensation removes only tmux objects the
+  apply created. See [Workspace results][behavior-workspace-results].
+- **Features beyond the declared subset.** Plugins, ERB and callbacks are
+  rejected, and a [`ConfigError`][workspace-configerror] names the position.
+- **A guessed client.** Attach and switch need an explicit client. See
+  [Client switching][behavior-client-switching].
+
+## Support and status
+
+**Alpha.** APIs may change between releases.
+
+- **Ruby 3.3 or newer.** The gem depends on the same version of `libtmux`,
+  JSON 3.0 and Psych 5.5.
+- **tmux 3.3a or newer** to load or apply a plan.
+- **Older daemons.** `load` creates nothing and prints the refusal with the
+  floor and the remedy. With `--json`, the refusal is in `error.message` and
+  `error.kind` is `tmux_unsupported`.
+- **Linux, including WSL, and macOS.** The library and the command share the
+  core [compatibility workflow][compat]: Ruby 3.3, 3.4 and 4.0 with tmux 3.3a
+  through 3.8 on Ubuntu 24.04 and macOS 15, with per-revision results.
+- **History limit.** On tmux 3.3a to 3.6 the reused initial pane keeps the
+  global `history-limit`. Set the server's global value before you apply to
+  get one history size.
+
+## Documentation
+
+| | |
+| --- | --- |
+| [Reference](https://libtmux.org/en/ruby/latest/workspace/reference/) | Every public workspace class and method |
+| [Command reference][ws-cli] | A page for `validate`, `plan` and `load` |
+| [Guides][workspace-guides] | Validate, inspect and explicitly apply a plan |
+| [Topics][workspace-topics] | Format, planning boundaries, effects and failure ledgers |
+| [Public behavior][behavior-workspace-parsing] | Parsing, plans, apply, results and the command |
+| [Recipes][doc-recipes] | The workspace plan, load and failure program |
+
+[behavior-client-switching]: ../../docs/reference/behavior.md#client-switching
+[behavior-workspace-apply]: ../../docs/reference/behavior.md#workspace-apply
+[behavior-workspace-parsing]: ../../docs/reference/behavior.md#workspace-parsing
+[behavior-workspace-plans]: ../../docs/reference/behavior.md#workspace-plans
+[behavior-workspace-results]: ../../docs/reference/behavior.md#workspace-results
+[cli-load]: https://libtmux.org/en/ruby/latest/workspace/cli/load/
+[cli-plan]: https://libtmux.org/en/ruby/latest/workspace/cli/plan/
+[cli-validate]: https://libtmux.org/en/ruby/latest/workspace/cli/validate/
+[compat]: https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml
+[doc-recipes]: ../../docs/recipes.md
+[workspace-applyerror]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-applyerror/
+[workspace-applyerror-result]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-applyerror-result/
+[workspace-applyresult-created_refs]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-applyresult-created_refs/
+[workspace-applyresult-to_h]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-applyresult-to_h/
+[workspace-configerror]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-configerror/
+[workspace-guides]: https://libtmux.org/en/ruby/latest/workspace/guides/
+[workspace-load]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-load/
+[workspace-parse]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-parse/
+[workspace-plan-apply]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-plan-apply/
+[workspace-plan-class]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-plan-1qko/
+[workspace-plan-method]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-plan-1c5c/
+[workspace-plan-to_h]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-plan-to_h/
+[workspace-to_h]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace-to_h/
+[workspace-topics]: https://libtmux.org/en/ruby/latest/workspace/topics/
+[ws-cli]: https://libtmux.org/en/ruby/latest/workspace/cli/

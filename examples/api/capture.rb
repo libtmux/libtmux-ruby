@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
-require "libtmux"
-
 begin
+  # docs:begin main
+  require "libtmux"
+
   LibTmux::Server.start do |server|
     created = server.new_session(
       name: "capture", command: ["/bin/sh"],
@@ -26,6 +27,7 @@ begin
       puts "libtmux capture ready"
     end
   end
+  # docs:end main
 rescue StandardError => error
   warn "#{error.class}: #{error.message}"
   exit 1
