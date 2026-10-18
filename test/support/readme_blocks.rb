@@ -110,6 +110,8 @@ module LibTmuxTest
             end
           end
           expected = "#{TOOL_PAGES}/#{name}/"
+          next unless tools.include?(name) || target.start_with?("#{TOOL_PAGES}/")
+
           problems << "#{path}:#{number}: #{name} links to #{target}, not #{expected}" unless target == expected
         end
         next unless line.match?(/\A\s*(?:\||[-*] |\d+\. )/)

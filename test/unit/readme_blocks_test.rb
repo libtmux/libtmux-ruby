@@ -77,6 +77,13 @@ class ReadmeBlocksTest < Minitest::Test
     assert_equal 1, bare.length
   end
 
+  def test_names_that_are_not_tools_may_link_elsewhere
+    template = "[`tmux_screen`][resource]\n\n[resource]: https://libtmux.org/en/ruby/latest/mcp/resources/templates/tmux_screen/\n"
+    assert_empty Blocks.tool_link_problems(template, "control.md", tools: TOOLS)
+    misspelled = "[`tmux_sned`](#{Blocks::TOOL_PAGES}/tmux_send/)\n"
+    assert_match(/links to/, Blocks.tool_link_problems(misspelled, "control.md", tools: TOOLS).first)
+  end
+
   def test_reference_links_name_a_definition_and_every_definition_is_used
     Blocks::DOCUMENTS.each do |path|
       assert_empty Blocks.reference_link_problems(Blocks.read(path), path)
