@@ -41,6 +41,12 @@ class ReadmeBlocksTest < Minitest::Test
     end
     plain = "### libtmux\n\n[libtmux](#{Blocks::GEM_TREE}/libtmux)\n"
     refute_empty Blocks.gem_heading_problems(plain, "control.md", gems: %w[libtmux])
+    with_job = "### [libtmux](#{Blocks::GEM_TREE}/libtmux): the core\n"
+    assert_empty Blocks.gem_heading_problems(with_job, "control.md", gems: %w[libtmux])
+    other_gem = "### [libtmux](#{Blocks::GEM_TREE}/libtmux-async): the core\n"
+    refute_empty Blocks.gem_heading_problems(other_gem, "control.md", gems: %w[libtmux])
+    bare_colon = "### [libtmux](#{Blocks::GEM_TREE}/libtmux):\n"
+    refute_empty Blocks.gem_heading_problems(bare_colon, "control.md", gems: %w[libtmux])
     Blocks::GEMS.each do |name|
       assert File.file?(File.join(Blocks::ROOT, "gems", name, "README.md")), "#{name} has no README to link"
     end
@@ -57,6 +63,43 @@ class ReadmeBlocksTest < Minitest::Test
     wrong = Blocks.tool_link_problems("- [`tmux_send`](#{Blocks::TOOL_PAGES}/tmux_capture/)\n", "control.md", tools: TOOLS)
     assert_match(/links to/, wrong.first)
     assert_empty Blocks.tool_link_problems("Prose may name `tmux_send` once.\n", "control.md", tools: TOOLS)
+  end
+
+  def test_tool_names_may_link_by_reference
+    page = "#{Blocks::TOOL_PAGES}/tmux_send/"
+    referenced = "- [`tmux_send`][tool-tmux_send]\n\n[tool-tmux_send]: #{page}\n"
+    assert_empty Blocks.tool_link_problems(referenced, "control.md", tools: TOOLS)
+    undefined = Blocks.tool_link_problems("- [`tmux_send`][tool-tmux_send]\n", "control.md", tools: TOOLS)
+    assert_match(/undefined link label/, undefined.first)
+    other = "- [`tmux_send`][tool]\n\n[tool]: #{Blocks::TOOL_PAGES}/tmux_capture/\n"
+    assert_match(/links to/, Blocks.tool_link_problems(other, "control.md", tools: TOOLS).first)
+    bare = Blocks.tool_link_problems("- `tmux_send` reads\n\n[tool]: #{page}\n", "control.md", tools: TOOLS)
+    assert_equal 1, bare.length
+  end
+
+  def test_reference_links_name_a_definition_and_every_definition_is_used
+    Blocks::DOCUMENTS.each do |path|
+      assert_empty Blocks.reference_link_problems(Blocks.read(path), path)
+    end
+    assert_empty Blocks.reference_link_problems("A [`call`][call].\n\n[call]: https://example.test/\n", "control.md")
+    mistyped = Blocks.reference_link_problems("A [`call`][cal].\n\n[call]: https://example.test/\n", "control.md")
+    assert_equal ["control.md: the link label [cal] has no definition",
+      "control.md: the link definition [call] is not used"], mistyped
+    fenced = "```ruby\nlist[0][1]\n```\n\n[call]: https://example.test/\n"
+    assert_equal ["control.md: the link definition [call] is not used"], Blocks.reference_link_problems(fenced, "control.md")
+  end
+
+  def test_contents_links_land_on_headings
+    Blocks::DOCUMENTS.each do |path|
+      assert_empty Blocks.anchor_problems(Blocks.read(path), path)
+    end
+    page = "## Quick start\n\n### [`Server#list_sessions`][list]: what tmux has now\n\n" \
+      "### Repeat\n\n### Repeat\n\n[a](#quick-start) [b](#serverlist_sessions-what-tmux-has-now) [c](#repeat-1)\n"
+    assert_empty Blocks.anchor_problems(page, "control.md")
+    missing = Blocks.anchor_problems("## Quick start\n\n[a](#quick-starts)\n", "control.md")
+    assert_equal ["control.md: no heading has the anchor #quick-starts"], missing
+    in_fence = Blocks.anchor_problems("```ruby\n## Quick start\n```\n\n[a](#quick-start)\n", "control.md")
+    refute_empty in_fence
   end
 
   def test_the_mcp_readme_lists_every_tool_of_the_catalog_in_its_table

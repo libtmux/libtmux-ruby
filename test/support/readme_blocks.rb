@@ -94,22 +94,72 @@ module LibTmuxTest
     end
 
     # A tool named in a table row or list item links to its page on libtmux.org;
-    # a link to a tool page names the tool it shows.
+    # a link to a tool page names the tool it shows. A reference-style link is
+    # followed to its definition.
     def tool_link_problems(markdown, path, tools:)
+      definitions = reference_definitions(markdown)
+      linked = /\[`(tmux_[a-z_]+)`\](?:\(([^)]*)\)|\[([^\]]*)\])/
       problems = []
       markdown.each_line.with_index(1) do |line, number|
-        line.scan(/\[`(tmux_[a-z_]+)`\]\(([^)]*)\)/) do |name, target|
+        line.scan(linked) do |name, target, label|
+          if label
+            target = definitions[label]
+            unless target
+              problems << "#{path}:#{number}: #{name} uses the undefined link label #{label}"
+              next
+            end
+          end
           expected = "#{TOOL_PAGES}/#{name}/"
           problems << "#{path}:#{number}: #{name} links to #{target}, not #{expected}" unless target == expected
         end
         next unless line.match?(/\A\s*(?:\||[-*] |\d+\. )/)
 
-        stripped = line.gsub(/\[`tmux_[a-z_]+`\]\([^)]*\)/, "")
+        stripped = line.gsub(linked, "")
         stripped.scan(/`(tmux_[a-z_]+)`/) do |(name)|
           problems << "#{path}:#{number}: #{name} is not linked to its tool page" if tools.include?(name)
         end
       end
       problems
+    end
+
+    # `[label]: target` lines outside code fences.
+    def reference_definitions(markdown)
+      without_fences(markdown).scan(/^\[([^\]]+)\]:\s+(\S+)\s*$/).to_h
+    end
+
+    # The markdown with its fenced blocks removed.
+    def without_fences(markdown)
+      markdown.gsub(/^```.*?^```[ \t]*$/m, "")
+    end
+
+    # Every `[text][label]` names a defined label, and every defined label is
+    # used, so a mistyped label cannot render as literal brackets.
+    def reference_link_problems(markdown, path)
+      defined = reference_definitions(markdown)
+      text = without_fences(markdown).lines.reject { |line| line.match?(/^\[[^\]]+\]:\s/) }.join
+      used = text.scan(/\]\[([^\]]+)\]/).flatten.uniq
+      (used - defined.keys).map { |label| "#{path}: the link label [#{label}] has no definition" } +
+        (defined.keys - used).map { |label| "#{path}: the link definition [#{label}] is not used" }
+    end
+
+    # The id a heading gets, as scripts/docs and GitHub compute it.
+    def heading_anchors(markdown)
+      seen = Hash.new(0)
+      without_fences(markdown).lines.grep(/\A\#{1,6} /).map do |line|
+        text = line.sub(/\A\#+ /, "").strip
+        text = text.gsub(/\[([^\]]*)\](?:\([^)]*\)|\[[^\]]*\])/, '\1').delete("`")
+        id = text.downcase.gsub(/[^\p{Alnum}_\- ]/, "").tr(" ", "-")
+        count = seen[id]
+        seen[id] += 1
+        count.zero? ? id : "#{id}-#{count}"
+      end
+    end
+
+    # Each `](#anchor)` in the page lands on one of its headings.
+    def anchor_problems(markdown, path)
+      anchors = heading_anchors(markdown)
+      without_fences(markdown).scan(/\]\(#([^)]+)\)/).flatten.uniq.reject { |anchor| anchors.include?(anchor) }
+        .map { |anchor| "#{path}: no heading has the anchor ##{anchor}" }
     end
 
     # Every `--flag` that a command passes to the program, and every one the
@@ -168,10 +218,11 @@ module LibTmuxTest
       end
     end
 
-    # A gems section heading links to the gem's directory on GitHub.
+    # A gems section heading links to the gem's directory on GitHub, and may
+    # follow the link with a colon and the gem's job in plain words.
     def gem_heading_problems(markdown, path, gems:)
       gems.filter_map do |name|
-        heading = /^#+ \[#{Regexp.escape(name)}\]\(#{Regexp.escape("#{GEM_TREE}/#{name}")}\)\s*$/
+        heading = /^#+ \[#{Regexp.escape(name)}\]\(#{Regexp.escape("#{GEM_TREE}/#{name}")}\)(?::\s\S.*)?\s*$/
         "#{path}: no heading links #{name} to #{GEM_TREE}/#{name}" unless markdown.match?(heading)
       end
     end
