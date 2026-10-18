@@ -76,7 +76,7 @@ module LibTmux
       rescue Interrupt, LibTmux::Cancelled => error
         report(error, kind: "interrupted", status: 130)
       rescue LibTmux::Error, SystemCallError, IOError => error
-        report(error, kind: "execution", status: @result ? 3 : 1)
+        report(error, kind: version_refusal?(error) ? "tmux_unsupported" : "execution", status: @result ? 3 : 1)
       end
 
       private
@@ -157,10 +157,21 @@ module LibTmux
         @out.puts(@json ? JSON.generate(value) : human)
       end
 
+      # A refusal before dispatch sent nothing, and its message says what to
+      # change, so it replaces the generic failure line.
+      def pre_dispatch_refusal?(error)
+        error.is_a?(LibTmux::UnsupportedFeatureError) && error.phase == :admission && error.delivery == :not_sent
+      end
+
+      # Only a refusal that names the tmux floor carries the machine code.
+      def version_refusal?(error)
+        LibTmux::Internal::TmuxVersion.refusal?(error)
+      end
+
       def report(error, kind:, status:)
         message = if kind == "arguments"
           @argument_message || "Invalid arguments; use --help for supported options."
-        elsif error.is_a?(Workspace::ConfigError) || error.is_a?(Workspace::ApplyError)
+        elsif error.is_a?(Workspace::ConfigError) || error.is_a?(Workspace::ApplyError) || pre_dispatch_refusal?(error)
           error.message
         else
           "Workspace #{kind} failed#{error ? " (#{error.class})" : ''}."

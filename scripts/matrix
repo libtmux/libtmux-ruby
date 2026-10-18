@@ -9,14 +9,14 @@ require "open3"
 
 module CompatibilityMatrix
   RUBIES = %w[3.3.12 3.4.10 4.0.7].freeze
-  TMUXES = %w[3.2a 3.3a 3.4 3.5a 3.6 3.7c].freeze
+  TMUXES = %w[3.3a 3.4 3.5a 3.6 3.7c 3.8].freeze
   SYSTEMS = %w[linux macos].freeze
   ROOT = File.expand_path("..", __dir__)
 
   def self.cells
     SYSTEMS.product(RUBIES, TMUXES).map do |os, ruby, tmux|
       {"id" => [os, ruby, tmux].join("/"), "os" => os, "ruby" => ruby, "tmux" => tmux,
-       "process_bound_mcp" => tmux == "3.2a" ? "structured_unsupported_not_sent" : "positive_native_identity",
+       "process_bound_mcp" => "positive_native_identity",
        "status" => "UNVERIFIED"}
     end
   end
@@ -87,7 +87,7 @@ module CompatibilityMatrix
     options = {rubies: {}, tmuxes: {}, directory: File.join(ROOT, "build/matrix")}
     parser = OptionParser.new do |args|
       args.banner = "Usage: scripts/matrix [--plan | --run | --merge DIR] [options]"
-      args.on("--plan", "Print all 36 required cells without executing") { options[:plan] = true }
+      args.on("--plan", "Print every required cell without executing") { options[:plan] = true }
       args.on("--run", "Run available local cells; retain all missing cells") { options[:run] = true }
       args.on("--cell ID", "Limit execution to os/ruby/tmux; other cells remain visible") { |value| options[:cell] = value; options[:run] = true }
       args.on("--ruby VERSION=PATH", "Explicit interpreter; repeat for local matrix") { |value| key, path = value.split("=", 2); options[:rubies][key] = path && File.expand_path(path) }
@@ -124,7 +124,7 @@ module CompatibilityMatrix
     end
     changed = fingerprint != digest
     report_cells.each { |cell| cell["status"] = "STALE_SOURCE" if changed && cell["status"] == "PASS" }
-    report = {"required_cells" => 36, "source_digest" => fingerprint,
+    report = {"required_cells" => cells.length, "source_digest" => fingerprint,
       "status" => report_cells.all? { |cell| cell.fetch("status") == "PASS" } ? "PASS" : "PARTIAL", "cells" => report_cells}
     json = JSON.pretty_generate(report) + "\n"
     if options[:run] || options[:merge]

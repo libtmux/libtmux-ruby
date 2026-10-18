@@ -6,8 +6,8 @@ module LibTmuxTest
       reply = control.exchange(%q{run-shell 'printf "outside-reply\n"; exit 17'}, timeout: 0.5)
       refute_includes reply.blocks.map(&:body).join, "outside-reply"
       assert reply.blocks.any?(&:guard_success?)
-      release = Gem::Version.new(version[/\d+\.\d+/])
-      if release >= Gem::Version.new("3.3") && release < Gem::Version.new("3.5")
+      release = LibTmux::Internal::TmuxVersion.parse(version)
+      if release < LibTmux::Internal::TmuxVersion.parse("3.5")
         # These releases put run-shell output in pane view mode.
         copy_view = "send-keys -X history-top ; send-keys -X begin-selection ; " \
           "send-keys -X history-bottom ; send-keys -X end-of-line ; " \

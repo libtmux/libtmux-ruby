@@ -175,7 +175,12 @@ module LibTmux
           created = result && result["created"]
           {"state" => created ? "known" : delivery == :not_sent ? "none" : "unknown", "created" => created || []}
         end
-        failure_response(code, "The operation could not establish its requested result.", delivery.to_s, effects: effects)
+        message = if delivery == :not_sent && LibTmux::Internal::TmuxVersion.refusal?(error)
+          LibTmux::Internal::TmuxVersion.hint
+        else
+          "The operation could not establish its requested result."
+        end
+        failure_response(code, message, delivery.to_s, effects: effects)
       end
 
       def inspect

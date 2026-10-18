@@ -279,7 +279,7 @@ class ControlIntegrationTest < Minitest::Test
 
   def test_outside_wait_output_is_an_event_and_corruption_fails_closed
     with_control do |fixture, _, control|
-      assert_run_shell_routing(control, fixture.tmux("-V").first)
+      assert_run_shell_routing(control, fixture.tmux("-V").first.strip.delete_prefix("tmux "))
     end
   end
 
@@ -404,7 +404,7 @@ class ControlIntegrationTest < Minitest::Test
     LibTmuxTest::TmuxFixture.open do |fixture|
       original_rubyopt = ENV["RUBYOPT"]
       executable = File.join(File.dirname(fixture.socket_path), "control-child")
-      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\ntrap('TERM') {}\nSTDOUT.write(\"ready\\n\"); STDOUT.flush\nIO.select([])\n")
+      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nexec #{fixture.executable.inspect}, *ARGV unless ARGV.include?('-C') && ARGV.include?('attach-session')\ntrap('TERM') {}\nSTDOUT.write(\"ready\\n\"); STDOUT.flush\nIO.select([])\n")
       File.chmod(0o700, executable)
       ambient_startup = File.join(File.dirname(fixture.socket_path), "ambient-startup.rb")
       File.write(ambient_startup, "STDOUT.write(\"ambient startup\\n\"); STDOUT.flush\n")
@@ -414,6 +414,8 @@ class ControlIntegrationTest < Minitest::Test
       wait_class = LibTmux::Internal::ProcessWait
       original_new = wait_class.method(:new)
       wait_class.define_singleton_method(:new) do
+        next original_new.call unless caller_locations(1, 1).first.path.end_with?("/libtmux/control.rb")
+
         Object.new.tap do |observer|
           observer.define_singleton_method(:observe) { |_| gate.pop; raise IOError, "observer injection" }
         end

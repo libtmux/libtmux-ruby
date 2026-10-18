@@ -146,7 +146,7 @@ class ServerTest < Minitest::Test
   def test_pre_cancelled_request_never_attempts_spawn
     LibTmuxTest::TmuxFixture.open do |fixture|
       executable = File.join(File.dirname(fixture.socket_path), "removed-client")
-      File.write(executable, "#!/bin/sh\nexit 1\n")
+      File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nexec #{fixture.executable.inspect}, *ARGV\n")
       File.chmod(0o700, executable)
       endpoint = LibTmux::Endpoint.new(socket_path: fixture.socket_path, executable: executable)
       LibTmux::Server.open(endpoint: endpoint) do |server|

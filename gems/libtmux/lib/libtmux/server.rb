@@ -4,6 +4,7 @@ require_relative "endpoint"
 require_relative "process"
 require_relative "metadata"
 require_relative "entity"
+require_relative "tmux_version"
 
 module LibTmux
   # Connects to an existing endpoint. Closing retires clients, never the daemon.
@@ -133,7 +134,8 @@ module LibTmux
       result
     end
 
-    def initialize(endpoint: nil, socket_path: nil, socket_name: nil, executable: "tmux", max_requests: 32, max_controls: 4, close_timeout: 0.5)
+    def initialize(endpoint: nil, socket_path: nil, socket_name: nil, executable: "tmux", max_requests: 32, max_controls: 4, close_timeout: 0.5,
+      version_timeout: 5.0)
       if endpoint && (socket_path || socket_name || executable != "tmux")
         raise ArgumentError, "endpoint cannot be combined with socket or executable options"
       end
@@ -148,6 +150,10 @@ module LibTmux
         raise ArgumentError, "close_timeout must be positive and finite"
       end
 
+      unless version_timeout.is_a?(Numeric) && version_timeout.finite? && version_timeout.positive?
+        raise ArgumentError, "version_timeout must be positive and finite"
+      end
+
       @endpoint = endpoint || Endpoint.new(socket_path: socket_path, socket_name: socket_name, executable: executable)
       @owner_pid = Process.pid
       @max_requests = max_requests
@@ -160,6 +166,19 @@ module LibTmux
       @closed = false
       @executor = Internal::ProcessExecutor.new
       @pin = Internal::SocketIdentity.new(@endpoint)
+      begin
+        @release = Internal::TmuxVersion.connected(@pin.command_prefix) { |argv| @executor.run(argv, timeout: version_timeout, discard_stdout: true) }
+        argv, marker = Internal::TmuxVersion.fence_check_argv
+        Internal::TmuxVersion.verify_fence(@executor.run(@pin.command_prefix + argv, timeout: version_timeout), marker)
+      rescue Exception
+        @pin.close
+        raise
+      end
+    end
+
+    # The daemon's release text, such as "3.7d" or "next-3.9".
+    def tmux_version
+      @release.text
     end
 
     # Raw tmux arguments retain tmux's separators and format semantics.
@@ -170,8 +189,10 @@ module LibTmux
       raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
       raise ArgumentError, "timeout must be finite" unless timeout.is_a?(Numeric) && timeout.finite?
       perform_request(cancel: cancel) do |view|
-        @executor.run(@pin.command_prefix + argv, input: input,
+        fence, marker = Internal::TmuxVersion.fence(@release)
+        result = @executor.run(@pin.command_prefix + fence + argv, input: input,
           timeout: timeout - (monotonic - started), cancel: view)
+        Internal::TmuxVersion.check_fence(result, marker, @release)
       end
     end
 
@@ -374,6 +395,10 @@ module LibTmux
     end
     private_constant :CancellationView
 
+    def tmux_release
+      with_bound_endpoint { |_endpoint, _pin, release| release }
+    end
+
     def monotonic
       Process.clock_gettime(Process::CLOCK_MONOTONIC)
     end
@@ -389,7 +414,7 @@ module LibTmux
       ensure_owner
       @mutex.synchronize do
         ensure_open
-        yield @endpoint, @pin
+        yield @endpoint, @pin, @release
       end
     end
 

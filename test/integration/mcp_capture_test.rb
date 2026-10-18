@@ -9,9 +9,7 @@ class MCPCaptureTest < Minitest::Test
   include LibTmuxTest::ProcessCursorSupport
   def test_sdk_capture_retains_exact_bounded_states_and_rejects_foreign_or_respawned_cursors
     with_application do |app, sdk, scope, source|
-      supported = require_process_cursor_support(app, scope)
-      assert_includes [true, false], supported, "process support must select a proved positive or refusal branch"
-      next unless supported
+      require_process_cursor_support(scope)
       pane = scope.server.list_panes.first
       target = wire_ref(pane.ref)
       first = invoke(sdk, target: target, track: true, max_lines: 24)
@@ -78,8 +76,8 @@ class MCPCaptureTest < Minitest::Test
 
   def test_capture_refuses_a_session_link_removed_before_dispatch
     with_application do |app, sdk, scope, source|
-      version = source.snapshot.server_info.fetch(:version).scan(/\d+/).first(2).map(&:to_i)
-      phases = (version <=> [3, 5]).negative? ? [:preflight, :capture] : [:capture]
+      release = LibTmux::Internal::TmuxVersion.parse(source.snapshot.server_info.fetch(:version))
+      phases = LibTmux::MCP.const_get(:Observation).preflight_hooks?(release) ? [:preflight, :capture] : [:capture]
       phases.each do |phase|
         first = scope.server.new_session(name: "context-#{phase}", command: ["cat"])
         window = first.list_windows.first

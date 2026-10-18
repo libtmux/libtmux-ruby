@@ -21,8 +21,8 @@ class WorkspaceApplyTest < Minitest::Test
           server.pane(result.created_refs.fetch(key)).display('#{history_limit}').text.to_i
         end
         assert_equal [123, 123], limits.drop(1)
-        release = Gem::Version.new(server.snapshot.server_info.fetch(:version)[/\d+\.\d+/])
-        assert_equal release >= Gem::Version.new("3.7") ? 123 : inherited, limits.first
+        release = LibTmux::Internal::TmuxVersion.parse(server.snapshot.server_info.fetch(:version))
+        assert_equal release >= LibTmux::Internal::TmuxVersion.parse("3.7") ? 123 : inherited, limits.first
         assert_equal inherited, server.options(scope: :session).get("history-limit").as(:integer)
       end
     end

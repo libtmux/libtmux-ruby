@@ -35,8 +35,19 @@
       "methods": [
         "LibTmux::Server#endpoint",
         "LibTmux::Server#owned?",
+        "LibTmux::Server#tmux_version",
         "LibTmux::Server.new",
         "LibTmux::Server.open"
+      ]
+    },
+    {
+      "id": "supported-tmux",
+      "title": "Supported tmux",
+      "methods": [
+        "LibTmux::Support.require_supported",
+        "LibTmux::Support.server_version",
+        "LibTmux::Support::Versions.require_supported",
+        "LibTmux::Support::Versions.server_version"
       ]
     },
     {

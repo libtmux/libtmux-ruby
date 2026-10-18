@@ -36,7 +36,11 @@ module LibTmux
           rescue Interrupt, LibTmux::Cancelled => error
             report("MCP interrupted; dispatched effects may remain.", 130, failure: error)
           rescue StandardError => error
-            report("MCP execution failed (#{error.class}); dispatched effects may remain.", 1, failure: error)
+            if error.is_a?(LibTmux::UnsupportedFeatureError) && error.phase == :admission && error.delivery == :not_sent
+              report("MCP refused to start: #{error.message}.", 1, failure: error)
+            else
+              report("MCP execution failed (#{error.class}); dispatched effects may remain.", 1, failure: error)
+            end
           end
         end.wait
       rescue OptionParser::ParseError, ArgumentError => error

@@ -52,10 +52,15 @@ $ mise exec -- bundle config set --local path vendor/bundle
 $ mise exec -- bundle install
 ```
 
-The gemspecs declare Ruby 3.3+. The
+The gemspecs declare Ruby 3.3+ and the suite requires tmux 3.3a or newer;
+unpatched 3.3 is below the minimum. A server handle checks the connected
+daemon's release, not the client's, and refuses an older daemon before any
+requested command runs. The
 [compatibility workflow](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
-tests Ruby 3.3, 3.4, and 4.0 with tmux 3.2a–3.7c on Linux and macOS. Check the
-results for your revision before relying on a particular combination.
+tests Ruby 3.3, 3.4, and 4.0 with tmux 3.3a–3.8 on Linux and macOS, runs the
+suite against a pinned tmux master build, and checks that tmux 3.0a, 3.1c,
+3.2a and 3.3 daemons are refused. Check the results for your revision before
+relying on a particular combination.
 
 ## Quick start
 
@@ -138,7 +143,8 @@ Start with `libtmux`. Add the companion for your caller:
 Requiring a gem starts no tmux process, scheduler, or protocol server.
 [Execution modes](docs/modes.md) explains blocking calls, Async tasks, and
 control subscriptions. Tracked MCP captures, waits, and authored runs require
-tmux 3.3+ and native process identity; see the [MCP guide](gems/libtmux-mcp/README.md).
+tmux 3.3a+ and native process identity; see the
+[MCP guide](gems/libtmux-mcp/README.md).
 Workspace client-switching semantics are in the
 [workspace guide](gems/libtmux-workspace/README.md).
 

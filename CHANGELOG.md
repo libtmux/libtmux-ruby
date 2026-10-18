@@ -2,8 +2,37 @@
 
 ## 0.1.0.alpha.2 (unreleased)
 
+### libtmux
+
+- Require tmux 3.3a or newer. `Server.open`, `Server.new` and `Server.start`
+  raise `UnsupportedFeatureError` before any command runs when the daemon is
+  older, including unpatched 3.3, 3.1 and 3.0. The daemon's release decides,
+  not the client's, so a newer client does not accept an older daemon. The
+  error says to upgrade tmux and restart the server, or pin the previous
+  libtmux release. Async, the workspace CLI and `libtmux-mcp` refuse the same
+  way, and `workspace load` prints that message in its text and `--json`
+  output, where `error.kind` is `tmux_unsupported`.
+  [Supported tmux](docs/reference/behavior.md#supported-tmux). (#36)
+- Run on tmux 3.8 and tmux master (`next-3.9`). Snapshots decode metadata
+  with line feeds, `select_layout` accepts the JSON layouts that 3.8-rc2 and
+  later report, and owned servers start on releases that log more at startup.
+  (#36)
+- **Breaking:** `PaneSnapshot#pid` can now be `nil`, because tmux 3.8 reports
+  no PID for a dead pane. The type changes on every tmux release in the RBS
+  signatures, the `where` schema and the field catalog, so typed callers must
+  handle `nil`. MCP process tracking of a pane without a PID raises
+  `TargetNotFoundError`. [Migration](https://github.com/libtmux/libtmux-ruby/blob/master/MIGRATION.md). (#36)
+- **Breaking:** `Server.new` now reads the daemon's tmux release and blocks
+  for up to `version_timeout:` seconds (default five), so a socket with no
+  daemon raises `TargetNotFoundError` at construction instead of at the first
+  command. Read the result with the new `Server#tmux_version`. (#36)
+
 ### libtmux-mcp
 
+- `libtmux-mcp` reports an unsupported tmux daemon as refused to start,
+  before any session exists. If the daemon changes while the server runs, a
+  tool call returns an `unsupported` result with `delivery: not_sent` and a
+  fixed line that names the floor and the remedy. (#36)
 - Declare object roots in tool output schemas so clients using the
   2025-11-25 protocol accept the `tools/list` response with MCP SDK 1.5.1.
 

@@ -514,17 +514,6 @@ class MCPEnrollmentTest < Minitest::Test
                 ensure
                   previous_tmpdir ? ENV['TMPDIR'] = previous_tmpdir : ENV.delete('TMPDIR')
                 end
-                unless process_cursor_tmux_supported?(scope)
-                  pane = scope.server.list_panes.first
-                  before = Dir.children(directory)
-                  failure = assert_raises(LibTmux::UnsupportedFeatureError) do
-                    app_tools ? registry.invite_shell(pane.ref, timeout: 0.5) : registry.invite(pane.ref, timeout: 0.5)
-                  end
-                  assert_equal :not_sent, failure.delivery
-                  assert_equal before, Dir.children(directory), 'refused enrollment created setup files'
-                  assert_equal [pane.id], scope.server.list_panes.map(&:id), 'refused enrollment changed pane topology'
-                  next
-                end
                 pane = scope.server.new_session(name: 'enrolled', command: ['/usr/bin/env', "ZDOTDIR=#{directory}", '/bin/zsh', '-d', '-i']).list_panes.first
                 channel = listener.accept
                 assert_equal 'initializing', read_line(channel)

@@ -10,7 +10,7 @@ class ReleaseCITest < Minitest::Test
     run = {"id" => 42, "head_sha" => COMMIT, "head_branch" => "master",
       "event" => "push", "path" => ".github/workflows/compatibility.yml",
       "status" => "completed", "conclusion" => "success"}
-    jobs = {"jobs" => [{"name" => "All 36 required cells", "conclusion" => "success"}]}
+    jobs = {"jobs" => [{"name" => "All required cells", "conclusion" => "success"}]}
     queries = []
     client = lambda do |path|
       queries << path
