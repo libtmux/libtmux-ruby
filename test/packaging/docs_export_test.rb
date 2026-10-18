@@ -52,7 +52,7 @@ class DocsExportTest < Minitest::Test
     files = examples.fetch("files").to_h { |entry| [entry.fetch("path"), entry.fetch("content")] }
     public = (payload.fetch("namespaces") + payload.fetch("symbols"))
       .to_h { |entry| [entry.fetch("id"), entry.fetch("package")] }
-    assert_equal 8, programs.length
+    assert_equal Dir.glob("examples/api/*.rb", base: ROOT).length, programs.length
     programs.each do |program|
       code = files.fetch(program.fetch("path"))
       assert_equal File.read(File.join(ROOT, program.fetch("path"))), code

@@ -26,6 +26,23 @@ installation commands, or package names from another port without evidence.
 
 A README should explain the purpose, status, requirements, installation, and
 smallest working example. Keep detailed API contracts in API documentation.
+
+A README is built to be scanned:
+
+- It opens with the logo header, one line, and a quick start with the shortest
+  working program.
+- Task sections follow in the reader's words, ordered from first use to deeper
+  use.
+- A `###` heading names a linked API and its job, such as
+  ``### [`Server#snapshot`][server-snapshot]: one read, many queries``.
+- Under it go a sentence that names the call and its siblings, a short example
+  from a tested program, where it runs and what it prints, and at most one
+  short note.
+- Paragraphs stay near four lines. Contract detail moves to `docs/` and is
+  linked.
+- Every API, tool and command the prose names is linked. Reference-style links
+  sit at the foot of the file, and no link appears inside a code fence.
+- Package tables and lists stay when a README is restructured.
 Commands must work as written; examples must use real interfaces and state
 their prerequisites. A performance claim needs a measurement and a command
 that reproduces it.
