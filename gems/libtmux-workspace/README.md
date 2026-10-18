@@ -356,7 +356,7 @@ values by design.
 ## What it leaves out
 
 - **Reconciliation.** A plan creates a new session and never replaces or
-  removes an existing workspace. See
+  removes an existing workspace. The contract is in
   [Workspace plans][behavior-workspace-plans].
 - **Shell command completion.** Apply records a shell command as dispatched.
   Embedded newlines can execute while the text is inserted. See

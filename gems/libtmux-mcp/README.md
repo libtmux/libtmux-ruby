@@ -183,9 +183,11 @@ $ libtmux-mcp \
 - Process tracking needs a native identity backend: Linux peer pidfds with
   matching PID namespaces, or Darwin kqueue. Without one, the call is refused.
 
-### Resource templates: the same data as URIs
+### [Resource templates][mcp-resources]: the same data as URIs
 
-The [resource templates][mcp-resources] expose metadata pages and pane screens
+[`tmux_metadata`][resource-tmux_metadata],
+[`tmux_metadata_page`][resource-tmux_metadata_page] and
+[`tmux_screen`][resource-tmux_screen] expose metadata pages and pane screens
 under endpoint and generation URIs, with the same policy and limits as their
 tools.
 
@@ -358,6 +360,9 @@ pass the invitation to [`accept_shell`][mcp-application-accept_shell].
 [mcp-resources]: https://libtmux.org/en/ruby/latest/mcp/resources/
 [mcp-snapshots-topic]: https://libtmux.org/en/ruby/latest/mcp/topics/snapshots-and-references/
 [mcp-stdiotransport]: https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-stdiotransport/
+[resource-tmux_metadata]: https://libtmux.org/en/ruby/latest/mcp/resources/templates/tmux_metadata/
+[resource-tmux_metadata_page]: https://libtmux.org/en/ruby/latest/mcp/resources/templates/tmux_metadata_page/
+[resource-tmux_screen]: https://libtmux.org/en/ruby/latest/mcp/resources/templates/tmux_screen/
 [tool-tmux_capabilities]: https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capabilities/
 [tool-tmux_capture]: https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capture/
 [tool-tmux_close]: https://libtmux.org/en/ruby/latest/mcp/tools/tmux_close/

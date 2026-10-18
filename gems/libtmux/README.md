@@ -527,8 +527,8 @@ event: %window-renamed @0 renamed
   tail one reports the lost range as a `:gap` event.
 - [`pause_output`][controlconnection-pause_output] and
   [`resume_output`][controlconnection-resume_output] return a
-  [`GuardedReply`][guardedreply].
-  A reply does not show that the action took effect.
+  [`GuardedReply`][guardedreply]. A reply does not show that the action took
+  effect.
 - To reconnect, close the old connection and pass it as
   `open_control(session: ref, reconnect: old_connection)`. The replacement has
   a new `generation`, and every new subscription starts with a `:reconnect`
