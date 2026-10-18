@@ -15,15 +15,49 @@ Run libtmux operations inside an application-owned Async task. This
 gem provides a subprocess facade, ordered mapping, control replies and event
 subscriptions. Imports start no scheduler, tmux server or background task.
 
+[API reference](https://libtmux.org/en/ruby/latest/reference/libtmux-async/) ·
+[Guide](https://libtmux.org/en/ruby/latest/guides/async/) ·
+[RubyGems](https://rubygems.org/gems/libtmux-async)
+
 </div>
+
+Part of [libtmux for Ruby](https://github.com/libtmux/libtmux-ruby#readme).
+Built on [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux).
 
 Requires tmux 3.3a or newer. The Async facade dispatches through a
 version-checked core server and carries the same daemon release check.
 
-Install the alpha with `gem install libtmux-async --pre`.
+## Install
 
-The [complete program](../../examples/async_cancel.rb) owns an isolated server
-and its cleanup. This excerpt uses that server and creates the Async root:
+Install the alpha, then require `libtmux/async`:
+
+```console
+$ gem install libtmux-async --pre
+```
+
+## Quick start
+
+Capture every pane concurrently inside an Async task. `server` is a core
+`LibTmux::Server` that outlives the scope. The
+[complete program](../../examples/async_cancel.rb) owns an isolated server and
+its cleanup, and the excerpts on this page run inside it.
+
+<!-- example: async_cancel/map -->
+```ruby
+Async do |parent|
+  LibTmux::Async.open(parent: parent, server: server) do |scope|
+    refs = scope.server.list_panes.map(&:ref)
+    screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
+    Example.check(screens.length == refs.length && screens.all?(&:success?), "concurrent captures failed")
+  end
+end.wait
+```
+<!-- /example -->
+
+## Cancel a request
+
+Cancel a tmux request that is waiting while a sibling task keeps capturing.
+This excerpt creates the Async root:
 
 <!-- example: async_cancel/main -->
 ```ruby

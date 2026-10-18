@@ -28,4 +28,13 @@ Example.run("async_cancel") do |server|
     end
   end.wait
   # docs:end main
+  # docs:begin map
+  Async do |parent|
+    LibTmux::Async.open(parent: parent, server: server) do |scope|
+      refs = scope.server.list_panes.map(&:ref)
+      screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
+      Example.check(screens.length == refs.length && screens.all?(&:success?), "concurrent captures failed")
+    end
+  end.wait
+  # docs:end map
 end

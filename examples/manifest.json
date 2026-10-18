@@ -224,6 +224,12 @@
       "language": "ruby"
     },
     {
+      "id": "async_cancel/map",
+      "source": "examples/async_cancel.rb",
+      "region": "map",
+      "language": "ruby"
+    },
+    {
       "id": "control_overflow/main",
       "source": "examples/control_overflow.rb",
       "region": "main",

@@ -16,7 +16,8 @@ Ruby. Read server state into a snapshot, then query it with `where`, `select`,
 and the rest of `Enumerable`.
 
 [Quick start](#quick-start) · [Queries](#query-a-snapshot) · [Gems](#gems) ·
-[Guide](docs/index.md) · [API reference](docs/reference/api.md) ·
+[Guide](docs/index.md) ·
+[API reference](https://libtmux.org/en/ruby/latest/reference/) ·
 [Recipes](docs/recipes.md)
 
 </div>
@@ -131,21 +132,138 @@ also covers exact matches and queries after close.
 
 ## Gems
 
-Start with `libtmux`. Add the companion for your caller:
-
-| Gem | Require | Use it for |
-| --- | --- | --- |
-| [libtmux](gems/libtmux/README.md) | `libtmux` | Blocking scripts, snapshots, and control connections |
-| [libtmux-async](gems/libtmux-async/README.md) | `libtmux/async` | Concurrent commands and bounded streams in Async tasks |
-| [libtmux-mcp](gems/libtmux-mcp/README.md) | `libtmux/mcp` | An MCP server with explicit endpoints and tool policy |
-| [libtmux-workspace](gems/libtmux-workspace/README.md) | `libtmux/workspace` | YAML/JSON workspace plans and a CLI to apply them |
+Four gems share one repository and one version. Start with `libtmux`, then add
+the companion for your caller. Each heading links to the gem's directory and
+README.
 
 Requiring a gem starts no tmux process, scheduler, or protocol server.
 [Execution modes](docs/modes.md) explains blocking calls, Async tasks, and
-control subscriptions. Tracked MCP captures, waits, and authored runs require
-tmux 3.3a+ and native process identity; see the
-[MCP guide](gems/libtmux-mcp/README.md).
-Workspace client-switching semantics are in the
+control subscriptions.
+
+### [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux)
+
+Blocking server, session, window and pane handles, immutable snapshots, and
+control connections. Require `libtmux`.
+
+[API reference](https://libtmux.org/en/ruby/latest/reference/) ·
+[Guides](https://libtmux.org/en/ruby/latest/guides/) ·
+[RubyGems](https://rubygems.org/gems/libtmux)
+
+```console
+$ gem install libtmux --pre
+```
+
+The [quick start](#quick-start) and [snapshot queries](#query-a-snapshot)
+above run against this gem.
+
+### [libtmux-async](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-async)
+
+Concurrent commands and bounded control streams inside an Async task that your
+application owns. Require `libtmux/async`.
+
+[API reference](https://libtmux.org/en/ruby/latest/reference/libtmux-async/) ·
+[Guide](https://libtmux.org/en/ruby/latest/guides/async/) ·
+[RubyGems](https://rubygems.org/gems/libtmux-async)
+
+```console
+$ gem install libtmux-async --pre
+```
+
+Capture every pane concurrently. `server` is an open `LibTmux::Server`:
+
+<!-- example: async_cancel/map -->
+```ruby
+Async do |parent|
+  LibTmux::Async.open(parent: parent, server: server) do |scope|
+    refs = scope.server.list_panes.map(&:ref)
+    screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
+    Example.check(screens.length == refs.length && screens.all?(&:success?), "concurrent captures failed")
+  end
+end.wait
+```
+<!-- /example -->
+
+### [libtmux-mcp](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-mcp)
+
+An MCP server over stdio for one tmux server, with an explicit tool policy.
+Installs `libtmux-mcp`; require `libtmux/mcp` to embed it.
+
+[API reference](https://libtmux.org/en/ruby/latest/mcp/reference/) ·
+[Tools](https://libtmux.org/en/ruby/latest/mcp/tools/) ·
+[Guides](https://libtmux.org/en/ruby/latest/mcp/guides/) ·
+[RubyGems](https://rubygems.org/gems/libtmux-mcp)
+
+```console
+$ gem install libtmux-mcp --pre
+```
+
+The server borrows a tmux server that is already running. Start one on a
+socket of its own:
+
+```console
+$ tmux -L agent new-session -d -s work
+```
+
+Add the server to Claude Code. Until you enable more tools, it serves
+[`tmux_capabilities`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capabilities/)
+and
+[`tmux_snapshot`](https://libtmux.org/en/ruby/latest/mcp/tools/tmux_snapshot/):
+
+```console
+$ claude mcp add tmux -- libtmux-mcp --socket-name agent --endpoint dev
+```
+
+The [MCP README](gems/libtmux-mcp/README.md) covers other clients, every tool
+and authored shell commands.
+
+### [libtmux-workspace](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-workspace)
+
+YAML or JSON workspaces, validated, planned offline and applied to an open
+server. Installs `libtmux-workspace`; require `libtmux/workspace` to use it
+from Ruby.
+
+[API reference](https://libtmux.org/en/ruby/latest/workspace/reference/) ·
+[Command reference](https://libtmux.org/en/ruby/latest/workspace/cli/) ·
+[Guides](https://libtmux.org/en/ruby/latest/workspace/guides/) ·
+[RubyGems](https://rubygems.org/gems/libtmux-workspace)
+
+```console
+$ gem install libtmux-workspace --pre
+```
+
+Save this workspace as `workspace.yaml`:
+
+<!-- example: workspace/config -->
+```yaml
+session_name: work
+environment:
+  PROJECT_MODE: development
+windows:
+  - window_name: editor
+    window_index: 1
+    layout: tiled
+    panes:
+      - shell_command: printf 'editor ready\n'
+      - {}
+```
+<!-- /example -->
+
+Check it without contacting tmux:
+
+```console
+$ libtmux-workspace validate workspace.yaml
+```
+
+```text
+Workspace configuration is valid.
+```
+
+The [workspace README](gems/libtmux-workspace/README.md) loads it into a
+running server and lists every option.
+
+Tracked MCP captures, waits, and authored runs require tmux 3.3a+ and native
+process identity; see the [MCP guide](gems/libtmux-mcp/README.md). Workspace
+client-switching semantics are in the
 [workspace guide](gems/libtmux-workspace/README.md).
 
 To use the core outside this checkout, build the artifacts:
