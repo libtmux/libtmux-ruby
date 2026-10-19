@@ -352,7 +352,7 @@ module LibTmux
       budget = server.__send__(:operation_budget, timeout, cancel)
       destination = server.__send__(:target, session, :session)
       literal = server.__send__(:literal_name, name)
-      repaired = server.__send__(:tmux_release).exactly?(3, 7)
+      repaired = Internal::Capabilities.workaround("break-pane-misnames-windows").applies?(server.__send__(:tmux_release))
       result = server.__send__(:execute_typed, ["break-pane", "-d", "-P", "-F", server.__send__(:id_format, :window),
         "-s", target, "-t", "#{destination}:", "-n", literal], repaired_break: repaired, **budget.options)
       id = result.stdout.empty? ? nil : result.stdout

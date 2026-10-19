@@ -185,7 +185,7 @@ module LibTmux
 
     # True when the checked daemon accepts control clients (tmux 3.7 and newer).
     def supports_control?
-      (@release <=> Internal::TmuxVersion.parse(Internal::TmuxVersion::CONTROL_MINIMUM)) >= 0
+      Internal::Capabilities.capability("control-mode").available?(@release)
     end
 
     # Raw tmux arguments retain tmux's separators and format semantics.
@@ -539,7 +539,7 @@ module LibTmux
       end
       # Exact tmux 3.7 rejects these in session and window names, so the
       # refusal comes before any effect.
-      if @release.exactly?(3, 7) && name.match?(/[:.]/)
+      if Internal::Capabilities.workaround("name-separators-rejected").applies?(@release) && name.match?(/[:.]/)
         raise UnsupportedFeatureError.new("tmux 3.7 rejects ':' and '.' in session and window names",
           phase: :admission, delivery: :not_sent)
       end

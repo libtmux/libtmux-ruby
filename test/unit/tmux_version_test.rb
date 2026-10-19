@@ -242,7 +242,8 @@ class TmuxVersionTest < Minitest::Test
         window.select_layout(json)
         assert_equal [["select-layout", "-t", "@1", "--", json]], calls, release
       else
-        assert_raises(ArgumentError, release) { window.select_layout(json) }
+        error = assert_raises(LibTmux::UnsupportedFeatureError, release) { window.select_layout(json) }
+        assert_equal :not_sent, error.delivery
         assert_empty calls, release
       end
     end

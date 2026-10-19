@@ -182,7 +182,12 @@ workspace builds or MCP tools that do not need them.
 | Raw `split-window -p` | All except 3.4 | Refused on 3.4; typed splits always send `-l N%` | Refusal qualified by tests |
 | Malformed layouts | 3.4 and newer | tmux 3.3a faults on a malformed header, so `select_layout` and raw `select-layout` accept only a checksummed layout or a unique built-in name | Refusal qualified by tests |
 
-tmux 3.8 saved layouts are JSON; `select_layout` accepts them from 3.8.
+tmux 3.8 saved layouts are JSON; `select_layout` accepts them from 3.8-rc2
+and raises `UnsupportedFeatureError` for a JSON layout on an older daemon.
+
+The release floors in this table come from one internal registry.
+`scripts/emit-capabilities` writes it to `capabilities.json`, which the
+docs site reads for its capability pages.
 
 `Server#supports_control?` reports whether the checked daemon accepts control
 clients, so callers can choose a polling path before asking for one.

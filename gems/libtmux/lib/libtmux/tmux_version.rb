@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "libtmux/errors"
+require "libtmux/capabilities"
 require "securerandom"
 
 module LibTmux
@@ -12,7 +13,7 @@ module LibTmux
     # then fenced against that exact text.
     module TmuxVersion
       MINIMUM = "3.3a"
-      CONTROL_MINIMUM = "3.7"
+      CONTROL_MINIMUM = Internal::Capabilities.capability("control-mode").since
       # The forms tmux has reported: X.Y, X.Y plus a patch letter, X.Y-rc and
       # X.Y-rcN candidates, and next-X.Y development builds. Anything else,
       # including master and openbsd-*, is not a release number. The candidate

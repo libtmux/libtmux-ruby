@@ -136,18 +136,27 @@ module LibTmux
       budget = server.__send__(:operation_budget, timeout, cancel)
       # Older tmux can access an invalid pointer for a malformed layout header.
       # tmux 3.8-rc2 and later report and accept saved layouts as JSON.
-      saved = /\A[0-9a-fA-F]{4},/.match?(value) ||
-        (value.start_with?("{") && server.__send__(:tmux_release) >= Internal::TmuxVersion.parse("3.8-rc2"))
+      saved = /\A[0-9a-fA-F]{4},/.match?(value)
+      if !saved && value.start_with?("{")
+        json = Internal::Capabilities.capability("layout-json")
+        release = server.__send__(:tmux_release)
+        unless json.available?(release)
+          raise UnsupportedFeatureError.new("JSON layouts require tmux #{json.since} or newer " \
+            "(connected version #{release.text})", phase: :admission, delivery: :not_sent)
+        end
+        saved = true
+      end
       unless LAYOUTS.include?(value) || saved
         choices = (LAYOUTS + MIRRORED_LAYOUTS).select { |name| name.start_with?(value) }
         raise ArgumentError, "layout must be a native name or a saved layout" if value.empty? || choices.empty?
 
         if choices.any? { |name| MIRRORED_LAYOUTS.include?(name) }
           release = server.__send__(:tmux_release)
-          if release < Internal::TmuxVersion.parse("3.5")
+          mirrored = Internal::Capabilities.capability("layout-mirrored-main")
+          unless mirrored.available?(release)
             choices &= LAYOUTS
             if choices.empty?
-              raise UnsupportedFeatureError.new("mirrored layouts require tmux 3.5+", phase: :admission)
+              raise UnsupportedFeatureError.new("mirrored layouts require tmux #{mirrored.since}+", phase: :admission)
             end
           end
         end

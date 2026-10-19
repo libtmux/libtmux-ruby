@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "libtmux/errors"
+require "libtmux/capabilities"
 
 module LibTmux
   module Internal
@@ -132,16 +133,18 @@ module LibTmux
           command = resolve(item.first)
           case command
           when "delete-buffer"
-            refuse("exact named-buffer deletion", "3.4", release) if before?(release, 3, 4) && flags(item, command).key?("b")
+            gate = Internal::Capabilities.capability("buffer-delete-named")
+            refuse("exact named-buffer deletion", gate.since, release) if !gate.available?(release) && flags(item, command).key?("b")
           when "set-buffer"
             given = flags(item, command)
-            refuse("exact named-buffer rename", "3.4", release) if before?(release, 3, 4) && given.key?("b") && given.key?("n")
+            gate = Internal::Capabilities.capability("buffer-rename")
+            refuse("exact named-buffer rename", gate.since, release) if !gate.available?(release) && given.key?("b") && given.key?("n")
           when "break-pane"
-            if exact?(release, 3, 7) && !(repaired_break && flags(item, command).key?("n"))
+            if Internal::Capabilities.workaround("break-pane-misnames-windows").applies?(release) && !(repaired_break && flags(item, command).key?("n"))
               refuse_raw_break(release)
             end
           when "split-window"
-            if release.key.first(2) == [3, 4] && flags(item, command).key?("p")
+            if Internal::Capabilities.workaround("split-window-percent-size").applies?(release) && flags(item, command).key?("p")
               raise UnsupportedFeatureError.new("split-window -p is broken on tmux #{release.text}; use -l with a percentage",
                 phase: :admission, delivery: :not_sent)
             end
@@ -222,7 +225,7 @@ module LibTmux
       # tmux 3.3a faults on a header that is not four hex digits and a comma, so
       # only checksummed layouts and built-in names pass before 3.4.
       def check_layout(item, command, release)
-        return unless before?(release, 3, 4)
+        return if Internal::Capabilities.capability("layout-without-checksum").available?(release)
 
         given = flags(item, command)
         return if given.key?("E") || given.key?("n") || given.key?("p")
@@ -233,14 +236,6 @@ module LibTmux
 
         raise UnsupportedFeatureError.new("an invalid layout is refused before dispatch on tmux #{release.text}; " \
           "use a unique built-in layout name or a serialized layout", phase: :admission, delivery: :not_sent)
-      end
-
-      def before?(release, major, minor)
-        (release.key.first(2) <=> [major, minor]).negative?
-      end
-
-      def exact?(release, major, minor)
-        release.exactly?(major, minor)
       end
 
       def refuse(what, floor, release)
