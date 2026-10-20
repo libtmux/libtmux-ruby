@@ -27,8 +27,8 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
-| [#close](../../gems/libtmux-async/lib/libtmux/async/control.rb#L148) | `nil` | [Control connections](behavior.md#control-connections) |
-| [#closed?](../../gems/libtmux-async/lib/libtmux/async/control.rb#L179) | `bool` | [Control connections](behavior.md#control-connections) |
+| [#close](../../gems/libtmux-async/lib/libtmux/async/control.rb#L152) | `nil` | [Control connections](behavior.md#control-connections) |
+| [#closed?](../../gems/libtmux-async/lib/libtmux/async/control.rb#L183) | `bool` | [Control connections](behavior.md#control-connections) |
 | [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L563) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
 | [#events](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
 | [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L432) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
@@ -39,7 +39,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String?` | [Control connections](behavior.md#control-connections) |
 | [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L503) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
 | [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L507) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
-| [.new](../../gems/libtmux-async/lib/libtmux/async/control.rb#L61) | `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [.new](../../gems/libtmux-async/lib/libtmux/async/control.rb#L65) | `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [.open](../../gems/libtmux/lib/libtmux/control.rb#L338) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 
 ## LibTmux::Async::ControlSubscription
@@ -486,8 +486,8 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | --- | --- | --- |
 | [#accept_shell](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L111) | `::LibTmux::EntityRef` | [MCP application](behavior.md#mcp-application) |
 | [#call](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L117) | `untyped` | [MCP application](behavior.md#mcp-application) |
-| [#close](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L190) | `nil` | [MCP application](behavior.md#mcp-application) |
-| [#inspect](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L186) | `::String` | [MCP application](behavior.md#mcp-application) |
+| [#close](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L193) | `nil` | [MCP application](behavior.md#mcp-application) |
+| [#inspect](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L189) | `::String` | [MCP application](behavior.md#mcp-application) |
 | [#invite_shell](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L104) | `::LibTmux::MCP::_ShellInvitation` | [MCP application](behavior.md#mcp-application) |
 | [#sdk_server](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L94) | `untyped` | [MCP application](behavior.md#mcp-application) |
 | [#tools](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L48) | `::Array[untyped]` | [MCP application](behavior.md#mcp-application) |

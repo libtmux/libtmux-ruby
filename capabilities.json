@@ -155,7 +155,7 @@
     {
       "id": "name-separators-rejected",
       "name": "Colon and dot in names",
-      "summary": "tmux 3.7 rejects ':' and '.' in session and window names after partly running.",
+      "summary": "tmux 3.7 rejects ':' and '.' in session and window names; the library refuses them before dispatch, typed or raw.",
       "releases": [
         "3.7"
       ],
@@ -164,7 +164,8 @@
         "LibTmux::Server#new_session",
         "LibTmux::Session#new_window",
         "LibTmux::Session#rename",
-        "LibTmux::Window#rename"
+        "LibTmux::Window#rename",
+        "LibTmux::Server#run"
       ],
       "commands": [
         {

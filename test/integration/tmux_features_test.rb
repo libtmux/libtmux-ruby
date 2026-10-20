@@ -159,6 +159,27 @@ class TmuxFeaturesTest < Minitest::Test
     end
   end
 
+  def test_exact_tmux_3_7_refuses_raw_names_with_colon_or_period_like_the_typed_calls
+    with_server do |server, _fixture|
+      session = server.list_sessions.first
+      sessions = server.list_sessions.map(&:id)
+      windows = server.list_windows.map(&:id)
+      raw = [%w[new-session -d -s a.b], %w[new -d -s c:d], %w[new-window -d -n a.b], %w[neww -d -n c:d],
+        ["rename-window", "-t", session.id, "a.b"], ["renamew", "-t", session.id, "a.b"],
+        ["rename-session", "-t", session.id, "a.b"], ["rename", "-t", session.id, "c:d"]]
+      if exact_release?(server, 3, 7)
+        raw.each do |argv|
+          error = assert_raises(LibTmux::UnsupportedFeatureError, argv.join(" ")) { server.run(argv) }
+          assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+        end
+        assert_equal sessions, server.list_sessions.map(&:id)
+        assert_equal windows, server.list_windows.map(&:id)
+      else
+        assert server.run(%w[new-window -d -n a.b]).success?
+      end
+    end
+  end
+
   def test_exact_tmux_3_7_refuses_colon_and_period_in_names_before_dispatch
     with_server do |server, _fixture|
       sessions = server.list_sessions.map(&:id)

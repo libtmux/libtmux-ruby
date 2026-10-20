@@ -120,7 +120,11 @@ module LibTmux
         "set-buffer" => "ab:t:n:w",
         "break-pane" => "abdPF:n:s:t:",
         "split-window" => "bc:de:fF:hIl:p:Pt:vZ",
-        "select-layout" => "Enopt:"
+        "select-layout" => "Enopt:",
+        "new-session" => "Ac:dDe:EF:f:n:Ps:t:x:Xy:",
+        "new-window" => "abc:de:F:kn:PSt:",
+        "rename-session" => "t:",
+        "rename-window" => "t:"
       }.freeze
       PRESETS = %w[even-horizontal even-vertical main-horizontal main-vertical tiled].freeze
       private_constant :COMMANDS, :ALIASES, :OPTIONS, :PRESETS
@@ -161,6 +165,14 @@ module LibTmux
             end
           when "select-layout"
             check_layout(item, command, release)
+          when "new-session"
+            given = flags(item, command)
+            check_name(given["s"], release)
+            check_name(given["n"], release)
+          when "new-window"
+            check_name(flags(item, command)["n"], release)
+          when "rename-session", "rename-window"
+            check_name(operands(item, command).first, release)
           end
         end
         nil
@@ -311,6 +323,14 @@ module LibTmux
 
         raise UnsupportedFeatureError.new("an invalid layout is refused before dispatch on tmux #{release.text}; " \
           "use a unique built-in layout name or a serialized layout", phase: :admission, delivery: :not_sent)
+      end
+
+      def check_name(name, release)
+        return unless name.is_a?(String) && name.match?(/[:.]/)
+        return unless Internal::Capabilities.workaround("name-separators-rejected").applies?(release)
+
+        raise UnsupportedFeatureError.new("tmux 3.7 rejects ':' and '.' in session and window names",
+          phase: :admission, delivery: :not_sent)
       end
 
       def refuse(what, floor, release)

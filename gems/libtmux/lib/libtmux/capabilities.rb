@@ -111,9 +111,9 @@ module LibTmux
           commands: [Command.new(command: "split-window", flags: ["-p"])]),
         Workaround.new(id: "name-separators-rejected", name: "Colon and dot in names", releases: ["3.7"],
           handling: :refuse,
-          summary: "tmux 3.7 rejects ':' and '.' in session and window names after partly running.",
+          summary: "tmux 3.7 rejects ':' and '.' in session and window names; the library refuses them before dispatch, typed or raw.",
           apis: ["LibTmux::Server#new_session", "LibTmux::Session#new_window", "LibTmux::Session#rename",
-                 "LibTmux::Window#rename"],
+                 "LibTmux::Window#rename", "LibTmux::Server#run"],
           commands: [Command.new(command: "new-session", flags: ["-s"]), Command.new(command: "new-window", flags: ["-n"]),
                      Command.new(command: "rename-session"), Command.new(command: "rename-window")])
       ].freeze

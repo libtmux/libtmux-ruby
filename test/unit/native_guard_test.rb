@@ -124,4 +124,16 @@ class NativeGuardTest < Minitest::Test
     refused_line("select-layout garbage", "3.3a")
     allowed_line("select-layout tiled", "3.3a")
   end
+
+  def test_raw_names_with_colon_or_period_are_refused_on_exact_tmux_3_7
+    [%w[new-session -d -s a.b], %w[new -s a:b], %w[new-session -d -n a.b], %w[new-window -d -n a.b], %w[neww -n x:y],
+      %w[rename-window a.b], %w[renamew -t @1 a.b], %w[rename-session a:b], %w[rename -t $1 a.b],
+      ["new-window", "-d", "-n", "ok", ";", "rename-window", "a.b"]].each do |argv|
+      refused(argv, "3.7")
+      allowed(argv, "3.7a")
+      allowed(argv, "3.4")
+    end
+    [%w[new-session -d -s plain], %w[new-window -n plain-name], %w[rename-window plain], %w[rename-window -t @1.2 plain],
+      %w[new-window -t sess:1 -n plain], %w[display-message -p a.b]].each { |argv| allowed(argv, "3.7") }
+  end
 end
