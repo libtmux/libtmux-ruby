@@ -64,6 +64,7 @@ module LibTmux
     class ControlConnection < LibTmux::ControlConnection
       def initialize(scope:, binding:, session_id:, reconnect: nil, **limits)
         @scope = scope
+        @release = binding.release
         @writer_changed = ::Async::Notification.new
         @startup_changed = ::Async::Notification.new
         @exchanges, @exchange_changed = {}, ::Async::Notification.new
@@ -85,6 +86,7 @@ module LibTmux
         end
         raise CapacityError.new("control command exceeds its byte limit", phase: :admission) if line.bytesize > @max_command
 
+        Internal::NativeGuard.check_line(line, @release)
         deadline = clock + timeout
         request = admit(line, cancel, flow: flow)
         @exchanges[request.id] = true

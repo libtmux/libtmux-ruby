@@ -89,4 +89,39 @@ class NativeGuardTest < Minitest::Test
     allowed(%w[no-such-command -b saved], "3.3a")
     allowed(["select-layout"], "3.3a")
   end
+
+  def refused_line(line, text)
+    error = assert_raises(LibTmux::UnsupportedFeatureError, "#{line.inspect} on #{text}") do
+      guard.check_line(line, release(text))
+    end
+    assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+    error
+  end
+
+  def allowed_line(line, text)
+    assert_nil guard.check_line(line, release(text)), "#{line.inspect} on #{text}"
+  end
+
+  def test_control_lines_are_read_the_way_tmux_parses_a_command_string
+    ["break-pane", "breakp -d", "break-p -n x", "  break-pane", "display-message -p ok ; break-pane",
+      "display-message -p ok;break-pane", "'break-pane' -d", %q("break-pane"),
+      "break\\-pane", "display-message ok\\;x ; break-pane", "{ x } ; break-pane"].each do |line|
+      refused_line(line, "3.7")
+    end
+    allowed_line("display-message -p ok ;", "3.7")
+    ["break-pane", "breakp -d", "display-message -p ok ; break-pane"].each { |line| allowed_line(line, "3.7a") }
+  end
+
+  def test_control_line_text_that_is_not_a_command_name_is_not_refused
+    ["display-message -p 'break-pane'", %q(display-message -p "x ; break-pane"), "display-message -p x\\;break-pane",
+      "set-option -g @x { break-pane }", "# break-pane", "display-message -p -- break-pane"].each do |line|
+      allowed_line(line, "3.7")
+    end
+  end
+
+  def test_control_lines_get_the_buffer_and_layout_gates_too
+    refused_line("delete-buffer -b saved", "3.3a")
+    refused_line("select-layout garbage", "3.3a")
+    allowed_line("select-layout tiled", "3.3a")
+  end
 end

@@ -129,7 +129,18 @@ module LibTmux
       # +repaired_break+ marks a typed break-pane that renames its window after
       # the move, which exact tmux 3.7 requires.
       def check(argv, release, repaired_break: false)
-        items(argv).each do |item|
+        check_items(items(argv), release, repaired_break: repaired_break)
+      end
+
+      # Checks one raw command line, as a control connection sends it. A line
+      # is a tmux command string, so quotes, backslashes and braces group
+      # words the way tmux parses them before the same rules apply.
+      def check_line(line, release)
+        check_items(parse_line(line), release)
+      end
+
+      def check_items(items, release, repaired_break: false)
+        items.each do |item|
           command = resolve(item.first)
           case command
           when "delete-buffer"
@@ -169,6 +180,70 @@ module LibTmux
             result.last << argument
           end
         end
+        result.reject(&:empty?)
+      end
+
+      # Splits a command string into commands of words. A bare or trailing
+      # unquoted ";" ends a command, a backslash makes the next character
+      # literal, quotes group words, and a brace block stays one word.
+      def parse_line(line)
+        result = [[]]
+        word = quote = nil
+        depth = 0
+        chars = line.each_char.to_a
+        index = 0
+        finish = lambda do
+          result.last << word if word
+          word = nil
+        end
+        while index < chars.length
+          char = chars[index]
+          if depth.positive?
+            word << char
+            depth += 1 if char == "{"
+            depth -= 1 if char == "}"
+          elsif quote == "'"
+            char == "'" ? quote = nil : word << char
+          elsif quote == '"'
+            if char == '"'
+              quote = nil
+            elsif char == "\\" && index + 1 < chars.length
+              index += 1
+              word << chars[index]
+            else
+              word << char
+            end
+          else
+            case char
+            when /\s/ then finish.call
+            when "'", '"'
+              word ||= +""
+              quote = char
+            when "\\"
+              word ||= +""
+              index += 1
+              word << chars[index] if index < chars.length
+            when ";"
+              finish.call
+              result << []
+            when "{"
+              if word.nil?
+                word = +"{"
+                depth = 1
+              else
+                word << char
+              end
+            when "#"
+              break if word.nil?
+
+              word << char
+            else
+              (word ||= +"") << char
+            end
+          end
+          index += 1
+        end
+        finish.call
         result.reject(&:empty?)
       end
 

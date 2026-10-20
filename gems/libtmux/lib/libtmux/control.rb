@@ -4,6 +4,7 @@ require "libtmux/endpoint"
 require "libtmux/child"
 require "libtmux/process"
 require "libtmux/tmux_version"
+require "libtmux/native_guard"
 
 module LibTmux
   class GuardedBlock
@@ -392,6 +393,7 @@ module LibTmux
               Internal::ProcessExecutor.new.run(probe, timeout: 5.0)
             end
             Internal::TmuxVersion.require_control(release)
+            @release = release
             @pin = Internal::SocketIdentity.new(Endpoint.new(socket_path: prefix.last, executable: prefix.first))
             @wake_reader, @wake_writer = pipe
             input_reader, @input = pipe
@@ -441,6 +443,9 @@ module LibTmux
       end
       raise CapacityError.new("control command exceeds its byte limit", phase: :admission) if line.bytesize > @max_command
 
+      # A raw line reaches the daemon like Server#run's argv, so it gets the
+      # same literal-command refusals.
+      Internal::NativeGuard.check_line(line, @release)
       deadline, request, result, error = clock + timeout, nil, nil, nil
       begin
         Thread.handle_interrupt(Exception => :never) do

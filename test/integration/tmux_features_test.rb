@@ -115,6 +115,50 @@ class TmuxFeaturesTest < Minitest::Test
     end
   end
 
+  def test_exact_tmux_3_7_refuses_break_pane_over_a_control_connection_and_the_daemon_survives
+    with_server do |server, fixture|
+      session = server.list_sessions.first
+      server.list_panes.first.split(direction: :vertical, command: ["/bin/cat"])
+      next unless server.supports_control?
+
+      windows = server.list_windows.map(&:id)
+      server.open_control(session: session.ref) do |control|
+        lines = ["break-pane", "breakp -d", "break-p", "display-message -p ok ; break-pane"]
+        if exact_release?(server, 3, 7)
+          lines.each do |line|
+            error = assert_raises(LibTmux::UnsupportedFeatureError, line) { control.exchange(line, timeout: 1) }
+            assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+          end
+          assert_equal windows, server.list_windows.map(&:id)
+          assert_equal "alive\n", control.exchange("display-message -p alive", timeout: 1).blocks.last.body
+        else
+          control.exchange("break-pane -d", timeout: 1)
+          assert_equal windows.length + 1, server.list_windows.length
+        end
+      end
+      assert fixture.tmux("has-session", "-t", "fixture").last.success?
+    end
+  end
+
+  def test_exact_tmux_3_7_refuses_break_pane_over_an_async_control_connection
+    with_server do |server, fixture|
+      session = server.list_sessions.first
+      server.list_panes.first.split(direction: :vertical, command: ["/bin/cat"])
+      next unless server.supports_control? && exact_release?(server, 3, 7)
+
+      Async do |parent|
+        LibTmux::Async.open(parent: parent, server: server) do |scope|
+          scope.server.open_control(session: session.ref) do |control|
+            error = assert_raises(LibTmux::UnsupportedFeatureError) { control.exchange("break-pane", timeout: 1) }
+            assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+            assert_equal "alive\n", control.exchange("display-message -p alive", timeout: 1).blocks.last.body
+          end
+        end
+      end.wait
+      assert fixture.tmux("has-session", "-t", "fixture").last.success?
+    end
+  end
+
   def test_exact_tmux_3_7_refuses_colon_and_period_in_names_before_dispatch
     with_server do |server, _fixture|
       sessions = server.list_sessions.map(&:id)

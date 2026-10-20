@@ -26,32 +26,32 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
-| [#close](../../gems/libtmux-async/lib/libtmux/async/control.rb#L146) | `nil` | [Control connections](behavior.md#control-connections) |
-| [#closed?](../../gems/libtmux-async/lib/libtmux/async/control.rb#L177) | `bool` | [Control connections](behavior.md#control-connections) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L558) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
-| [#events](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
-| [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L430) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::String` | [Control connections](behavior.md#control-connections) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L571) | `::String` | [Control connections](behavior.md#control-connections) |
-| [#pause_output](../../gems/libtmux/lib/libtmux/control.rb#L494) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
-| [#pid](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::Integer` | [Control connections](behavior.md#control-connections) |
-| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::String?` | [Control connections](behavior.md#control-connections) |
-| [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L498) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
-| [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L502) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
+| [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
+| [#close](../../gems/libtmux-async/lib/libtmux/async/control.rb#L148) | `nil` | [Control connections](behavior.md#control-connections) |
+| [#closed?](../../gems/libtmux-async/lib/libtmux/async/control.rb#L179) | `bool` | [Control connections](behavior.md#control-connections) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L563) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#events](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
+| [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L432) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String` | [Control connections](behavior.md#control-connections) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L576) | `::String` | [Control connections](behavior.md#control-connections) |
+| [#pause_output](../../gems/libtmux/lib/libtmux/control.rb#L499) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
+| [#pid](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Integer` | [Control connections](behavior.md#control-connections) |
+| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String?` | [Control connections](behavior.md#control-connections) |
+| [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L503) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
+| [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L507) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
 | [.new](../../gems/libtmux-async/lib/libtmux/async/control.rb#L61) | `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
-| [.open](../../gems/libtmux/lib/libtmux/control.rb#L337) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [.open](../../gems/libtmux/lib/libtmux/control.rb#L338) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 
 ## LibTmux::Async::ControlSubscription
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#close](../../gems/libtmux/lib/libtmux/control.rb#L144) | `nil` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L155) | `bool` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L162) | `{ queued_events: ::Integer, retained_event_bytes: ::Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable \| :tail, limits: { max_bytes: ::Integer, max_events: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
-| [#each](../../gems/libtmux/lib/libtmux/control.rb#L130) | `self` / `::Enumerator[::LibTmux::ControlEvent, self]` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L87) | `::String?` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L172) | `::String` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#close](../../gems/libtmux/lib/libtmux/control.rb#L145) | `nil` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L156) | `bool` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L163) | `{ queued_events: ::Integer, retained_event_bytes: ::Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable \| :tail, limits: { max_bytes: ::Integer, max_events: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#each](../../gems/libtmux/lib/libtmux/control.rb#L131) | `self` / `::Enumerator[::LibTmux::ControlEvent, self]` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L88) | `::String?` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L173) | `::String` | [Control subscriptions](behavior.md#control-subscriptions) |
 | [#next](../../gems/libtmux-async/lib/libtmux/async/control.rb#L20) | `::LibTmux::ControlEvent` | [Control subscriptions](behavior.md#control-subscriptions) |
 | [.new](../../gems/libtmux-async/lib/libtmux/async/control.rb#L14) | `::LibTmux::Async::ControlSubscription` | [Control subscriptions](behavior.md#control-subscriptions) |
 
@@ -238,52 +238,52 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
-| [#close](../../gems/libtmux/lib/libtmux/control.rb#L521) | `nil` | [Control connections](behavior.md#control-connections) |
-| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L550) | `bool` | [Control connections](behavior.md#control-connections) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L558) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
-| [#events](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::LibTmux::ControlSubscription` | [Control connections](behavior.md#control-connections) |
-| [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L430) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::String` | [Control connections](behavior.md#control-connections) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L571) | `::String` | [Control connections](behavior.md#control-connections) |
-| [#pause_output](../../gems/libtmux/lib/libtmux/control.rb#L494) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
-| [#pid](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::Integer` | [Control connections](behavior.md#control-connections) |
-| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L335) | `::String?` | [Control connections](behavior.md#control-connections) |
-| [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L498) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
-| [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L502) | `::LibTmux::ControlSubscription` | [Control connections](behavior.md#control-connections) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L378) | `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
-| [.open](../../gems/libtmux/lib/libtmux/control.rb#L337) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
+| [#close](../../gems/libtmux/lib/libtmux/control.rb#L526) | `nil` | [Control connections](behavior.md#control-connections) |
+| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L555) | `bool` | [Control connections](behavior.md#control-connections) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L563) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#events](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::LibTmux::ControlSubscription` | [Control connections](behavior.md#control-connections) |
+| [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L432) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String` | [Control connections](behavior.md#control-connections) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L576) | `::String` | [Control connections](behavior.md#control-connections) |
+| [#pause_output](../../gems/libtmux/lib/libtmux/control.rb#L499) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
+| [#pid](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Integer` | [Control connections](behavior.md#control-connections) |
+| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String?` | [Control connections](behavior.md#control-connections) |
+| [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L503) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
+| [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L507) | `::LibTmux::ControlSubscription` | [Control connections](behavior.md#control-connections) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L379) | `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [.open](../../gems/libtmux/lib/libtmux/control.rb#L338) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 
 ## LibTmux::ControlEvent
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#bytesize](../../gems/libtmux/lib/libtmux/control.rb#L67) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
-| [#data](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::String?` | [Control evidence](behavior.md#control-evidence) |
-| [#dropped_bytes](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::Integer?` | [Control evidence](behavior.md#control-evidence) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::String?` | [Control evidence](behavior.md#control-evidence) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L71) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#kind](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::Symbol` | [Control evidence](behavior.md#control-evidence) |
-| [#lost_sequences](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::Array[::Integer]?` | [Control evidence](behavior.md#control-evidence) |
-| [#pane_id](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::String?` | [Control evidence](behavior.md#control-evidence) |
-| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::String?` | [Control evidence](behavior.md#control-evidence) |
-| [#raw](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#reason](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::Symbol?` | [Control evidence](behavior.md#control-evidence) |
-| [#sequence](../../gems/libtmux/lib/libtmux/control.rb#L55) | `::Integer?` | [Control evidence](behavior.md#control-evidence) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L58) | `::LibTmux::ControlEvent` | [Control evidence](behavior.md#control-evidence) |
+| [#bytesize](../../gems/libtmux/lib/libtmux/control.rb#L68) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
+| [#data](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String?` | [Control evidence](behavior.md#control-evidence) |
+| [#dropped_bytes](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Integer?` | [Control evidence](behavior.md#control-evidence) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String?` | [Control evidence](behavior.md#control-evidence) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L72) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#kind](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Symbol` | [Control evidence](behavior.md#control-evidence) |
+| [#lost_sequences](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Array[::Integer]?` | [Control evidence](behavior.md#control-evidence) |
+| [#pane_id](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String?` | [Control evidence](behavior.md#control-evidence) |
+| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String?` | [Control evidence](behavior.md#control-evidence) |
+| [#raw](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#reason](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Symbol?` | [Control evidence](behavior.md#control-evidence) |
+| [#sequence](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Integer?` | [Control evidence](behavior.md#control-evidence) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L59) | `::LibTmux::ControlEvent` | [Control evidence](behavior.md#control-evidence) |
 
 ## LibTmux::ControlSubscription
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#close](../../gems/libtmux/lib/libtmux/control.rb#L144) | `nil` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L155) | `bool` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L162) | `{ queued_events: ::Integer, retained_event_bytes: ::Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable \| :tail, limits: { max_bytes: ::Integer, max_events: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
-| [#each](../../gems/libtmux/lib/libtmux/control.rb#L130) | `self` / `::Enumerator[::LibTmux::ControlEvent, self]` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L87) | `::String?` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L172) | `::String` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#next](../../gems/libtmux/lib/libtmux/control.rb#L102) | `::LibTmux::ControlEvent` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L89) | `::LibTmux::ControlSubscription` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#close](../../gems/libtmux/lib/libtmux/control.rb#L145) | `nil` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L156) | `bool` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L163) | `{ queued_events: ::Integer, retained_event_bytes: ::Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable \| :tail, limits: { max_bytes: ::Integer, max_events: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#each](../../gems/libtmux/lib/libtmux/control.rb#L131) | `self` / `::Enumerator[::LibTmux::ControlEvent, self]` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L88) | `::String?` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L173) | `::String` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#next](../../gems/libtmux/lib/libtmux/control.rb#L103) | `::LibTmux::ControlEvent` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L90) | `::LibTmux::ControlSubscription` | [Control subscriptions](behavior.md#control-subscriptions) |
 
 ## LibTmux::CreationReceipt
 
@@ -410,26 +410,26 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#body](../../gems/libtmux/lib/libtmux/control.rb#L10) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#bytesize](../../gems/libtmux/lib/libtmux/control.rb#L10) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
-| [#guard](../../gems/libtmux/lib/libtmux/control.rb#L10) | `::Array[::Integer]` | [Control evidence](behavior.md#control-evidence) |
-| [#guard_success?](../../gems/libtmux/lib/libtmux/control.rb#L22) | `bool` | [Control evidence](behavior.md#control-evidence) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L26) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#raw](../../gems/libtmux/lib/libtmux/control.rb#L18) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#terminator](../../gems/libtmux/lib/libtmux/control.rb#L10) | `:end \| :error` | [Control evidence](behavior.md#control-evidence) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L12) | `::LibTmux::GuardedBlock` | [Control evidence](behavior.md#control-evidence) |
+| [#body](../../gems/libtmux/lib/libtmux/control.rb#L11) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#bytesize](../../gems/libtmux/lib/libtmux/control.rb#L11) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
+| [#guard](../../gems/libtmux/lib/libtmux/control.rb#L11) | `::Array[::Integer]` | [Control evidence](behavior.md#control-evidence) |
+| [#guard_success?](../../gems/libtmux/lib/libtmux/control.rb#L23) | `bool` | [Control evidence](behavior.md#control-evidence) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L27) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#raw](../../gems/libtmux/lib/libtmux/control.rb#L19) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#terminator](../../gems/libtmux/lib/libtmux/control.rb#L11) | `:end \| :error` | [Control evidence](behavior.md#control-evidence) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L13) | `::LibTmux::GuardedBlock` | [Control evidence](behavior.md#control-evidence) |
 
 ## LibTmux::GuardedReply
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#attribution](../../gems/libtmux/lib/libtmux/control.rb#L45) | `:boundary_window` | [Control evidence](behavior.md#control-evidence) |
-| [#blocks](../../gems/libtmux/lib/libtmux/control.rb#L34) | `::Array[::LibTmux::GuardedBlock]` | [Control evidence](behavior.md#control-evidence) |
-| [#delivery](../../gems/libtmux/lib/libtmux/control.rb#L41) | `:observed` | [Control evidence](behavior.md#control-evidence) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L34) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L49) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#request_id](../../gems/libtmux/lib/libtmux/control.rb#L34) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L36) | `::LibTmux::GuardedReply` | [Control evidence](behavior.md#control-evidence) |
+| [#attribution](../../gems/libtmux/lib/libtmux/control.rb#L46) | `:boundary_window` | [Control evidence](behavior.md#control-evidence) |
+| [#blocks](../../gems/libtmux/lib/libtmux/control.rb#L35) | `::Array[::LibTmux::GuardedBlock]` | [Control evidence](behavior.md#control-evidence) |
+| [#delivery](../../gems/libtmux/lib/libtmux/control.rb#L42) | `:observed` | [Control evidence](behavior.md#control-evidence) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L35) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L50) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#request_id](../../gems/libtmux/lib/libtmux/control.rb#L35) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L37) | `::LibTmux::GuardedReply` | [Control evidence](behavior.md#control-evidence) |
 
 ## LibTmux::Hooks
 
@@ -797,8 +797,8 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#path](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::String?` | [Errors](behavior.md#errors) |
 | [#phase](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Symbol?` | [Errors](behavior.md#errors) |
 | [#pid](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Integer?` | [Errors](behavior.md#errors) |
-| [#sequence](../../gems/libtmux/lib/libtmux/control.rb#L77) | `::Integer?` | [Errors](behavior.md#errors) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L79) | `::LibTmux::SubscriptionOverflow` | [Errors](behavior.md#errors) |
+| [#sequence](../../gems/libtmux/lib/libtmux/control.rb#L78) | `::Integer?` | [Errors](behavior.md#errors) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L80) | `::LibTmux::SubscriptionOverflow` | [Errors](behavior.md#errors) |
 
 ## LibTmux::Support
 

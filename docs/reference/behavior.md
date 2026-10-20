@@ -177,7 +177,7 @@ workspace builds or MCP tools that do not need them.
 | Named buffer deletion and rename (`delete_buffer`, `delete-buffer -b`, `set-buffer -b -n`) | 3.4 and newer | Refused: an absent name acts on an unrelated buffer | Refusal qualified by tests |
 | Named paste and delete (`Pane#paste` with `delete: true`) | 3.3a and newer | Exact lookup, available | Qualified in the stated evidence |
 | `Pane#break_out` | All supported | Exact 3.7 applies the name again after the move; 3.3a through 3.5 read a sole pane's window back because break-pane prints no ID | Qualified in the stated evidence |
-| Raw `break-pane` | All except exact 3.7 | Refused on exact 3.7, which crashes without a name | Refusal qualified by tests |
+| Raw `break-pane`, including `ControlConnection#exchange` lines | All except exact 3.7 | Refused on exact 3.7, which crashes without a name | Refusal qualified by tests |
 | Session and window names with `:` or `.` | All except exact 3.7 | Refused on exact 3.7 before dispatch | Refusal qualified by tests |
 | Raw `split-window -p` | All except 3.4 | Refused on 3.4; typed splits always send `-l N%` | Refusal qualified by tests |
 | Malformed layouts | 3.4 and newer | tmux 3.3a faults on a malformed header, so `select_layout` and raw `select-layout` accept only a checksummed layout or a unique built-in name | Refusal qualified by tests |
@@ -198,7 +198,10 @@ effect of them.
 
 Raw `run` reads literal argv, including `;` separated batches and tmux's
 command abbreviations, for the buffer, `break-pane`, `split-window` and
-`select-layout` rows. Tmux command strings nested inside another command are
+`select-layout` rows. `ControlConnection#exchange` applies the same rows to
+its command line, which it reads as tmux does: quotes and backslashes group
+words, an unquoted `;` ends a command, and a brace block is one word.
+Tmux command strings nested inside another command are
 not checked: the command given to `if-shell` or `run-shell -C`, the body of a
 brace block, a `$VARIABLE` that expands to a command, and the contents of
 `command-alias` entries. Callers must not nest a command that a gate refuses;

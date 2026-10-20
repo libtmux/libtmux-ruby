@@ -123,7 +123,8 @@
       "handling": "repair",
       "apis": [
         "LibTmux::Pane#break_out",
-        "LibTmux::Server#run"
+        "LibTmux::Server#run",
+        "LibTmux::ControlConnection#exchange"
       ],
       "commands": [
         {
