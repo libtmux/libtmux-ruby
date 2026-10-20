@@ -2,6 +2,10 @@
 
 ## 0.1.0.alpha.3 (unreleased)
 
+- CI no longer runs macOS. macOS stays supported on a best-effort basis, and CI
+  coverage for it is highly limited, so a macOS-only regression is not caught
+  before merge. (#49)
+
 ## 0.1.0.alpha.2 (2026-10-18)
 
 Requires tmux 3.3a or newer, checked against the running daemon, and runs on

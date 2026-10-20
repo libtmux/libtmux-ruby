@@ -241,8 +241,9 @@ The contract is in [Control connections][behavior-control].
 - **Async 2.46.** The gem depends on `async` ~> 2.46.0 and the same version of
   `libtmux`.
 - **Linux, including WSL, and macOS.** The [compatibility workflow][compat]
-  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04 and
-  macOS 15, and retains per-revision results.
+  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04 and retains
+  per-revision results. macOS is supported on a best-effort basis, and CI
+  coverage for it is highly limited.
 
 ## Documentation
 

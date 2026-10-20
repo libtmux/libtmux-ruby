@@ -22,4 +22,17 @@ class CompatibilityWorkflowTest < Minitest::Test
       assert_equal "supported", WORKFLOW.fetch("jobs").fetch(name).fetch("env").fetch("LIBTMUX_VERSION_CHECK_EXPECT"), name
     end
   end
+
+  def test_no_job_runs_on_macos
+    runners = WORKFLOW.fetch("jobs").flat_map do |_name, job|
+      [job.fetch("runs-on"), *job.dig("strategy", "matrix", "platform")&.map { |platform| platform.fetch("runner") }]
+    end
+    refute_empty runners
+    runners.each { |runner| refute_match(/macos/i, runner.to_s) }
+    assert_equal ["linux"], CompatibilityWorkflowTest.platform_systems
+  end
+
+  def self.platform_systems
+    WORKFLOW.dig("jobs", "cell", "strategy", "matrix", "platform").map { |platform| platform.fetch("system") }
+  end
 end
