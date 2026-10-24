@@ -2,6 +2,16 @@
 
 ## 0.1.0.alpha.4 (unreleased)
 
+### libtmux
+
+- The README says control connections need tmux 3.7 and links
+  `capabilities.json`. (#55)
+- The behavior reference lists which nested commands escape the guard, on
+  which releases and how each fails, and the `break-pane-misnames-windows`
+  summary in `capabilities.json` says to name a nested `break-pane` on exact
+  3.7 or upgrade. (#55)
+- The release guide's examples use a version placeholder. (#55)
+
 ## 0.1.0.alpha.3 (2026-10-24)
 
 Keeps the tmux 3.3a floor and refuses, before anything runs, the commands a
