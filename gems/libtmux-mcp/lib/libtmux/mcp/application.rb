@@ -413,11 +413,20 @@ module LibTmux
           "criteria_schema" => FilterExpr.json_schema, "limits" => @limits,
           "owns_daemon" => false, "resource_subscriptions" => false,
           "observation" => observation,
+          "optional_features" => optional_features(snapshot.server_info.fetch(:version)),
           "authored_run" => {"availability" => observation.fetch("process_cursor"),
             "shell_profile" => "zsh-5.9-zle", "enrollment" => "explicit_source",
             "authorization" => "exact_generation_at_queue_grant", "stdin" => "closed",
             "persistent_shell_changes" => false, "descendant_termination" => "unobserved",
             "requirements" => observation.fetch("requirements") + ["explicit idle/empty ZLE enrollment", "installed Ruby/core helper dependencies"]}}
+      end
+
+      def optional_features(version)
+        release = LibTmux::Internal::TmuxVersion.parse(version)
+        LibTmux::Internal::Capabilities::CAPABILITIES.map do |entry|
+          {"id" => entry.id, "name" => entry.name, "since" => entry.since,
+            "handling" => entry.handling.to_s, "available" => entry.available?(release)}
+        end
       end
 
       def snapshot(arguments, cancel)

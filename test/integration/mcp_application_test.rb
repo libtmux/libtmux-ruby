@@ -19,6 +19,13 @@ class McpApplicationTest < Minitest::Test
             assert_equal "test", capabilities.fetch("data").fetch("endpoint")
             assert_equal %w[tmux_capabilities tmux_snapshot], capabilities.fetch("data").fetch("enabled_tools")
             assert_equal LibTmux::FilterExpr.json_schema, capabilities.fetch("data").fetch("criteria_schema")
+            features = capabilities.fetch("data").fetch("optional_features")
+            registry = LibTmux::Internal::Capabilities::CAPABILITIES.map(&:id)
+            assert_equal registry, features.map { |feature| feature.fetch("id") }
+            daemon = LibTmux::Internal::TmuxVersion.parse(capabilities.fetch("data").fetch("server_identity").fetch("tmux_version"))
+            LibTmux::Internal::Capabilities::CAPABILITIES.zip(features) do |entry, feature|
+              assert_equal entry.available?(daemon), feature.fetch("available"), entry.id
+            end
             assert app.tools.first.call.structured_content.fetch("ok")
             first = app.call("tmux_snapshot", {"entity" => "pane", "limit" => 1}).structured_content
             assert first.fetch("ok")

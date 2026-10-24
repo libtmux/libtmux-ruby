@@ -169,6 +169,8 @@ module LibTmux
               "stdin" => {"const" => "closed"}, "persistent_shell_changes" => {"const" => false},
               "descendant_termination" => {"const" => "unobserved"},
               "requirements" => {"type" => "array", "items" => text}}),
+            "optional_features" => {"type" => "array", "items" => object({"id" => text, "name" => text, "since" => text,
+              "handling" => text, "available" => {"type" => "boolean"}})},
             "observation" => object({"screen" => {"const" => "bounded_rows"}, "history_continuity" => {"const" => "unknown"},
               "process_cursor" => {"enum" => %w[conditional unsupported]}, "requirements" => {"type" => "array", "items" => text},
               "wait_conditions" => {"type" => "array", "items" => {"enum" => %w[screen_contains process_exit]}}})})
@@ -248,7 +250,7 @@ module LibTmux
         elsif name == "tmux_close"
           "Destroy one exact session, window or pane. Opt-in destructive operation; closing a session or window also removes its contained topology. Never selects by name or closes the daemon directly. Returns the final tmux client outcome."
         elsif name == "tmux_capabilities"
-          "Discover the fixed endpoint, server binding, enabled tools, criteria schema and limits. Acquires metadata; starts no daemon."
+          "Discover the fixed endpoint, server binding, enabled tools, criteria schema and limits, and which optional tmux features the connected daemon offers (the records in the repository's capabilities.json). Acquires metadata; starts no daemon."
         else
           "Capture ordered metadata and evaluate Ruby criteria locally. Pages retain one immutable capture; expired cursors require a new query. Limit defaults to 50 records, maximum 200."
         end
