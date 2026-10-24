@@ -2,7 +2,8 @@
 
 The four gems share one version. Prepare changes in a PR; publish by pushing
 a matching `vVERSION` tag after the merged commit passes compatibility CI.
-The examples below use the initial alpha, `0.1.0.alpha.1`.
+The examples below use `<version>` for the release number, such as
+`0.1.0.alpha.4`, and `v<version>` for its tag.
 
 ## One-time account setup
 
@@ -41,7 +42,7 @@ publishing credentials.
 From a development checkout with the bundle installed:
 
 ```console
-$ mise exec -- bundle exec rake 'version:bump[0.1.0.alpha.1]'
+$ mise exec -- bundle exec rake 'version:bump[<version>]'
 ```
 
 The task updates each conventional `version.rb`, exact sibling dependencies,
@@ -51,7 +52,7 @@ inconsistent input files and backward bumps. Repeating the same version is
 safe. The unpublished `0.1.0.pre` placeholder may become `0.1.0.alpha.1`,
 although RubyGems sorts that alpha below `.pre`.
 
-For the next alpha, pass `0.1.0.alpha.2`. Review and update
+For each later alpha, pass the next number in the series. Review and update
 [CHANGELOG.md](../CHANGELOG.md) for every release; the version task does not
 write release notes, commit, tag, push or upload.
 
@@ -63,7 +64,7 @@ Commit the preparation changes. From that clean commit, build and exercise
 the prospective release without a tag or registry access:
 
 ```console
-$ /usr/bin/time -p mise exec -- bundle exec rake 'release:dry_run[v0.1.0.alpha.1]'
+$ /usr/bin/time -p mise exec -- bundle exec rake 'release:dry_run[v<version>]'
 ```
 
 This builds all four gems into `pkg/release/`, records their source commit
@@ -72,7 +73,7 @@ and runs the installed-package checks outside the checkout. It cannot upload.
 The same dry run runs on pull requests. To check retained files alone:
 
 ```console
-$ mise exec -- bundle exec rake 'release:verify[v0.1.0.alpha.1]'
+$ mise exec -- bundle exec rake 'release:verify[v<version>]'
 ```
 
 An existing artifact set must match the requested version and commit. Move
@@ -100,13 +101,13 @@ $ mise exec -- bundle exec scripts/release-ci "$(git rev-parse HEAD)"
 Create the annotated version tag:
 
 ```console
-$ git tag -a v0.1.0.alpha.1 -m 'Release 0.1.0.alpha.1'
+$ git tag -a v<version> -m 'Release <version>'
 ```
 
 Push only that tag to start publication:
 
 ```console
-$ git push origin refs/tags/v0.1.0.alpha.1
+$ git push origin refs/tags/v<version>
 ```
 
 The [Release workflow](../.github/workflows/release.yml) validates the tag,
@@ -122,7 +123,7 @@ all four must match before GitHub release creation. A consumer can then
 install the explicit prerelease:
 
 ```console
-$ gem install libtmux --version 0.1.0.alpha.1
+$ gem install libtmux --version <version>
 ```
 
 ## Recover a partial release
