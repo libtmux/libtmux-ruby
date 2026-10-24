@@ -162,7 +162,7 @@ module LibTmux
           IncompleteSnapshotError => "incomplete_snapshot", Cancelled => "cancelled",
           DeadlineExceeded => "deadline", CapacityError => "capacity", TargetNotFoundError => "stale_target",
           CommandError => "command_failed", UnsupportedFeatureError => "unsupported", ClosedError => "closed",
-          Observation::LostObservation => "observation_lost"}.fetch(error.class, "transport_error")
+          Observation::LostObservation => "observation_lost", Observation::PaneDied => "pane_died"}.fetch(error.class, "transport_error")
         delivery = error.respond_to?(:delivery) ? (mutation ? mutation.delivery(error) : error.delivery) : :possibly_sent
         delivery = :observed if result
         effects = if name == "tmux_run"
@@ -177,10 +177,13 @@ module LibTmux
         end
         message = if delivery == :not_sent && LibTmux::Internal::TmuxVersion.refusal?(error)
           LibTmux::Internal::TmuxVersion.hint
+        elsif error.is_a?(Observation::PaneDied)
+          "The pane, or its tmux server, ended before the awaited text appeared."
         else
           "The operation could not establish its requested result."
         end
-        failure_response(code, message, delivery.to_s, effects: effects)
+        failure_response(code, message, delivery.to_s, effects: effects,
+          capture: (error.capture if error.is_a?(Observation::PaneDied)))
       end
 
       def inspect
@@ -509,9 +512,10 @@ module LibTmux
         value.freeze
       end
 
-      def failure_response(code, message, delivery = "not_sent", effects: nil)
+      def failure_response(code, message, delivery = "not_sent", effects: nil, capture: nil)
         details = {"code" => code, "message" => message, "delivery" => delivery}
         details["effects"] = effects if effects
+        details["capture"] = capture if capture
         ::MCP::Tool::Response.new([{type: "text", text: message}], error: true,
           structured_content: {"ok" => false, "error" => details})
       end

@@ -12,14 +12,7 @@ module LibTmux
       end
 
       def run(argv, input: "".b, timeout: 5.0, cancel: nil)
-        ensure_owner
-        ensure_open
-        validate_argv(argv)
-        raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
-
-        fence, marker = Internal::TmuxVersion.fence(@release)
-        result = @scope.__send__(:execute, @pin.command_prefix + fence + argv, input: input, timeout: timeout, cancel: cancel)
-        Internal::TmuxVersion.check_fence(result, marker, @release)
+        dispatch(argv, input: input, timeout: timeout, cancel: cancel)
       end
 
       def close
@@ -65,6 +58,18 @@ module LibTmux
       end
 
       private
+
+      def dispatch(argv, input: "".b, timeout: 5.0, cancel: nil, repaired_break: false)
+        ensure_owner
+        ensure_open
+        validate_argv(argv)
+        raise ArgumentError, "raw commands cannot override endpoint flags" if argv.first.start_with?("-")
+
+        Internal::NativeGuard.check(argv, @release, repaired_break: repaired_break)
+        fence, marker = Internal::TmuxVersion.fence(@release)
+        result = @scope.__send__(:execute, @pin.command_prefix + fence + argv, input: input, timeout: timeout, cancel: cancel)
+        Internal::TmuxVersion.check_fence(result, marker, @release)
+      end
 
       def ensure_owner
         @scope.__send__(:ensure_owner)

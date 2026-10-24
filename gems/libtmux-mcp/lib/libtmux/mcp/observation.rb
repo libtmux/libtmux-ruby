@@ -5,8 +5,19 @@ require "libtmux/mcp/process_identity"
 module LibTmux
   module MCP
     class Observation
+      POLL_SECONDS = 0.05
       StaleCursor = Class.new(LibTmux::Error)
       LostObservation = Class.new(LibTmux::Error)
+      # The pane, or the tmux server holding it, ended before the awaited text
+      # appeared. +capture+ is the last screen state read before it ended.
+      class PaneDied < LibTmux::Error
+        attr_reader :capture
+
+        def initialize(message, capture:, **details)
+          super(message, **details)
+          @capture = capture
+        end
+      end
       module CleanupDetails
         attr_reader :mcp_cleanup_errors
       end
@@ -54,7 +65,8 @@ module LibTmux
         {"screen" => "bounded_rows", "history_continuity" => "unknown",
           "process_cursor" => conditional ? "conditional" : "unsupported",
           "requirements" => ["tmux >= #{LibTmux::Internal::TmuxVersion::MINIMUM}", *(native || ["supported 64-bit Linux or Darwin process identity backend"]),
-            "live pane process", "empty effective capture hook", "stable capture-hook configuration on tmux < 3.5"],
+            "live pane process", "empty effective capture hook", "stable capture-hook configuration on tmux < 3.5",
+            "screen_contains waits use control events from tmux #{LibTmux::Internal::TmuxVersion::CONTROL_MINIMUM} and poll the screen before it"],
           "wait_conditions" => %w[screen_contains process_exit]}
       end
 
@@ -162,7 +174,7 @@ module LibTmux
       end
 
       def wait
-        identity = control = subscription = nil
+        identity = control = subscription = latest = nil
         tasks = []
         failure = response = nil
         begin
@@ -171,8 +183,10 @@ module LibTmux
             condition = @arguments.fetch("condition")
             snapshot, pane = resolve(reference)
             require_tracking(snapshot)
+            # Daemons below 3.7 take no control client, so a screen wait polls the pane.
+            polling = condition.fetch("type") == "screen_contains" && !@server.supports_control?
             identity = acquire_identity(snapshot, pane)
-            if condition.fetch("type") == "screen_contains"
+            if condition.fetch("type") == "screen_contains" && !polling
               link = snapshot.window_links.find { |item| item.window_id == pane.window_id }
               raise TargetNotFoundError.new("pane has no observable session", phase: :admission) unless link
 
@@ -184,18 +198,38 @@ module LibTmux
               control.exchange(line, **@budget.options)
             end
             limits = defaults
-            rows, encoding, truncated = read_rows(snapshot, pane, limits, identity)
+            # A pane or server that ends mid-read ends the wait as PaneDied, with
+            # the last rows read, unless the read failed for another reason.
+            pane_died = lambda do
+              rows, encoding, truncated = latest
+              PaneDied.new("observed pane process exited", phase: :observation, delivery: :observed,
+                capture: state(reference, rows, encoding, truncated, limits, identity, SecureRandom.hex(16)))
+            end
+            read = lambda do
+              begin
+                latest = read_rows(snapshot, pane, limits, identity, true)
+              rescue TargetNotFoundError, CommandError, TransportError
+                raise if latest.nil?
+
+                raise unless ended?(identity)
+
+                raise pane_died.call
+              end
+            end
+            rows, encoding, truncated = read.call
             if condition.fetch("type") == "screen_contains" && contains?(rows, encoding, condition.fetch("text"))
               next {"target" => reference, "condition" => "screen_contains",
                 "capture" => state(reference, rows, encoding, truncated, limits, identity, SecureRandom.hex(16))}
             end
             changed = ::Async::Notification.new
             pending = nil
+            weights = {read: 0, stream_ended: 1, exited: 2, server_exited: 2}
+            weigh = ->(value) { value.is_a?(Exception) ? 3 : weights.fetch(value) }
             wake = lambda do |value|
-              pending = value if pending.nil? || (!pending.is_a?(Exception) && (value.is_a?(Exception) || value == :exited))
+              pending = value if pending.nil? || weigh.call(value) > weigh.call(pending)
               changed.signal
             end
-            [[identity.io, :exited], [identity.peer, LostObservation.new("tmux process ended", phase: :observation)]].each do |io, event|
+            [[identity.io, :exited], [identity.peer, :server_exited]].each do |io, event|
               task = ::Async::Task.new(::Async::Task.current) do
                 Fiber.scheduler.io_wait(io, IO::READABLE)
                 wake.call(event)
@@ -207,10 +241,30 @@ module LibTmux
               tasks << task
               task.run
             end
-            if subscription
+            if polling
               task = ::Async::Task.new(::Async::Task.current) do
                 loop do
-                  event = subscription.next(timeout: @budget.options.fetch(:timeout))
+                  ::Async::Task.current.sleep(POLL_SECONDS)
+                  wake.call(:read)
+                end
+              rescue ::Async::Cancel
+                nil
+              rescue StandardError => error
+                wake.call(error)
+              end
+              tasks << task
+              task.run
+            end
+            if subscription
+              task = ::Async::Task.new(::Async::Task.current) do
+                # Kernel#loop would swallow the StopIteration that ends the stream.
+                while true
+                  begin
+                    event = subscription.next(timeout: @budget.options.fetch(:timeout))
+                  rescue StopIteration
+                    wake.call(:stream_ended)
+                    break
+                  end
                   if event.kind == :gap
                     wake.call(LostObservation.new("screen observation has a gap", phase: :observation, delivery: :observed))
                     break
@@ -219,8 +273,6 @@ module LibTmux
                 end
               rescue ::Async::Cancel
                 nil
-              rescue StopIteration
-                wake.call(LostObservation.new("screen observation ended", phase: :observation, delivery: :observed))
               rescue StandardError => error
                 wake.call(error)
               end
@@ -233,15 +285,32 @@ module LibTmux
               event, pending = pending, nil
               raise event if event.is_a?(Exception)
 
-              if event == :exited
-                identity.peer_alive!
-                unless condition.fetch("type") == "process_exit"
-                  raise TargetNotFoundError.new("observed pane process exited", phase: :observation, delivery: :observed)
-                end
-                break {"target" => reference, "condition" => "process_exit", "process_generation" => identity.generation,
-                  "observed_at" => clock, "exit_status" => "unobserved"}
+              if event == :stream_ended
+                # A stopped second client keeps a killed server alive after the
+                # stream ends, so ask the daemon instead of waiting for its process.
+                raise pane_died.call if ended?(identity)
+
+                raise LostObservation.new("screen observation ended", phase: :observation, delivery: :observed)
               end
-              rows, encoding, truncated = read_rows(snapshot, pane, limits, identity)
+              if event == :exited || event == :server_exited
+                if condition.fetch("type") == "process_exit"
+                  begin
+                    identity.peer_alive!
+                  rescue TargetNotFoundError
+                    raise LostObservation.new("tmux process ended", phase: :observation, delivery: :observed), cause: nil
+                  end
+                  break {"target" => reference, "condition" => "process_exit", "process_generation" => identity.generation,
+                    "observed_at" => clock, "exit_status" => "unobserved"}
+                end
+                # The last output may have landed just before the end.
+                rows, encoding, truncated = read.call
+                if contains?(rows, encoding, condition.fetch("text"))
+                  break {"target" => reference, "condition" => "screen_contains",
+                    "capture" => state(reference, rows, encoding, truncated, limits, identity, SecureRandom.hex(16))}
+                end
+                raise pane_died.call
+              end
+              rows, encoding, truncated = read.call
               if contains?(rows, encoding, condition.fetch("text"))
                 break {"target" => reference, "condition" => "screen_contains",
                   "capture" => state(reference, rows, encoding, truncated, limits, identity, SecureRandom.hex(16))}
@@ -270,6 +339,40 @@ module LibTmux
       end
 
       private
+
+      # What a daemon that is killed, or shutting down behind a stopped client,
+      # tells a client.
+      SERVER_GONE = /\A(?:no server running|server exited unexpectedly|error connecting to .*\((?:No such file or directory|Connection refused)\))/
+
+      # True when the pane process is gone or the daemon says it is gone.
+      # An inconclusive probe, such as a failed spawn, is not an end.
+      def ended?(identity)
+        gone?(identity) || daemon_state == :gone
+      end
+
+      # :alive when the daemon answers an ordinary command, :gone when it
+      # reports that it is gone, and :unknown when the probe itself fails. The
+      # identity read is a run-shell -C probe, which fires no hook.
+      def daemon_state
+        argv, marker = LibTmux::Internal::TmuxVersion.identity_argv(%w[pid])
+        result = @server.run(argv, **@budget.options)
+        begin
+          LibTmux::Internal::TmuxVersion.parse_identity(result, marker, 1)
+          :alive
+        rescue ProtocolError
+          SERVER_GONE.match?(result.stderr.b.force_encoding(Encoding::UTF_8)) ? :gone : :unknown
+        end
+      rescue Cancelled, DeadlineExceeded
+        raise
+      rescue LibTmux::Error, SystemCallError, IOError
+        :unknown
+      end
+
+      def gone?(identity)
+        identity.exited?
+      rescue TargetNotFoundError
+        true
+      end
 
       def acquire_identity(snapshot, pane)
         # tmux 3.8 reports no PID for a dead pane; there is no process to bind.
@@ -306,7 +409,9 @@ module LibTmux
           phase: :admission)
       end
 
-      def read_rows(snapshot, pane, limits, identity)
+      # +joined+ joins wrapped rows into the lines the program wrote, so a wait
+      # finds text that the pane width split across rows.
+      def read_rows(snapshot, pane, limits, identity, joined = false)
         identity&.ensure_live!
         names = spellings
         link = snapshot.window_links.find { |item| item.window_id == pane.window_id }
@@ -315,7 +420,7 @@ module LibTmux
         target = "#{link.session_id}:.#{pane.id}"
         guard = "\#{&&:\#{==:\#{session_id},#{link.session_id}},\#{==:\#{pane_id},#{pane.id}}}"
         guard = "\#{&&:#{guard},\#{&&:\#{==:\#{pane_pid},#{identity.pid}},\#{&&:\#{==:\#{pane_dead_status},},\#{==:\#{pane_dead_signal},}}}}" if identity
-        body = @server.__send__(:tmux_command, [names.fetch("capture-pane"), "-p", "-t", target,
+        body = @server.__send__(:tmux_command, [names.fetch("capture-pane"), "-p", *(joined ? ["-J"] : []), "-t", target,
           "-S", (-limits.fetch("history_lines")).to_s, "-E", "-"])
         # The selected false branch fails parsing, independently of screen bytes.
         failure = @server.__send__(:tmux_command, [names.fetch("capture-pane"), "-t"])

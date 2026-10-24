@@ -6,6 +6,55 @@
   coverage for it is highly limited, so a macOS-only regression is not caught
   before merge. (#49)
 
+### libtmux
+
+- **Breaking:** Control connections need tmux 3.7 or newer. `open_control`,
+  reconnect and Async control raise `UnsupportedFeatureError` on an older
+  daemon before any client attaches, and nothing else leaves the 3.3a floor.
+  Check the new `Server#supports_control?` first, or poll with `Pane#capture`.
+  [Optional features](docs/reference/behavior.md#optional-tmux-features). (#37)
+- Refuse commands that misbehave on one tmux release before they run: named
+  buffer deletion and rename below 3.4, raw `break-pane` and colon or period
+  names on exact 3.7, raw `split-window -p` on 3.4, and malformed layouts below
+  3.4. `Pane#break_out` now works on exact 3.7 and for a sole pane. Refusals
+  raise `UnsupportedFeatureError`. (#37)
+- `ControlConnection#exchange` and its Async twin apply the same refusals to
+  their command line, which they read as tmux does. A nameless `break-pane`
+  over a control connection used to kill an exact 3.7 daemon. Raw
+  `new-session -s`, `new-window -n` and `rename-*` with a colon or period in
+  the name now raise `UnsupportedFeatureError` on exact 3.7, as the typed
+  calls do, instead of returning tmux's failed result. (#37)
+- Raw `refresh-client -l`, in `Server#run` or a control line, raises
+  `UnsupportedFeatureError` below tmux 3.6a. On 3.3a, asking an attached
+  terminal for its clipboard stops the server, and on 3.4 through 3.6 the
+  server stops when that client leaves before its terminal answers. (#37)
+- Snapshots and the daemon identity check no longer fire `after-display-message`
+  hooks. (#37)
+- Record every tmux release gate in one internal registry and emit it as the
+  root `capabilities.json` manifest, which the docs site reads for its
+  capability pages. `Window#select_layout` raises `UnsupportedFeatureError`,
+  not `ArgumentError`, for a JSON layout below tmux 3.8-rc2. (#37)
+
+### libtmux-async
+
+- `ControlSubscription#next` ends the stream with `StopIteration`. It used to
+  return `nil` at the end of a stream, because `Kernel#loop` swallowed the
+  exception. (#37)
+
+### libtmux-mcp
+
+- `tmux_wait` with `screen_contains` polls the pane screen on tmux older than
+  3.7 instead of attaching a control client, and uses control events from
+  3.7. (#37)
+- `tmux_wait` with `screen_contains` joins wrapped rows, so text that the pane
+  width split across rows now matches. (#37)
+- `tmux_wait` fails with the new `pane_died` code, `delivery: observed` and
+  the last rows read in `error.capture`, when the pane or its tmux server ends
+  before the text appears. That case used to return `stale_target`, or
+  `observation_lost` after a killed server. A control stream that ends while
+  the pane lives, such as after a detach, returns `observation_lost` instead
+  of raising `NoMethodError`. (#37)
+
 ## 0.1.0.alpha.2 (2026-10-18)
 
 Requires tmux 3.3a or newer, checked against the running daemon, and runs on

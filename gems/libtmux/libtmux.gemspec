@@ -23,6 +23,7 @@ Gem::Specification.new do |spec|
     lib/libtmux/version.rb
     lib/libtmux/tmux_version.rb
     lib/libtmux/support.rb
+    lib/libtmux/capabilities.rb
     lib/libtmux/errors.rb
     lib/libtmux/process.rb
     lib/libtmux/child.rb
@@ -44,6 +45,7 @@ Gem::Specification.new do |spec|
     lib/libtmux/terminal.rb
     lib/libtmux/criteria.rb
     lib/libtmux/process_wait.rb
+    lib/libtmux/native_guard.rb
     sig/libtmux.rbs
     sig/criteria.rbs
     sig/operations.rbs

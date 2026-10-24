@@ -23,30 +23,34 @@ module LibTmux
           raise ArgumentError, "timeout must be finite and nonnegative"
         end
         deadline = timeout && clock + timeout
-        loop do
-          @mutex.synchronize do
-            if @gap
-              gap, @gap = @gap, nil
-              return gap
+        # Kernel#loop would swallow the StopIteration that ends the stream and
+        # return nil from next.
+        while true
+          begin
+            @mutex.synchronize do
+              if @gap
+                gap, @gap = @gap, nil
+                return gap
+              end
+              unless @queue.empty?
+                event = @queue.shift
+                @bytes -= event.bytesize
+                return event
+              end
+              raise @failure if @failure
+              raise StopIteration if @closed
             end
-            unless @queue.empty?
-              event = @queue.shift
-              @bytes -= event.bytesize
-              return event
-            end
-            raise @failure if @failure
-            raise StopIteration if @closed
-          end
-          remaining = deadline && deadline - clock
-          raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription) if remaining && remaining <= 0
+            remaining = deadline && deadline - clock
+            raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription) if remaining && remaining <= 0
 
-          if remaining
-            ::Async::Task.current.with_timeout(remaining) { @changed.wait }
-          else
-            @changed.wait
+            if remaining
+              ::Async::Task.current.with_timeout(remaining) { @changed.wait }
+            else
+              @changed.wait
+            end
+          rescue ::Async::TimeoutError
+            raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription)
           end
-        rescue ::Async::TimeoutError
-          raise DeadlineExceeded.new("control event deadline elapsed", phase: :subscription)
         end
       end
 
@@ -60,6 +64,7 @@ module LibTmux
     class ControlConnection < LibTmux::ControlConnection
       def initialize(scope:, binding:, session_id:, reconnect: nil, **limits)
         @scope = scope
+        @release = binding.release
         @writer_changed = ::Async::Notification.new
         @startup_changed = ::Async::Notification.new
         @exchanges, @exchange_changed = {}, ::Async::Notification.new
@@ -81,6 +86,7 @@ module LibTmux
         end
         raise CapacityError.new("control command exceeds its byte limit", phase: :admission) if line.bytesize > @max_command
 
+        Internal::NativeGuard.check_line(line, @release)
         deadline = clock + timeout
         request = admit(line, cancel, flow: flow)
         @exchanges[request.id] = true

@@ -48,11 +48,7 @@ module LibTmux
       private
 
       def acquire_server_info(budget)
-        rows = read(budget, :server, 1, ["display-message", "-p", framing(%w[version pid start_time])], 3)
-        unless rows.length == 1
-          raise ProtocolError.new("invalid capture server metadata", delivery: :observed, phase: :capture)
-        end
-        version, pid, start_time = rows.first
+        version, pid, start_time = read_identity(budget)
         version = version.dup.force_encoding(Encoding::UTF_8)
         begin
           TmuxVersion.require_supported(version)
@@ -64,6 +60,20 @@ module LibTmux
         end
         {version: version, pid: Integer(pid, 10), start_time: Integer(start_time, 10),
          capabilities: {metadata: :byte_counted, field_baseline: TmuxVersion::MINIMUM}}
+      end
+
+      # The identity travels in the probe's error text so that no user hook fires.
+      def read_identity(budget)
+        started_at = monotonic
+        remaining = check_budget(budget)
+        argv, marker = TmuxVersion.identity_argv(%w[version pid start_time])
+        result = @server.run(argv, timeout: remaining, cancel: budget.fetch(:cancel))
+        values = TmuxVersion.parse_identity(result, marker, 3)
+        budget[:bytes] += result.stderr.bytesize
+        budget[:rows] += 1
+        budget.fetch(:reads) << {source: :server, attempt: 1, started_at: started_at, finished_at: monotonic,
+                                bytes: result.stderr.bytesize, rows: 1}
+        values
       end
 
       def acquire_rows(budget, attempt, clients)

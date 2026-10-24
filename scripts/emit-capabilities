@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Writes capabilities.json from the typed registry in
+# LibTmux::Internal::Capabilities. With --check, fails when the committed file
+# differs from the registry.
+
+abort "usage: scripts/emit-capabilities [--check]" unless ARGV.empty? || ARGV == ["--check"]
+
+root = File.expand_path("..", __dir__)
+$LOAD_PATH.unshift(File.join(root, "gems/libtmux/lib"))
+require "libtmux"
+
+path = File.join(root, "capabilities.json")
+expected = LibTmux::Internal::Capabilities.manifest_json
+
+if ARGV == ["--check"]
+  abort "capabilities.json is stale; run scripts/emit-capabilities" unless File.exist?(path) && File.read(path) == expected
+  puts "capabilities.json matches the registry"
+else
+  File.write(path, expected)
+  puts "wrote capabilities.json"
+end

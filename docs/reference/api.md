@@ -26,32 +26,32 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
-| [#close](../../gems/libtmux-async/lib/libtmux/async/control.rb#L146) | `nil` | [Control connections](behavior.md#control-connections) |
-| [#closed?](../../gems/libtmux-async/lib/libtmux/async/control.rb#L177) | `bool` | [Control connections](behavior.md#control-connections) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L552) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
-| [#events](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
-| [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L424) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::String` | [Control connections](behavior.md#control-connections) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L565) | `::String` | [Control connections](behavior.md#control-connections) |
-| [#pause_output](../../gems/libtmux/lib/libtmux/control.rb#L488) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
-| [#pid](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::Integer` | [Control connections](behavior.md#control-connections) |
-| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::String?` | [Control connections](behavior.md#control-connections) |
-| [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L492) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
-| [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L496) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
-| [.new](../../gems/libtmux-async/lib/libtmux/async/control.rb#L61) | `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
-| [.open](../../gems/libtmux/lib/libtmux/control.rb#L335) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
+| [#close](../../gems/libtmux-async/lib/libtmux/async/control.rb#L152) | `nil` | [Control connections](behavior.md#control-connections) |
+| [#closed?](../../gems/libtmux-async/lib/libtmux/async/control.rb#L183) | `bool` | [Control connections](behavior.md#control-connections) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L563) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#events](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
+| [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L432) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String` | [Control connections](behavior.md#control-connections) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L576) | `::String` | [Control connections](behavior.md#control-connections) |
+| [#pause_output](../../gems/libtmux/lib/libtmux/control.rb#L499) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
+| [#pid](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Integer` | [Control connections](behavior.md#control-connections) |
+| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String?` | [Control connections](behavior.md#control-connections) |
+| [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L503) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
+| [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L507) | `::LibTmux::Async::ControlSubscription` | [Control connections](behavior.md#control-connections) |
+| [.new](../../gems/libtmux-async/lib/libtmux/async/control.rb#L65) | `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [.open](../../gems/libtmux/lib/libtmux/control.rb#L338) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 
 ## LibTmux::Async::ControlSubscription
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#close](../../gems/libtmux/lib/libtmux/control.rb#L142) | `nil` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L153) | `bool` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L160) | `{ queued_events: ::Integer, retained_event_bytes: ::Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable \| :tail, limits: { max_bytes: ::Integer, max_events: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
-| [#each](../../gems/libtmux/lib/libtmux/control.rb#L128) | `self` / `::Enumerator[::LibTmux::ControlEvent, self]` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L85) | `::String?` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L170) | `::String` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#close](../../gems/libtmux/lib/libtmux/control.rb#L145) | `nil` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L156) | `bool` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L163) | `{ queued_events: ::Integer, retained_event_bytes: ::Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable \| :tail, limits: { max_bytes: ::Integer, max_events: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#each](../../gems/libtmux/lib/libtmux/control.rb#L131) | `self` / `::Enumerator[::LibTmux::ControlEvent, self]` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L88) | `::String?` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L173) | `::String` | [Control subscriptions](behavior.md#control-subscriptions) |
 | [#next](../../gems/libtmux-async/lib/libtmux/async/control.rb#L20) | `::LibTmux::ControlEvent` | [Control subscriptions](behavior.md#control-subscriptions) |
 | [.new](../../gems/libtmux-async/lib/libtmux/async/control.rb#L14) | `::LibTmux::Async::ControlSubscription` | [Control subscriptions](behavior.md#control-subscriptions) |
 
@@ -70,45 +70,46 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#attach](../../gems/libtmux-async/lib/libtmux/async/server.rb#L59) | `bot` | [Async unsupported operations](behavior.md#async-unsupported-operations) |
-| [#close](../../gems/libtmux-async/lib/libtmux/async/server.rb#L25) | `nil` | [Async scope](behavior.md#async-scope) |
+| [#attach](../../gems/libtmux-async/lib/libtmux/async/server.rb#L52) | `bot` | [Async unsupported operations](behavior.md#async-unsupported-operations) |
+| [#close](../../gems/libtmux-async/lib/libtmux/async/server.rb#L18) | `nil` | [Async scope](behavior.md#async-scope) |
 | [#delete_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L62) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [#diagnostics](../../gems/libtmux-async/lib/libtmux/async/server.rb#L30) | `::LibTmux::Async::scope_diagnostics` | [Diagnostics](behavior.md#diagnostics) |
+| [#diagnostics](../../gems/libtmux-async/lib/libtmux/async/server.rb#L23) | `::LibTmux::Async::scope_diagnostics` | [Diagnostics](behavior.md#diagnostics) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L18) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
-| [#endpoint](../../gems/libtmux/lib/libtmux/server.rb#L103) | `::LibTmux::Endpoint` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [#endpoint](../../gems/libtmux/lib/libtmux/server.rb#L104) | `::LibTmux::Endpoint` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#environment](../../gems/libtmux/lib/libtmux/operations.rb#L85) | `::String?` | [Environment](behavior.md#environment) |
-| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L347) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
+| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L344) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
 | [#hooks](../../gems/libtmux/lib/libtmux/operations.rb#L11) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L248) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
+| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L245) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
 | [#list_buffers](../../gems/libtmux/lib/libtmux/operations.rb#L66) | `::Array[{ name: ::String, size: ::Integer }]` | [Buffers](behavior.md#buffers) |
 | [#list_clients](../../gems/libtmux/lib/libtmux/operations.rb#L93) | `::Array[{ name: ::String, pid: ::Integer, created: ::Integer, tty: ::String?, session_id: ::String?, control: bool }]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L274) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L266) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L271) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L263) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#list_window_links](../../gems/libtmux/lib/libtmux/operations.rb#L73) | `::Array[::LibTmux::WindowLink]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L270) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L252) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
-| [#open_control](../../gems/libtmux-async/lib/libtmux/async/server.rb#L34) | `T` / `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L267) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L249) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
+| [#open_control](../../gems/libtmux-async/lib/libtmux/async/server.rb#L27) | `T` / `::LibTmux::Async::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L7) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L16) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L286) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
+| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L283) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
 | [#read_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L58) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [#run](../../gems/libtmux-async/lib/libtmux/async/server.rb#L14) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
 | [#run_group](../../gems/libtmux/lib/libtmux/group.rb#L32) | `::LibTmux::GroupResult` | [Command groups](behavior.md#command-groups) |
-| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L343) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
-| [#session](../../gems/libtmux/lib/libtmux/server.rb#L278) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
+| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L340) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
+| [#session](../../gems/libtmux/lib/libtmux/server.rb#L275) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
 | [#set_environment](../../gems/libtmux/lib/libtmux/operations.rb#L81) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
-| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L337) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
+| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L334) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
 | [#source_file](../../gems/libtmux/lib/libtmux/operations.rb#L42) | `::LibTmux::CommandResult` | [Source files](behavior.md#source-files) |
+| [#supports_control?](../../gems/libtmux/lib/libtmux/server.rb#L187) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#switch_client](../../gems/libtmux/lib/libtmux/terminal.rb#L34) | `::LibTmux::CommandResult` | [Client switching](behavior.md#client-switching) |
-| [#tmux_version](../../gems/libtmux/lib/libtmux/server.rb#L180) | `::String` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [#tmux_version](../../gems/libtmux/lib/libtmux/server.rb#L182) | `::String` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#unset_environment](../../gems/libtmux/lib/libtmux/operations.rb#L89) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
 | [#wait_for](../../gems/libtmux/lib/libtmux/operations.rb#L47) | `::LibTmux::CommandResult` | [Wait channels](behavior.md#wait-channels) |
-| [#window](../../gems/libtmux/lib/libtmux/server.rb#L282) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
+| [#window](../../gems/libtmux/lib/libtmux/server.rb#L279) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
 | [#window_link](../../gems/libtmux/lib/libtmux/operations.rb#L77) | `::LibTmux::WindowLink` | [Live handles](behavior.md#live-handles) |
 | [#write_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L54) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
 | [.new](../../gems/libtmux-async/lib/libtmux/async/server.rb#L6) | `::LibTmux::Async::Server` | [Async scope](behavior.md#async-scope) |
-| [.open](../../gems/libtmux/lib/libtmux/server.rb#L105) | `T` / `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [.start](../../gems/libtmux-async/lib/libtmux/async/server.rb#L63) | `bot` | [Async unsupported operations](behavior.md#async-unsupported-operations) |
+| [.open](../../gems/libtmux/lib/libtmux/server.rb#L106) | `T` / `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [.start](../../gems/libtmux-async/lib/libtmux/async/server.rb#L56) | `bot` | [Async unsupported operations](behavior.md#async-unsupported-operations) |
 
 ## LibTmux::Cancellation
 
@@ -237,52 +238,52 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
-| [#close](../../gems/libtmux/lib/libtmux/control.rb#L515) | `nil` | [Control connections](behavior.md#control-connections) |
-| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L544) | `bool` | [Control connections](behavior.md#control-connections) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L552) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
-| [#events](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::LibTmux::ControlSubscription` | [Control connections](behavior.md#control-connections) |
-| [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L424) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::String` | [Control connections](behavior.md#control-connections) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L565) | `::String` | [Control connections](behavior.md#control-connections) |
-| [#pause_output](../../gems/libtmux/lib/libtmux/control.rb#L488) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
-| [#pid](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::Integer` | [Control connections](behavior.md#control-connections) |
-| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L333) | `::String?` | [Control connections](behavior.md#control-connections) |
-| [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L492) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
-| [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L496) | `::LibTmux::ControlSubscription` | [Control connections](behavior.md#control-connections) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L376) | `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
-| [.open](../../gems/libtmux/lib/libtmux/control.rb#L335) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [#cleanup_errors](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Array[::String]` | [Control connections](behavior.md#control-connections) |
+| [#close](../../gems/libtmux/lib/libtmux/control.rb#L526) | `nil` | [Control connections](behavior.md#control-connections) |
+| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L555) | `bool` | [Control connections](behavior.md#control-connections) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L563) | `{ admitted_requests: ::Integer, incomplete_requests: ::Integer, queued_requests: ::Integer, writing_requests: ::Integer, awaiting_reply: ::Integer, reserved_wire_bytes: ::Integer, retained_reply_bytes: ::Integer, stderr_received_bytes: ::Integer, subscription_count: ::Integer, stopping: bool, finished: bool, cleanup_error_count: ::Integer, limits: { max_requests: ::Integer, max_command_bytes: ::Integer, max_queue_bytes: ::Integer, max_line_bytes: ::Integer, max_reply_bytes: ::Integer, max_stderr_bytes: ::Integer, max_subscriptions: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#events](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::LibTmux::ControlSubscription` | [Control connections](behavior.md#control-connections) |
+| [#exchange](../../gems/libtmux/lib/libtmux/control.rb#L432) | `::LibTmux::GuardedReply` | [Control connections](behavior.md#control-connections) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String` | [Control connections](behavior.md#control-connections) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L576) | `::String` | [Control connections](behavior.md#control-connections) |
+| [#pause_output](../../gems/libtmux/lib/libtmux/control.rb#L499) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
+| [#pid](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::Integer` | [Control connections](behavior.md#control-connections) |
+| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L336) | `::String?` | [Control connections](behavior.md#control-connections) |
+| [#resume_output](../../gems/libtmux/lib/libtmux/control.rb#L503) | `::LibTmux::GuardedReply` | [Control flow](behavior.md#control-flow) |
+| [#subscribe](../../gems/libtmux/lib/libtmux/control.rb#L507) | `::LibTmux::ControlSubscription` | [Control connections](behavior.md#control-connections) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L379) | `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [.open](../../gems/libtmux/lib/libtmux/control.rb#L338) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 
 ## LibTmux::ControlEvent
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#bytesize](../../gems/libtmux/lib/libtmux/control.rb#L65) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
-| [#data](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::String?` | [Control evidence](behavior.md#control-evidence) |
-| [#dropped_bytes](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::Integer?` | [Control evidence](behavior.md#control-evidence) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::String?` | [Control evidence](behavior.md#control-evidence) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L69) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#kind](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::Symbol` | [Control evidence](behavior.md#control-evidence) |
-| [#lost_sequences](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::Array[::Integer]?` | [Control evidence](behavior.md#control-evidence) |
-| [#pane_id](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::String?` | [Control evidence](behavior.md#control-evidence) |
-| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::String?` | [Control evidence](behavior.md#control-evidence) |
-| [#raw](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#reason](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::Symbol?` | [Control evidence](behavior.md#control-evidence) |
-| [#sequence](../../gems/libtmux/lib/libtmux/control.rb#L53) | `::Integer?` | [Control evidence](behavior.md#control-evidence) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::LibTmux::ControlEvent` | [Control evidence](behavior.md#control-evidence) |
+| [#bytesize](../../gems/libtmux/lib/libtmux/control.rb#L68) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
+| [#data](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String?` | [Control evidence](behavior.md#control-evidence) |
+| [#dropped_bytes](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Integer?` | [Control evidence](behavior.md#control-evidence) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String?` | [Control evidence](behavior.md#control-evidence) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L72) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#kind](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Symbol` | [Control evidence](behavior.md#control-evidence) |
+| [#lost_sequences](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Array[::Integer]?` | [Control evidence](behavior.md#control-evidence) |
+| [#pane_id](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String?` | [Control evidence](behavior.md#control-evidence) |
+| [#previous_generation](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String?` | [Control evidence](behavior.md#control-evidence) |
+| [#raw](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#reason](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Symbol?` | [Control evidence](behavior.md#control-evidence) |
+| [#sequence](../../gems/libtmux/lib/libtmux/control.rb#L56) | `::Integer?` | [Control evidence](behavior.md#control-evidence) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L59) | `::LibTmux::ControlEvent` | [Control evidence](behavior.md#control-evidence) |
 
 ## LibTmux::ControlSubscription
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#close](../../gems/libtmux/lib/libtmux/control.rb#L142) | `nil` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L153) | `bool` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L160) | `{ queued_events: ::Integer, retained_event_bytes: ::Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable \| :tail, limits: { max_bytes: ::Integer, max_events: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
-| [#each](../../gems/libtmux/lib/libtmux/control.rb#L128) | `self` / `::Enumerator[::LibTmux::ControlEvent, self]` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L85) | `::String?` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L170) | `::String` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [#next](../../gems/libtmux/lib/libtmux/control.rb#L100) | `::LibTmux::ControlEvent` | [Control subscriptions](behavior.md#control-subscriptions) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L87) | `::LibTmux::ControlSubscription` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#close](../../gems/libtmux/lib/libtmux/control.rb#L145) | `nil` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#closed?](../../gems/libtmux/lib/libtmux/control.rb#L156) | `bool` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/control.rb#L163) | `{ queued_events: ::Integer, retained_event_bytes: ::Integer, gap_pending: bool, overflowed: bool, closed: bool, mode: :reliable \| :tail, limits: { max_bytes: ::Integer, max_events: ::Integer } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#each](../../gems/libtmux/lib/libtmux/control.rb#L131) | `self` / `::Enumerator[::LibTmux::ControlEvent, self]` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L88) | `::String?` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L173) | `::String` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [#next](../../gems/libtmux/lib/libtmux/control.rb#L103) | `::LibTmux::ControlEvent` | [Control subscriptions](behavior.md#control-subscriptions) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L90) | `::LibTmux::ControlSubscription` | [Control subscriptions](behavior.md#control-subscriptions) |
 
 ## LibTmux::CreationReceipt
 
@@ -409,26 +410,26 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#body](../../gems/libtmux/lib/libtmux/control.rb#L8) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#bytesize](../../gems/libtmux/lib/libtmux/control.rb#L8) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
-| [#guard](../../gems/libtmux/lib/libtmux/control.rb#L8) | `::Array[::Integer]` | [Control evidence](behavior.md#control-evidence) |
-| [#guard_success?](../../gems/libtmux/lib/libtmux/control.rb#L20) | `bool` | [Control evidence](behavior.md#control-evidence) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L24) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#raw](../../gems/libtmux/lib/libtmux/control.rb#L16) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#terminator](../../gems/libtmux/lib/libtmux/control.rb#L8) | `:end \| :error` | [Control evidence](behavior.md#control-evidence) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L10) | `::LibTmux::GuardedBlock` | [Control evidence](behavior.md#control-evidence) |
+| [#body](../../gems/libtmux/lib/libtmux/control.rb#L11) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#bytesize](../../gems/libtmux/lib/libtmux/control.rb#L11) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
+| [#guard](../../gems/libtmux/lib/libtmux/control.rb#L11) | `::Array[::Integer]` | [Control evidence](behavior.md#control-evidence) |
+| [#guard_success?](../../gems/libtmux/lib/libtmux/control.rb#L23) | `bool` | [Control evidence](behavior.md#control-evidence) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L27) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#raw](../../gems/libtmux/lib/libtmux/control.rb#L19) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#terminator](../../gems/libtmux/lib/libtmux/control.rb#L11) | `:end \| :error` | [Control evidence](behavior.md#control-evidence) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L13) | `::LibTmux::GuardedBlock` | [Control evidence](behavior.md#control-evidence) |
 
 ## LibTmux::GuardedReply
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#attribution](../../gems/libtmux/lib/libtmux/control.rb#L43) | `:boundary_window` | [Control evidence](behavior.md#control-evidence) |
-| [#blocks](../../gems/libtmux/lib/libtmux/control.rb#L32) | `::Array[::LibTmux::GuardedBlock]` | [Control evidence](behavior.md#control-evidence) |
-| [#delivery](../../gems/libtmux/lib/libtmux/control.rb#L39) | `:observed` | [Control evidence](behavior.md#control-evidence) |
-| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L32) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L47) | `::String` | [Control evidence](behavior.md#control-evidence) |
-| [#request_id](../../gems/libtmux/lib/libtmux/control.rb#L32) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L34) | `::LibTmux::GuardedReply` | [Control evidence](behavior.md#control-evidence) |
+| [#attribution](../../gems/libtmux/lib/libtmux/control.rb#L46) | `:boundary_window` | [Control evidence](behavior.md#control-evidence) |
+| [#blocks](../../gems/libtmux/lib/libtmux/control.rb#L35) | `::Array[::LibTmux::GuardedBlock]` | [Control evidence](behavior.md#control-evidence) |
+| [#delivery](../../gems/libtmux/lib/libtmux/control.rb#L42) | `:observed` | [Control evidence](behavior.md#control-evidence) |
+| [#generation](../../gems/libtmux/lib/libtmux/control.rb#L35) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#inspect](../../gems/libtmux/lib/libtmux/control.rb#L50) | `::String` | [Control evidence](behavior.md#control-evidence) |
+| [#request_id](../../gems/libtmux/lib/libtmux/control.rb#L35) | `::Integer` | [Control evidence](behavior.md#control-evidence) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L37) | `::LibTmux::GuardedReply` | [Control evidence](behavior.md#control-evidence) |
 
 ## LibTmux::Hooks
 
@@ -485,8 +486,8 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | --- | --- | --- |
 | [#accept_shell](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L111) | `::LibTmux::EntityRef` | [MCP application](behavior.md#mcp-application) |
 | [#call](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L117) | `untyped` | [MCP application](behavior.md#mcp-application) |
-| [#close](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L190) | `nil` | [MCP application](behavior.md#mcp-application) |
-| [#inspect](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L186) | `::String` | [MCP application](behavior.md#mcp-application) |
+| [#close](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L193) | `nil` | [MCP application](behavior.md#mcp-application) |
+| [#inspect](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L189) | `::String` | [MCP application](behavior.md#mcp-application) |
 | [#invite_shell](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L104) | `::LibTmux::MCP::_ShellInvitation` | [MCP application](behavior.md#mcp-application) |
 | [#sdk_server](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L94) | `untyped` | [MCP application](behavior.md#mcp-application) |
 | [#tools](../../gems/libtmux-mcp/lib/libtmux/mcp/application.rb#L48) | `::Array[untyped]` | [MCP application](behavior.md#mcp-application) |
@@ -576,10 +577,10 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
-| [#break_out](../../gems/libtmux/lib/libtmux/operations.rb#L348) | `::LibTmux::Window` | [Entity mutation](behavior.md#entity-mutation) |
-| [#capture](../../gems/libtmux/lib/libtmux/entity.rb#L169) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
-| [#copy_command](../../gems/libtmux/lib/libtmux/operations.rb#L399) | `::LibTmux::CommandResult` | [Copy mode](behavior.md#copy-mode) |
-| [#copy_mode](../../gems/libtmux/lib/libtmux/operations.rb#L383) | `::LibTmux::CommandResult` | [Copy mode](behavior.md#copy-mode) |
+| [#break_out](../../gems/libtmux/lib/libtmux/operations.rb#L351) | `::LibTmux::Window` | [Entity mutation](behavior.md#entity-mutation) |
+| [#capture](../../gems/libtmux/lib/libtmux/entity.rb#L178) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
+| [#copy_command](../../gems/libtmux/lib/libtmux/operations.rb#L419) | `::LibTmux::CommandResult` | [Copy mode](behavior.md#copy-mode) |
+| [#copy_mode](../../gems/libtmux/lib/libtmux/operations.rb#L403) | `::LibTmux::CommandResult` | [Copy mode](behavior.md#copy-mode) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L247) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#eql?](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
 | [#hash](../../gems/libtmux/lib/libtmux/entity.rb#L83) | `::Integer` | [Live handles](behavior.md#live-handles) |
@@ -590,17 +591,17 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#kill](../../gems/libtmux/lib/libtmux/entity.rb#L87) | `::LibTmux::CommandResult` | [Entity removal](behavior.md#entity-removal) |
 | [#move](../../gems/libtmux/lib/libtmux/operations.rb#L344) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L239) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#paste](../../gems/libtmux/lib/libtmux/operations.rb#L361) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
-| [#pipe](../../gems/libtmux/lib/libtmux/operations.rb#L371) | `::LibTmux::CommandResult` | [Pane pipes](behavior.md#pane-pipes) |
+| [#paste](../../gems/libtmux/lib/libtmux/operations.rb#L381) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
+| [#pipe](../../gems/libtmux/lib/libtmux/operations.rb#L391) | `::LibTmux::CommandResult` | [Pane pipes](behavior.md#pane-pipes) |
 | [#ref](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::EntityRef` | [Live handles](behavior.md#live-handles) |
 | [#resize](../../gems/libtmux/lib/libtmux/operations.rb#L318) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
-| [#respawn](../../gems/libtmux/lib/libtmux/operations.rb#L354) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
+| [#respawn](../../gems/libtmux/lib/libtmux/operations.rb#L374) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#select](../../gems/libtmux/lib/libtmux/operations.rb#L314) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
-| [#send_keys](../../gems/libtmux/lib/libtmux/entity.rb#L199) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
-| [#send_text](../../gems/libtmux/lib/libtmux/entity.rb#L193) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
+| [#send_keys](../../gems/libtmux/lib/libtmux/entity.rb#L208) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
+| [#send_text](../../gems/libtmux/lib/libtmux/entity.rb#L202) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
 | [#server](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::Server` | [Live handles](behavior.md#live-handles) |
 | [#snapshot](../../gems/libtmux/lib/libtmux/entity.rb#L74) | `::LibTmux::PaneSnapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
-| [#split](../../gems/libtmux/lib/libtmux/entity.rb#L164) | `::LibTmux::Pane` | [Creation](behavior.md#creation) |
+| [#split](../../gems/libtmux/lib/libtmux/entity.rb#L173) | `::LibTmux::Pane` | [Creation](behavior.md#creation) |
 | [#swap](../../gems/libtmux/lib/libtmux/operations.rb#L336) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 
 ## LibTmux::PaneSnapshot
@@ -673,43 +674,44 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#attach](../../gems/libtmux/lib/libtmux/terminal.rb#L47) | `::LibTmux::TerminalResult` | [Terminal attachment](behavior.md#terminal-attachment) |
-| [#close](../../gems/libtmux/lib/libtmux/server.rb#L199) | `nil` | [Closing bindings](behavior.md#closing-bindings) |
+| [#close](../../gems/libtmux/lib/libtmux/server.rb#L196) | `nil` | [Closing bindings](behavior.md#closing-bindings) |
 | [#delete_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L62) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [#diagnostics](../../gems/libtmux/lib/libtmux/server.rb#L238) | `{ admitted_requests: ::Integer, reserved_process_slots: ::Integer, control_connections: ::Integer, closed: bool, limits: { max_requests: ::Integer, max_controls: ::Integer, close_timeout: ::Numeric } }` | [Diagnostics](behavior.md#diagnostics) |
+| [#diagnostics](../../gems/libtmux/lib/libtmux/server.rb#L235) | `{ admitted_requests: ::Integer, reserved_process_slots: ::Integer, control_connections: ::Integer, closed: bool, limits: { max_requests: ::Integer, max_controls: ::Integer, close_timeout: ::Numeric } }` | [Diagnostics](behavior.md#diagnostics) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L18) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
-| [#endpoint](../../gems/libtmux/lib/libtmux/server.rb#L103) | `::LibTmux::Endpoint` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [#endpoint](../../gems/libtmux/lib/libtmux/server.rb#L104) | `::LibTmux::Endpoint` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#environment](../../gems/libtmux/lib/libtmux/operations.rb#L85) | `::String?` | [Environment](behavior.md#environment) |
-| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L347) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
+| [#explain_panes](../../gems/libtmux/lib/libtmux/server.rb#L344) | `::Hash[::Symbol, untyped]` | [Source query plans](behavior.md#source-query-plans) |
 | [#hooks](../../gems/libtmux/lib/libtmux/operations.rb#L11) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
-| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L248) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
+| [#kill](../../gems/libtmux/lib/libtmux/server.rb#L245) | `::LibTmux::CommandResult` | [Killing daemons](behavior.md#killing-daemons) |
 | [#list_buffers](../../gems/libtmux/lib/libtmux/operations.rb#L66) | `::Array[{ name: ::String, size: ::Integer }]` | [Buffers](behavior.md#buffers) |
 | [#list_clients](../../gems/libtmux/lib/libtmux/operations.rb#L93) | `::Array[{ name: ::String, pid: ::Integer, created: ::Integer, tty: ::String?, session_id: ::String?, control: bool }]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L274) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L266) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_panes](../../gems/libtmux/lib/libtmux/server.rb#L271) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_sessions](../../gems/libtmux/lib/libtmux/server.rb#L263) | `::Array[::LibTmux::Session]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#list_window_links](../../gems/libtmux/lib/libtmux/operations.rb#L73) | `::Array[::LibTmux::WindowLink]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L270) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L252) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
-| [#open_control](../../gems/libtmux/lib/libtmux/server.rb#L290) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
+| [#list_windows](../../gems/libtmux/lib/libtmux/server.rb#L267) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#new_session](../../gems/libtmux/lib/libtmux/server.rb#L249) | `::LibTmux::CreationReceipt` / `::LibTmux::Session` | [Creation](behavior.md#creation) |
+| [#open_control](../../gems/libtmux/lib/libtmux/server.rb#L287) | `T` / `::LibTmux::ControlConnection` | [Control connections](behavior.md#control-connections) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L7) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#owned?](../../gems/libtmux/lib/libtmux/owned.rb#L16) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L286) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
+| [#pane](../../gems/libtmux/lib/libtmux/server.rb#L283) | `::LibTmux::Pane` | [Live handles](behavior.md#live-handles) |
 | [#read_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L58) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [#run](../../gems/libtmux/lib/libtmux/server.rb#L185) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
+| [#run](../../gems/libtmux/lib/libtmux/server.rb#L192) | `::LibTmux::CommandResult` | [Raw commands](behavior.md#raw-commands) |
 | [#run_group](../../gems/libtmux/lib/libtmux/group.rb#L32) | `::LibTmux::GroupResult` | [Command groups](behavior.md#command-groups) |
-| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L343) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
-| [#session](../../gems/libtmux/lib/libtmux/server.rb#L278) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
+| [#search_panes](../../gems/libtmux/lib/libtmux/server.rb#L340) | `::LibTmux::Selection[::LibTmux::PaneSnapshot]` | [Source query execution](behavior.md#source-query-execution) |
+| [#session](../../gems/libtmux/lib/libtmux/server.rb#L275) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
 | [#set_environment](../../gems/libtmux/lib/libtmux/operations.rb#L81) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
-| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L337) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
+| [#snapshot](../../gems/libtmux/lib/libtmux/server.rb#L334) | `::LibTmux::Snapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
 | [#source_file](../../gems/libtmux/lib/libtmux/operations.rb#L42) | `::LibTmux::CommandResult` | [Source files](behavior.md#source-files) |
+| [#supports_control?](../../gems/libtmux/lib/libtmux/server.rb#L187) | `bool` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#switch_client](../../gems/libtmux/lib/libtmux/terminal.rb#L34) | `::LibTmux::CommandResult` | [Client switching](behavior.md#client-switching) |
-| [#tmux_version](../../gems/libtmux/lib/libtmux/server.rb#L180) | `::String` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [#tmux_version](../../gems/libtmux/lib/libtmux/server.rb#L182) | `::String` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [#unset_environment](../../gems/libtmux/lib/libtmux/operations.rb#L89) | `::LibTmux::CommandResult` | [Environment](behavior.md#environment) |
 | [#wait_for](../../gems/libtmux/lib/libtmux/operations.rb#L47) | `::LibTmux::CommandResult` | [Wait channels](behavior.md#wait-channels) |
-| [#window](../../gems/libtmux/lib/libtmux/server.rb#L282) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
+| [#window](../../gems/libtmux/lib/libtmux/server.rb#L279) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
 | [#window_link](../../gems/libtmux/lib/libtmux/operations.rb#L77) | `::LibTmux::WindowLink` | [Live handles](behavior.md#live-handles) |
 | [#write_buffer](../../gems/libtmux/lib/libtmux/operations.rb#L54) | `::LibTmux::CommandResult` | [Buffers](behavior.md#buffers) |
-| [.new](../../gems/libtmux/lib/libtmux/server.rb#L137) | `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
-| [.open](../../gems/libtmux/lib/libtmux/server.rb#L105) | `T` / `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [.new](../../gems/libtmux/lib/libtmux/server.rb#L138) | `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
+| [.open](../../gems/libtmux/lib/libtmux/server.rb#L106) | `T` / `::LibTmux::Server` | [Borrowed bindings](behavior.md#borrowed-bindings) |
 | [.start](../../gems/libtmux/lib/libtmux/owned.rb#L12) | `::LibTmux::Server` / `T` | [Owned daemons](behavior.md#owned-daemons) |
 
 ## LibTmux::Session
@@ -795,8 +797,8 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#path](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::String?` | [Errors](behavior.md#errors) |
 | [#phase](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Symbol?` | [Errors](behavior.md#errors) |
 | [#pid](../../gems/libtmux/lib/libtmux/errors.rb#L5) | `::Integer?` | [Errors](behavior.md#errors) |
-| [#sequence](../../gems/libtmux/lib/libtmux/control.rb#L75) | `::Integer?` | [Errors](behavior.md#errors) |
-| [.new](../../gems/libtmux/lib/libtmux/control.rb#L77) | `::LibTmux::SubscriptionOverflow` | [Errors](behavior.md#errors) |
+| [#sequence](../../gems/libtmux/lib/libtmux/control.rb#L78) | `::Integer?` | [Errors](behavior.md#errors) |
+| [.new](../../gems/libtmux/lib/libtmux/control.rb#L80) | `::LibTmux::SubscriptionOverflow` | [Errors](behavior.md#errors) |
 
 ## LibTmux::Support
 
@@ -890,24 +892,24 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
-| [#display](../../gems/libtmux/lib/libtmux/entity.rb#L244) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
+| [#display](../../gems/libtmux/lib/libtmux/entity.rb#L253) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#eql?](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
 | [#hash](../../gems/libtmux/lib/libtmux/entity.rb#L83) | `::Integer` | [Live handles](behavior.md#live-handles) |
-| [#hooks](../../gems/libtmux/lib/libtmux/entity.rb#L252) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
+| [#hooks](../../gems/libtmux/lib/libtmux/entity.rb#L261) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#id](../../gems/libtmux/lib/libtmux/entity.rb#L70) | `::String` | [Live handles](behavior.md#live-handles) |
-| [#index](../../gems/libtmux/lib/libtmux/entity.rb#L207) | `::Integer` | [Live handles](behavior.md#live-handles) |
+| [#index](../../gems/libtmux/lib/libtmux/entity.rb#L216) | `::Integer` | [Live handles](behavior.md#live-handles) |
 | [#inspect](../../gems/libtmux/lib/libtmux/entity.rb#L91) | `::String` | [Live handles](behavior.md#live-handles) |
-| [#kill](../../gems/libtmux/lib/libtmux/entity.rb#L227) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#move](../../gems/libtmux/lib/libtmux/entity.rb#L231) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#options](../../gems/libtmux/lib/libtmux/entity.rb#L248) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
+| [#kill](../../gems/libtmux/lib/libtmux/entity.rb#L236) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#move](../../gems/libtmux/lib/libtmux/entity.rb#L240) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#options](../../gems/libtmux/lib/libtmux/entity.rb#L257) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#ref](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::EntityRef` | [Live handles](behavior.md#live-handles) |
-| [#select](../../gems/libtmux/lib/libtmux/entity.rb#L219) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#select](../../gems/libtmux/lib/libtmux/entity.rb#L228) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
 | [#server](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::Server` | [Live handles](behavior.md#live-handles) |
-| [#session](../../gems/libtmux/lib/libtmux/entity.rb#L215) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
+| [#session](../../gems/libtmux/lib/libtmux/entity.rb#L224) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
 | [#snapshot](../../gems/libtmux/lib/libtmux/entity.rb#L74) | `::LibTmux::WindowLinkSnapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
-| [#swap](../../gems/libtmux/lib/libtmux/entity.rb#L238) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#unlink](../../gems/libtmux/lib/libtmux/entity.rb#L223) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#window](../../gems/libtmux/lib/libtmux/entity.rb#L211) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
+| [#swap](../../gems/libtmux/lib/libtmux/entity.rb#L247) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#unlink](../../gems/libtmux/lib/libtmux/entity.rb#L232) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#window](../../gems/libtmux/lib/libtmux/entity.rb#L220) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
 
 ## LibTmux::WindowLinkSnapshot
 

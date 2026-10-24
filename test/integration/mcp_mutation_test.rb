@@ -168,7 +168,8 @@ class MCPMutationTest < Minitest::Test
         source.hooks.unset("after-new-window", index: 93)
       end
 
-      source.options.set("command-alias", "display-message=wait-for -S mcp-acquire-ready ; wait-for mcp-acquire-held ; display-message", index: 93)
+      # The snapshot reads the server identity with the run-shell probe.
+      source.options.set("command-alias", "run-shel=wait-for -S mcp-acquire-ready ; wait-for mcp-acquire-held ; run-shell", index: 93)
       begin
         pending = parent.async { invoke(sdk, "tmux_create", kind: "window", parent: session, name: "never-dispatched", argv: ["cat"]) }
         diagnose.call("acquisition readiness") { scope.server.wait_for("mcp-acquire-ready", timeout: 0.5) }

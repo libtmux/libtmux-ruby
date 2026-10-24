@@ -1,0 +1,212 @@
+{
+  "schema": "libtmux-capabilities/1",
+  "port": "ruby",
+  "floor": {
+    "minimum": "3.3a"
+  },
+  "capabilities": [
+    {
+      "id": "control-mode",
+      "name": "Control mode",
+      "summary": "Attach a library-managed control client and stream events.",
+      "since": "3.7",
+      "handling": "refuse",
+      "error": "LibTmux::UnsupportedFeatureError",
+      "apis": [
+        "LibTmux::Server#open_control",
+        "LibTmux::ControlConnection.open"
+      ],
+      "commands": [
+        {
+          "command": "attach-session"
+        }
+      ]
+    },
+    {
+      "id": "buffer-delete-named",
+      "name": "Named buffer deletion",
+      "summary": "Delete one paste buffer by name without risking another buffer.",
+      "since": "3.4",
+      "handling": "refuse",
+      "error": "LibTmux::UnsupportedFeatureError",
+      "apis": [
+        "LibTmux::Server#delete_buffer",
+        "LibTmux::Server#run"
+      ],
+      "commands": [
+        {
+          "command": "delete-buffer",
+          "flags": [
+            "-b"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "buffer-rename",
+      "name": "Buffer rename",
+      "summary": "Rename a paste buffer without risking another buffer.",
+      "since": "3.4",
+      "handling": "refuse",
+      "error": "LibTmux::UnsupportedFeatureError",
+      "apis": [
+        "LibTmux::Server#run"
+      ],
+      "commands": [
+        {
+          "command": "set-buffer",
+          "flags": [
+            "-b",
+            "-n"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "layout-without-checksum",
+      "name": "Layouts without a checksum",
+      "summary": "Apply a layout string or a named layout that tmux validates before use.",
+      "since": "3.4",
+      "handling": "refuse",
+      "error": "LibTmux::UnsupportedFeatureError",
+      "apis": [
+        "LibTmux::Window#select_layout",
+        "LibTmux::Server#run"
+      ],
+      "commands": [
+        {
+          "command": "select-layout"
+        }
+      ]
+    },
+    {
+      "id": "layout-mirrored-main",
+      "name": "Mirrored main layouts",
+      "summary": "Apply main-horizontal-mirrored and main-vertical-mirrored.",
+      "since": "3.5",
+      "handling": "refuse",
+      "error": "LibTmux::UnsupportedFeatureError",
+      "apis": [
+        "LibTmux::Window#select_layout"
+      ],
+      "commands": [
+        {
+          "command": "select-layout"
+        }
+      ]
+    },
+    {
+      "id": "layout-json",
+      "name": "JSON layout strings",
+      "summary": "Apply a layout saved in the JSON form tmux reports.",
+      "since": "3.8-rc2",
+      "handling": "refuse",
+      "error": "LibTmux::UnsupportedFeatureError",
+      "apis": [
+        "LibTmux::Window#select_layout"
+      ],
+      "commands": [
+        {
+          "command": "select-layout"
+        }
+      ]
+    },
+    {
+      "id": "clipboard-query",
+      "name": "Clipboard query",
+      "summary": "Ask an attached client's terminal for its clipboard with refresh-client -l.",
+      "since": "3.6a",
+      "handling": "refuse",
+      "error": "LibTmux::UnsupportedFeatureError",
+      "apis": [
+        "LibTmux::Server#run",
+        "LibTmux::ControlConnection#exchange"
+      ],
+      "commands": [
+        {
+          "command": "refresh-client",
+          "flags": [
+            "-l"
+          ]
+        }
+      ]
+    }
+  ],
+  "workarounds": [
+    {
+      "id": "break-pane-misnames-windows",
+      "name": "break-pane window naming",
+      "summary": "break-pane gets the new window wrong on exactly tmux 3.7; Pane#break_out names it again, and raw break-pane is refused.",
+      "releases": [
+        "3.7"
+      ],
+      "handling": "repair",
+      "apis": [
+        "LibTmux::Pane#break_out",
+        "LibTmux::Server#run",
+        "LibTmux::ControlConnection#exchange"
+      ],
+      "commands": [
+        {
+          "command": "break-pane"
+        }
+      ]
+    },
+    {
+      "id": "split-window-percent-size",
+      "name": "split-window -p",
+      "summary": "split-window -p is broken on tmux 3.4; use -l N%.",
+      "releases": [
+        "3.4"
+      ],
+      "handling": "refuse",
+      "apis": [
+        "LibTmux::Server#run"
+      ],
+      "commands": [
+        {
+          "command": "split-window",
+          "flags": [
+            "-p"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "name-separators-rejected",
+      "name": "Colon and dot in names",
+      "summary": "tmux 3.7 rejects ':' and '.' in session and window names; the library refuses them before dispatch, typed or raw.",
+      "releases": [
+        "3.7"
+      ],
+      "handling": "refuse",
+      "apis": [
+        "LibTmux::Server#new_session",
+        "LibTmux::Session#new_window",
+        "LibTmux::Session#rename",
+        "LibTmux::Window#rename",
+        "LibTmux::Server#run"
+      ],
+      "commands": [
+        {
+          "command": "new-session",
+          "flags": [
+            "-s"
+          ]
+        },
+        {
+          "command": "new-window",
+          "flags": [
+            "-n"
+          ]
+        },
+        {
+          "command": "rename-session"
+        },
+        {
+          "command": "rename-window"
+        }
+      ]
+    }
+  ]
+}

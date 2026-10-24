@@ -235,9 +235,14 @@ class TmuxVersionCheckTest < Minitest::Test
           exec #{shell(CLIENT_PATH.call)} "$@"
         SH
         File.chmod(0o700, wrapper)
+        control = RANKING.parse(daemon_version(fixture)) >= RANKING.parse(RANKING::CONTROL_MINIMUM)
         LibTmux::Server.open(socket_path: fixture.socket_path, executable: wrapper) do |server|
           server.list_sessions
-          server.open_control(session: server.list_sessions.first.ref) { |control| control.exchange("display-message -p control") }
+          if control
+            server.open_control(session: server.list_sessions.first.ref) { |control_connection| control_connection.exchange("display-message -p control") }
+          else
+            assert_raises(LibTmux::UnsupportedFeatureError) { server.open_control(session: server.list_sessions.first.ref) { |_| } }
+          end
           PTY.open do |_master, slave|
             slave.winsize = [24, 80]
             assert_raises(LibTmux::DeadlineExceeded) do
@@ -248,7 +253,7 @@ class TmuxVersionCheckTest < Minitest::Test
         lines = File.readlines(calls, chomp: true)
         lines.each { |line| assert_match(/\A-u -N -S /, line) }
         assert(lines.any? { |line| line.include?("attach-session") })
-        assert(lines.any? { |line| line.include?(" -C attach-session") })
+        assert_equal control, lines.any? { |line| line.include?(" -C attach-session") }
       end
     end
   end

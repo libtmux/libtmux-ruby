@@ -3,15 +3,20 @@
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
 require_relative "../support/control_assertions"
+require_relative "../support/control_support"
 require "libtmux/control"
 require "libtmux/process"
 
 class ControlIntegrationTest < Minitest::Test
   include LibTmuxTest::ControlAssertions
+  include LibTmuxTest::ControlSupport
+
   def with_control(**options)
     LibTmuxTest::TmuxFixture.open do |fixture|
       pin = LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
       begin
+        next unless require_control_binding(pin)
+
         LibTmux::ControlConnection.open(binding: pin, session_id: "$0", **options) do |connection|
           yield fixture, pin, connection
         end
@@ -402,6 +407,14 @@ class ControlIntegrationTest < Minitest::Test
 
   def check_failed_observation(late: false)
     LibTmuxTest::TmuxFixture.open do |fixture|
+      probe = LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
+      supported = begin
+        require_control_binding(probe)
+      ensure
+        probe.close
+      end
+      next unless supported
+
       original_rubyopt = ENV["RUBYOPT"]
       executable = File.join(File.dirname(fixture.socket_path), "control-child")
       File.write(executable, "#!#{RbConfig.ruby} --disable=rubyopt,gems\nexec #{fixture.executable.inspect}, *ARGV unless ARGV.include?('-C') && ARGV.include?('attach-session')\ntrap('TERM') {}\nSTDOUT.write(\"ready\\n\"); STDOUT.flush\nIO.select([])\n")

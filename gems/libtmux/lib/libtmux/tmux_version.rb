@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "libtmux/errors"
+require "libtmux/capabilities"
 require "securerandom"
 
 module LibTmux
@@ -12,6 +13,7 @@ module LibTmux
     # then fenced against that exact text.
     module TmuxVersion
       MINIMUM = "3.3a"
+      CONTROL_MINIMUM = Internal::Capabilities.capability("control-mode").since
       # The forms tmux has reported: X.Y, X.Y plus a patch letter, X.Y-rc and
       # X.Y-rcN candidates, and next-X.Y development builds. Anything else,
       # including master and openbsd-*, is not a release number. The candidate
@@ -43,6 +45,12 @@ module LibTmux
 
       Release = Data.define(:text, :key) do
         include Comparable
+
+        # True only for the numbered release itself, not a patch letter,
+        # candidate or development build of it.
+        def exactly?(major, minor)
+          key == [major, minor, 0, STABLE]
+        end
 
         def <=>(other)
           key <=> other.key if other.is_a?(Release)
@@ -81,6 +89,16 @@ module LibTmux
         shown = value.is_a?(String) ? value.byteslice(0, 64).scrub("?") : value
         UnsupportedFeatureError.new("tmux version is unrecognized (#{source} reports #{shown.inspect}); " \
           "tmux #{MINIMUM} or newer is required; #{REMEDY}", phase: :admission, expected: EXPECTED)
+      end
+
+      # Control clients crash tmux servers older than 3.7 while they attach.
+      def require_control(release)
+        raise UnsupportedFeatureError.new("control connections need a version-checked server", phase: :admission) unless release
+
+        return release unless (release <=> parse(CONTROL_MINIMUM)).negative?
+
+        raise UnsupportedFeatureError.new("control connections require tmux #{CONTROL_MINIMUM} or newer " \
+          "(connected version #{release.text})", phase: :admission, delivery: :not_sent)
       end
 
       # Reads the daemon behind +prefix+. The block runs the argv and returns a
@@ -123,6 +141,25 @@ module LibTmux
         require_supported(match[1], source: "the executable")
       rescue Error => error
         raise not_sent(error), cause: nil
+      end
+
+      # Reads daemon values through the probe's error text, which fires no
+      # hook, unlike display-message. tmux reports only the first unparseable
+      # word, so the fields expand to one comma-joined word.
+      def identity_argv(fields)
+        marker = "libtmux-identity-#{SecureRandom.hex(16)}-"
+        [[PROBE_COMMAND, "-C", marker + fields.map { |field| "\#{#{field}}" }.join(",")], marker]
+      end
+
+      def parse_identity(result, marker, count)
+        stderr = result.stderr.b
+        match = /\Aunknown command: #{Regexp.escape(marker.b)}([^\n ]*)\n\z/n.match(stderr)
+        values = match && match[1].split(",", -1)
+        unless !result.success? && result.stdout.empty? && values && values.length == count
+          raise ProtocolError.new("tmux did not report the requested identity", delivery: :observed, phase: :decode)
+        end
+
+        values.map(&:freeze)
       end
 
       # Leading commands for one dispatch. A daemon that no longer reports

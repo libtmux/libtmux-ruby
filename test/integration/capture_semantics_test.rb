@@ -2,10 +2,13 @@
 
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
+require_relative "../support/control_support"
 require "libtmux"
 require "socket"
 
 class CaptureSemanticsTest < Minitest::Test
+  include LibTmuxTest::ControlSupport
+
   # A protocol fixture for an older advertised usage; it is not an older binary.
   class LimitedCaptureServer < LibTmux::Server
     attr_reader :capture_calls
@@ -75,19 +78,29 @@ class CaptureSemanticsTest < Minitest::Test
           render(channel, "\e[?1049l")
           assert_equal "CHANGED\n", pane.capture(start: 0, finish: 0).stdout
           assert_raises(LibTmux::CommandError) { pane.capture(alternate: true) }
-          server.open_control(session: session.ref) do |control|
-            control.exchange("display-message -p ready", timeout: 0.5)
-            events = control.subscribe(pane_id: pane.id)
-            pending = "\e[31"
-            channel.write([pending.bytesize | 0x80000000].pack("N") + pending)
-            output = +"".b
-            until output.include?(pending)
-              event = events.next(timeout: 0.5)
-              output << event.data if event.kind == :output
+          pending = "\e[31"
+          if control_supported?(server)
+            server.open_control(session: session.ref) do |control|
+              control.exchange("display-message -p ready", timeout: 0.5)
+              events = control.subscribe(pane_id: pane.id)
+              channel.write([pending.bytesize | 0x80000000].pack("N") + pending)
+              output = +"".b
+              until output.include?(pending)
+                event = events.next(timeout: 0.5)
+                output << event.data if event.kind == :output
+              end
             end
-            assert_equal "#{pending}\n", pane.capture(pending: true).stdout
-            assert_equal "\\033[31\n", pane.capture(pending: true, escape_bytes: true).stdout
+          else
+            # Without control events, poll for the pending bytes to arrive.
+            channel.write([pending.bytesize | 0x80000000].pack("N") + pending)
+            deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2
+            until pane.capture(pending: true).stdout == "#{pending}\n"
+              flunk "pending input did not reach the pane" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+              sleep 0.01
+            end
           end
+          assert_equal "#{pending}\n", pane.capture(pending: true).stdout
+          assert_equal "\\033[31\n", pane.capture(pending: true, escape_bytes: true).stdout
         end
       ensure
         channel&.close
