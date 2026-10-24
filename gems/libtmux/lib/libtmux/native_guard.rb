@@ -124,7 +124,8 @@ module LibTmux
         "new-session" => "Ac:dDe:EF:f:n:Ps:t:x:Xy:",
         "new-window" => "abc:de:F:kn:PSt:",
         "rename-session" => "t:",
-        "rename-window" => "t:"
+        "rename-window" => "t:",
+        "refresh-client" => "A:B:cC:Df:F:lLRSt:U"
       }.freeze
       PRESETS = %w[even-horizontal even-vertical main-horizontal main-vertical tiled].freeze
       private_constant :COMMANDS, :ALIASES, :OPTIONS, :PRESETS
@@ -173,6 +174,12 @@ module LibTmux
             check_name(flags(item, command)["n"], release)
           when "rename-session", "rename-window"
             check_name(operands(item, command).first, release)
+          when "refresh-client"
+            # tmux 3.3a stops when it asks an attached xterm-256color or
+            # tmux-256color terminal for its clipboard, and 3.4 through 3.6
+            # stop when that client leaves before its terminal answers.
+            gate = Internal::Capabilities.capability("clipboard-query")
+            refuse("refresh-client -l", gate.since, release) if !gate.available?(release) && flags(item, command).key?("l")
           end
         end
         nil

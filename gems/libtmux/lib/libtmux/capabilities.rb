@@ -95,7 +95,11 @@ module LibTmux
           handling: :refuse, error: ERROR,
           summary: "Apply a layout saved in the JSON form tmux reports.",
           apis: ["LibTmux::Window#select_layout"],
-          commands: [Command.new(command: "select-layout")])
+          commands: [Command.new(command: "select-layout")]),
+        Capability.new(id: "clipboard-query", name: "Clipboard query", since: "3.6a", handling: :refuse, error: ERROR,
+          summary: "Ask an attached client's terminal for its clipboard with refresh-client -l.",
+          apis: ["LibTmux::Server#run", "LibTmux::ControlConnection#exchange"],
+          commands: [Command.new(command: "refresh-client", flags: ["-l"])])
       ].freeze
 
       WORKAROUNDS = [

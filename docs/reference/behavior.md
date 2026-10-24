@@ -180,6 +180,7 @@ workspace builds or MCP tools that do not need them.
 | Raw `break-pane`, including `ControlConnection#exchange` lines | All except exact 3.7 | Refused on exact 3.7, which crashes without a name | Refusal qualified by tests |
 | Session and window names with `:` or `.`, typed or in raw `new-session -s`, `new-window -n` and `rename-*` | All except exact 3.7 | Refused on exact 3.7 before dispatch, with the typed call's error | Refusal qualified by tests |
 | Raw `split-window -p` | All except 3.4 | Refused on 3.4; typed splits always send `-l N%` | Refusal qualified by tests |
+| Raw `refresh-client -l`, including `ControlConnection#exchange` lines | 3.6a and newer | Refused: tmux 3.3a stops when it asks an attached `xterm-256color` or `tmux-256color` terminal for its clipboard, and 3.4 through 3.6 stop when that client leaves before its terminal answers | Refusal qualified by tests |
 | Malformed layouts | 3.4 and newer | tmux 3.3a faults on a malformed header, so `select_layout` and raw `select-layout` accept only a checksummed layout or a unique built-in name | Refusal qualified by tests |
 
 tmux 3.8 saved layouts are JSON; `select_layout` accepts them from 3.8-rc2

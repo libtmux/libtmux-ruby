@@ -230,6 +230,24 @@ class TmuxFeaturesTest < Minitest::Test
     end
   end
 
+  # With an attached xterm-256color client, 3.3a stops on refresh-client -l,
+  # and 3.4 through 3.6 stop when that client leaves before its terminal
+  # answers. The refusal comes first, so the fixture needs no client. The
+  # releases are written out, so moving the registry fails this test.
+  def test_clipboard_query_is_refused_before_tmux_3_6a
+    with_server do |server, fixture|
+      if %w[3.3a 3.4 3.5 3.5a 3.6].include?(server.__send__(:tmux_release).text)
+        [%w[refresh-client -l], %w[refresh -l], %w[refresh-c -l]].each do |argv|
+          error = assert_raises(LibTmux::UnsupportedFeatureError) { server.run(argv) }
+          assert_equal :not_sent, error.delivery
+        end
+      else
+        refute server.run(%w[refresh-client -l]).success?, "with no client tmux reports no current client"
+      end
+      assert fixture.tmux("has-session", "-t", "fixture").last.success?
+    end
+  end
+
   private
 
   def with_server

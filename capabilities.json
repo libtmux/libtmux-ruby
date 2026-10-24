@@ -110,6 +110,26 @@
           "command": "select-layout"
         }
       ]
+    },
+    {
+      "id": "clipboard-query",
+      "name": "Clipboard query",
+      "summary": "Ask an attached client's terminal for its clipboard with refresh-client -l.",
+      "since": "3.6a",
+      "handling": "refuse",
+      "error": "LibTmux::UnsupportedFeatureError",
+      "apis": [
+        "LibTmux::Server#run",
+        "LibTmux::ControlConnection#exchange"
+      ],
+      "commands": [
+        {
+          "command": "refresh-client",
+          "flags": [
+            "-l"
+          ]
+        }
+      ]
     }
   ],
   "workarounds": [

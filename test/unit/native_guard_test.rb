@@ -123,6 +123,19 @@ class NativeGuardTest < Minitest::Test
     refused_line("delete-buffer -b saved", "3.3a")
     refused_line("select-layout garbage", "3.3a")
     allowed_line("select-layout tiled", "3.3a")
+    refused_line("display-message -p ok ; refresh -l", "3.3a")
+    refused_line("refresh-client -l", "3.6")
+    allowed_line("refresh-client -l", "3.6a")
+  end
+
+  def test_clipboard_query_needs_tmux_3_6a
+    [%w[refresh-client -l], %w[refresh -l], %w[refresh-c -t /dev/pts/1 -l], %w[refresh-client -Sl],
+      %w[refresh-client -l%1], ["display-message", "-p", "ok", ";", "refresh-client", "-l"]].each do |argv|
+      %w[3.3a 3.4 3.5 3.5a 3.6].each { |text| refused(argv, text) }
+      %w[3.6a 3.6b 3.7c 3.8 next-3.9].each { |text| allowed(argv, text) }
+    end
+    allowed(%w[refresh-client -S], "3.3a")
+    allowed(%w[refresh-client -t -l], "3.3a")
   end
 
   def test_raw_names_with_colon_or_period_are_refused_on_exact_tmux_3_7
