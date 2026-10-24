@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.1.0.alpha.3 (unreleased)
+## 0.1.0.alpha.4 (unreleased)
+
+## 0.1.0.alpha.3 (2026-10-24)
+
+Keeps the tmux 3.3a floor and refuses, before anything runs, the commands a
+supported release mishandles. Upgraders must check `Server#supports_control?`
+before opening a control connection, which now needs tmux 3.7, and handle
+`StopIteration` from `ControlSubscription#next` and the new `pane_died` code
+from `tmux_wait`.
 
 - CI no longer runs macOS. macOS stays supported on a best-effort basis, and CI
   coverage for it is highly limited, so a macOS-only regression is not caught

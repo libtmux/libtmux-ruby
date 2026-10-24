@@ -325,7 +325,7 @@ runtime dependencies must already be installed for this local-only command:
 $ gem install \
     --local \
     --no-document \
-    pkg/libtmux-0.1.0.alpha.2.gem
+    pkg/libtmux-0.1.0.alpha.3.gem
 ```
 
 Companion gems need their declared runtime dependencies too. The
