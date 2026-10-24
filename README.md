@@ -357,6 +357,11 @@ isolated installation and runs the recipes outside the checkout.
   runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04.
   macOS is supported on a best-effort basis, and CI coverage for it is highly
   limited.
+- **Control connections need tmux 3.7 or newer.** On an older daemon
+  `open_control` raises `UnsupportedFeatureError` before a client attaches,
+  and `Server#supports_control?` returns false. Other optional features carry
+  their own releases in the [optional-feature table][doc-optional-features];
+  [`capabilities.json`][capabilities-json] holds the same records for tools.
 - **tmux master and old daemons.** On Ubuntu the workflow also runs the suite
   against a pinned tmux master, and checks that tmux 3.0a, 3.1c, 3.2a and 3.3
   daemons are refused.
@@ -407,6 +412,8 @@ MIT. See [LICENSE](LICENSE).
 [doc-benchmark]: docs/benchmark.md
 [doc-fields]: docs/reference/fields.md
 [doc-modes]: docs/modes.md
+[doc-optional-features]: docs/reference/behavior.md#optional-tmux-features
+[capabilities-json]: capabilities.json
 [doc-ownership]: docs/ownership-errors.md
 [endpoint-new]: https://libtmux.org/en/ruby/latest/reference/libtmux-endpoint-new/
 [mcp-application]: https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application/
