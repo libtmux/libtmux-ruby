@@ -370,7 +370,9 @@ values by design.
 
 ## Support and status
 
-**Alpha.** APIs may change between releases.
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
 
 - **Ruby 3.3 or newer.** The gem depends on the same version of `libtmux`,
   JSON 3.0 and Psych 5.5.

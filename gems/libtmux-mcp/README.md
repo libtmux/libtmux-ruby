@@ -334,7 +334,9 @@ pass the invitation to [`accept_shell`][mcp-application-accept_shell].
 
 ## Support and status
 
-**Alpha.** APIs may change between releases.
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
 
 - **Ruby 3.3 or newer.** The gem depends on `libtmux` and `libtmux-async` at
   the same version, the `mcp` SDK 1.5, `digest` and `optparse`.

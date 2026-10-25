@@ -23,8 +23,10 @@ Ruby. Read server state into a [snapshot][snapshot], then query it with
 
 </div>
 
-**Alpha.** APIs may change between releases. See the
-[initial alpha notes](CHANGELOG.md) and [release guide](docs/releasing.md).
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
+See the [changelog](CHANGELOG.md) and [release guide](docs/releasing.md).
 
 It suits scripts, tests that need a real tmux, and tools that drive a terminal
 program. An [MCP server][mcp-application], an Async adapter and a workspace
@@ -348,7 +350,9 @@ isolated installation and runs the recipes outside the checkout.
 
 ## Support and status
 
-**Alpha.** APIs may change between releases.
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
 
 - **Ruby 3.3 or newer** and **tmux 3.3a or newer.** Unpatched 3.3 is below the
   minimum. A [server handle][server] checks the connected daemon's release, not

@@ -719,8 +719,10 @@ server and lists every option.
 
 ## Support and status
 
-**Alpha.** APIs may change between releases. See the
-[initial alpha notes](../../CHANGELOG.md).
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
+See the [changelog](../../CHANGELOG.md).
 
 - **Ruby 3.3 or newer.** The gem depends on `json`, `tmpdir`, `securerandom`,
   `fiddle` and `io-console`.
