@@ -23,8 +23,10 @@ Ruby. Read server state into a [snapshot][snapshot], then query it with
 
 </div>
 
-**Alpha.** APIs may change between releases. See the
-[initial alpha notes](CHANGELOG.md) and [release guide](docs/releasing.md).
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
+See the [changelog](CHANGELOG.md) and [release guide](docs/releasing.md).
 
 It suits scripts, tests that need a real tmux, and tools that drive a terminal
 program. An [MCP server][mcp-application], an Async adapter and a workspace
@@ -39,11 +41,11 @@ loader ship beside the core, under [Packages](#packages).
 
 ## Quick start
 
-Install the core prerelease from RubyGems. It needs Ruby 3.3 or newer and tmux
+Install the core gem from RubyGems. It needs Ruby 3.3 or newer and tmux
 3.3a or newer on `PATH`:
 
 ```console
-$ gem install libtmux --pre
+$ gem install libtmux
 ```
 
 This program creates a session, adds a window, splits it, and prints each
@@ -165,9 +167,8 @@ Start with `libtmux`. Add the companion for your caller:
 | [libtmux-workspace](gems/libtmux-workspace/README.md) | `libtmux/workspace` | YAML/JSON workspace plans and a CLI to apply them |
 
 Requiring a gem starts no tmux process, scheduler, or protocol server. The
-companion gems install separately, and need `--pre` for their alpha versions
-too. [Execution modes][doc-modes] explains blocking calls, Async tasks, and
-control subscriptions.
+companion gems install separately. [Execution modes][doc-modes] explains
+blocking calls, Async tasks, and control subscriptions.
 
 ### [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux): the core
 
@@ -180,7 +181,7 @@ Blocking [server][server], [session][session], [window][window] and
 [RubyGems](https://rubygems.org/gems/libtmux)
 
 ```console
-$ gem install libtmux --pre
+$ gem install libtmux
 ```
 
 The [quick start](#quick-start) and
@@ -197,7 +198,7 @@ application owns. Require `libtmux/async`, then open a scope with
 [RubyGems](https://rubygems.org/gems/libtmux-async)
 
 ```console
-$ gem install libtmux-async --pre
+$ gem install libtmux-async
 ```
 
 Capture every pane concurrently with [`Scope#map`][async-scope-map]. `server`
@@ -227,7 +228,7 @@ Installs `libtmux-mcp`; require `libtmux/mcp` to embed it through
 [RubyGems](https://rubygems.org/gems/libtmux-mcp)
 
 ```console
-$ gem install libtmux-mcp --pre
+$ gem install libtmux-mcp
 ```
 
 The server borrows a tmux server that is already running. Start one on a
@@ -261,7 +262,7 @@ from Ruby through [`LibTmux::Workspace`][workspace].
 [RubyGems](https://rubygems.org/gems/libtmux-workspace)
 
 ```console
-$ gem install libtmux-workspace --pre
+$ gem install libtmux-workspace
 ```
 
 Save this workspace as `workspace.yaml`:
@@ -348,7 +349,9 @@ isolated installation and runs the recipes outside the checkout.
 
 ## Support and status
 
-**Alpha.** APIs may change between releases.
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
 
 - **Ruby 3.3 or newer** and **tmux 3.3a or newer.** Unpatched 3.3 is below the
   minimum. A [server handle][server] checks the connected daemon's release, not

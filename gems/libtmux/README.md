@@ -47,11 +47,11 @@ program. [Cancel][cancellation-cancel] a request that is waiting, and
 
 ## Quick start
 
-Install the alpha. It needs Ruby 3.3 or newer and tmux 3.3a or newer on
+Install the gem. It needs Ruby 3.3 or newer and tmux 3.3a or newer on
 `PATH`:
 
 ```console
-$ gem install libtmux --pre
+$ gem install libtmux
 ```
 
 This program creates a session, adds a window, splits it, and prints each
@@ -604,7 +604,7 @@ application owns. Require `libtmux/async`, then open a scope with
 [RubyGems](https://rubygems.org/gems/libtmux-async)
 
 ```console
-$ gem install libtmux-async --pre
+$ gem install libtmux-async
 ```
 
 Capture every pane concurrently with [`Scope#map`][async-scope-map]. `server`
@@ -634,7 +634,7 @@ Installs `libtmux-mcp`; require `libtmux/mcp` to embed it through
 [RubyGems](https://rubygems.org/gems/libtmux-mcp)
 
 ```console
-$ gem install libtmux-mcp --pre
+$ gem install libtmux-mcp
 ```
 
 The server borrows a tmux server that is already running. Start one on a
@@ -667,7 +667,7 @@ from Ruby through [`LibTmux::Workspace`][workspace].
 [RubyGems](https://rubygems.org/gems/libtmux-workspace)
 
 ```console
-$ gem install libtmux-workspace --pre
+$ gem install libtmux-workspace
 ```
 
 Save this workspace as `workspace.yaml`:
@@ -719,8 +719,10 @@ server and lists every option.
 
 ## Support and status
 
-**Alpha.** APIs may change between releases. See the
-[initial alpha notes](../../CHANGELOG.md).
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
+See the [changelog](../../CHANGELOG.md).
 
 - **Ruby 3.3 or newer.** The gem depends on `json`, `tmpdir`, `securerandom`,
   `fiddle` and `io-console`.

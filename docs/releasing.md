@@ -2,8 +2,10 @@
 
 The four gems share one version. Prepare changes in a PR; publish by pushing
 a matching `vVERSION` tag after the merged commit passes compatibility CI.
-The examples below use `<version>` for the release number, such as
-`0.1.0.alpha.4`, and `v<version>` for its tag.
+Releases are numbered `0.1.N`: `0.1.0`, then `0.1.1`, `0.1.2` and so on, with
+no prerelease tag unless the maintainer asks for one. The examples below use
+`<version>` for the release number, such as `0.1.1`, and `v<version>` for its
+tag.
 
 ## One-time account setup
 
@@ -49,10 +51,9 @@ The task updates each conventional `version.rb`, exact sibling dependencies,
 local entries in `Gemfile.lock`, and the README artifact example. External
 dependency versions stay unchanged. It rejects missing or invalid versions,
 inconsistent input files and backward bumps. Repeating the same version is
-safe. The unpublished `0.1.0.pre` placeholder may become `0.1.0.alpha.1`,
-although RubyGems sorts that alpha below `.pre`.
+safe.
 
-For each later alpha, pass the next number in the series. Review and update
+For each release, pass the next number in the `0.1.N` series. Review and update
 [CHANGELOG.md](../CHANGELOG.md) for every release; the version task does not
 write release notes, commit, tag, push or upload.
 
@@ -84,7 +85,7 @@ do not discard files from a partially published release.
 
 These commands publish after account setup, review and merge. Finalize the
 changelog before tagging: remove the unreleased heading for this version and
-record the release date. The GitHub prerelease uses that file as its notes.
+record the release date. The GitHub release uses that file as its notes.
 
 On `master`, update to the approved commit:
 
@@ -113,14 +114,14 @@ $ git push origin refs/tags/v<version>
 The [Release workflow](../.github/workflows/release.yml) validates the tag,
 requires successful compatibility for its exact commit, tests the entire
 artifact set and retains it before requesting credentials. It uploads core,
-Async, MCP and workspace in that order, then creates a GitHub prerelease with
+Async, MCP and workspace in that order, then creates a GitHub release with
 the same files. Publishing does not change versions or create tags.
 Releases run serially; an active publication is not cancelled by a newer tag.
 
-Verify all four version pages on RubyGems and the GitHub prerelease. The
+Verify all four version pages on RubyGems and the GitHub release. The
 publisher compares each registry SHA-256 with `release.json` after upload;
 all four must match before GitHub release creation. A consumer can then
-install the explicit prerelease:
+install that version:
 
 ```console
 $ gem install libtmux --version <version>
@@ -151,8 +152,8 @@ investigation and usually a new coordinated version; yanking does not make
 the old version reusable.
 
 The GitHub job can also resume. It verifies the retained source, remote tag
-commit, prerelease status and every existing asset's SHA-256, including
-`release.json`, before uploading missing files. A complete matching prerelease
+commit, release status and every existing asset's SHA-256, including
+`release.json`, before uploading missing files. A complete matching release
 needs no uploads. Conflicting, duplicate or unexpected assets stop the job;
 it never replaces them. API errors stop the job; only HTTP 404 permits
 creation. Rerun the GitHub job after resolving the reported cause.

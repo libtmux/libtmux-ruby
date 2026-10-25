@@ -40,11 +40,11 @@ transport.
 
 ## Quick start
 
-Install the alpha and its `libtmux-mcp` executable. It needs Ruby 3.3 or newer
+Install the gem and its `libtmux-mcp` executable. It needs Ruby 3.3 or newer
 and tmux 3.3a or newer:
 
 ```console
-$ gem install libtmux-mcp --pre
+$ gem install libtmux-mcp
 ```
 
 The server borrows a tmux server that is already running. Start one on a
@@ -334,7 +334,9 @@ pass the invitation to [`accept_shell`][mcp-application-accept_shell].
 
 ## Support and status
 
-**Alpha.** APIs may change between releases.
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
 
 - **Ruby 3.3 or newer.** The gem depends on `libtmux` and `libtmux-async` at
   the same version, the `mcp` SDK 1.5, `digest` and `optparse`.

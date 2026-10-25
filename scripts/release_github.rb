@@ -30,7 +30,7 @@ class GitHubRelease
       end
     else
       run("release", "create", tag, *expected.keys.map { |name| File.join(@directory, name) },
-        "--repo", "github.com/#{REPOSITORY}", "--verify-tag", "--prerelease", "--latest=false",
+        "--repo", "github.com/#{REPOSITORY}", "--verify-tag", *(prerelease?(tag) ? %w[--prerelease --latest=false] : %w[--latest]),
         "--title", "libtmux #{tag}", "--notes-file", File.join(@root, "CHANGELOG.md"))
     end
     verify_tag(tag, commit)
@@ -40,6 +40,10 @@ class GitHubRelease
   end
 
   private
+
+  # A tag naming a final version (v0.1.0) is a normal release and the latest;
+  # one naming a prerelease version (v0.1.0.alpha.1) stays a prerelease.
+  def prerelease?(tag) = Gem::Version.new(tag.delete_prefix("v")).prerelease?
 
   def verify_tag(tag, commit)
     data = json_api("commits/refs/tags/#{tag}")
@@ -69,7 +73,7 @@ class GitHubRelease
   end
 
   def verify_assets(release, tag, expected)
-    valid = release.is_a?(Hash) && release["tag_name"] == tag && release["prerelease"] == true &&
+    valid = release.is_a?(Hash) && release["tag_name"] == tag && release["prerelease"] == prerelease?(tag) &&
       release["draft"] == false && release["id"].is_a?(Integer) && release["id"].positive?
     raise Error, "GitHub release identity differs; retain artifacts and investigate" unless valid
     pages = json_api("releases/#{release.fetch('id')}/assets?per_page=100", "--paginate", "--slurp")

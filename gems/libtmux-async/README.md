@@ -37,11 +37,11 @@ core [`Server`][server] and leaves its daemon running when the scope exits.
 
 ## Quick start
 
-Install the alpha. It needs Ruby 3.3 or newer and tmux 3.3a or newer on
+Install the gem. It needs Ruby 3.3 or newer and tmux 3.3a or newer on
 `PATH`:
 
 ```console
-$ gem install libtmux-async --pre
+$ gem install libtmux-async
 ```
 
 Open a scope over a core server with [`LibTmux::Async.open`][async-open], then
@@ -233,7 +233,9 @@ The contract is in [Control connections][behavior-control].
 
 ## Support and status
 
-**Alpha.** APIs may change between releases.
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
 
 - **Ruby 3.3 or newer** and **tmux 3.3a or newer.** The facade dispatches
   through a version-checked core server, so it carries the same daemon release

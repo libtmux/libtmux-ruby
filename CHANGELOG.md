@@ -1,9 +1,14 @@
 # Changelog
 
-## 0.1.0.alpha.4 (unreleased)
+## 0.1.0 (unreleased)
 
 ### libtmux
 
+- Releases are numbered `0.1.N` from `0.1.0`, with no `-alpha` or other
+  prerelease tag unless the maintainer asks for one. The API is not
+  settled: any release may change or remove exported identifiers, the
+  changelog marks each break, and an exact version pin avoids one. The
+  READMEs and the release guide say so.
 - The README says control connections need tmux 3.7 and links
   `capabilities.json`. (#55)
 - The behavior reference lists which nested commands escape the guard, on

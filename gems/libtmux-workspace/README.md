@@ -42,11 +42,11 @@ tmux process.
 
 ## Quick start
 
-Install the alpha and its `libtmux-workspace` executable. It needs Ruby 3.3 or
+Install the gem and its `libtmux-workspace` executable. It needs Ruby 3.3 or
 newer, and tmux 3.3a or newer to load a plan:
 
 ```console
-$ gem install libtmux-workspace --pre
+$ gem install libtmux-workspace
 ```
 
 Save this declared subset of tmuxp-style data as `workspace.yaml`. Relative
@@ -370,7 +370,9 @@ values by design.
 
 ## Support and status
 
-**Alpha.** APIs may change between releases.
+Releases are numbered `0.1.N`, and each release increments `N`. The API is not
+settled: any release may change or remove exported identifiers, and the
+changelog marks each break. Pin an exact version to avoid one.
 
 - **Ruby 3.3 or newer.** The gem depends on the same version of `libtmux`,
   JSON 3.0 and Psych 5.5.

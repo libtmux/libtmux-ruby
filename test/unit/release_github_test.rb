@@ -22,6 +22,8 @@ class GitHubReleaseTest < Minitest::Test
     @manifest = {"tag" => TAG, "commit" => COMMIT, "artifacts" => artifacts}
     File.write(File.join(@directory, "release.json"), JSON.generate(@manifest))
     @expected = Dir.children(@directory).sort.map { |name| asset(name) }
+    @tag = TAG
+    @prerelease = true
     @remote = {"id" => 42, "tag_name" => TAG, "prerelease" => true, "draft" => false}
     @assets = @expected.map(&:dup)
     @commit = COMMIT
@@ -85,6 +87,34 @@ class GitHubReleaseTest < Minitest::Test
     create = @calls.find { |args| args[1, 2] == %w[release create] }
     %w[--verify-tag --prerelease --latest=false].each { |flag| assert_includes create, flag }
     refute_includes create, "--clobber"
+  end
+
+  def test_creating_a_final_version_makes_a_normal_latest_release
+    final_release
+    @remote = nil
+    @assets = []
+    assert_equal @manifest, publish
+    create = @calls.find { |args| args[1, 2] == %w[release create] }
+    assert_includes create, "--verify-tag"
+    assert_includes create, "--latest"
+    refute_includes create, "--prerelease"
+    refute_includes create, "--latest=false"
+  end
+
+  def test_a_final_version_requires_an_existing_release_to_be_a_normal_one
+    final_release
+    assert_equal @manifest, publish
+    assert_empty @writes
+    @remote["prerelease"] = true
+    error = assert_raises(GitHubRelease::Error) { publish }
+    assert_match(/identity differs/, error.message)
+    assert_empty @writes
+  end
+
+  def test_a_prerelease_version_requires_an_existing_release_to_be_a_prerelease
+    @remote["prerelease"] = false
+    assert_raises(GitHubRelease::Error) { publish }
+    assert_empty @writes
   end
 
   def test_tag_404_checks_later_pages_for_a_draft_before_attempting_creation
@@ -177,7 +207,13 @@ class GitHubReleaseTest < Minitest::Test
 
   private
 
-  def publish = @publisher.publish(tag: TAG, commit: COMMIT)
+  def publish = @publisher.publish(tag: @tag, commit: COMMIT)
+
+  def final_release
+    @tag = "v0.1.0"
+    @prerelease = false
+    @remote = {"id" => 42, "tag_name" => @tag, "prerelease" => false, "draft" => false}
+  end
 
   def asset(name)
     path = File.join(@directory, name)
@@ -215,7 +251,7 @@ class GitHubReleaseTest < Minitest::Test
       refute_includes args, "--clobber"
       operation = args[2]
       return response({"message" => "release already exists"}, success: false) if operation == "create" && @remote
-      @remote ||= {"id" => 42, "tag_name" => TAG, "prerelease" => true, "draft" => false}
+      @remote ||= {"id" => 42, "tag_name" => @tag, "prerelease" => @prerelease, "draft" => false}
       paths = args[4...args.index("--repo")]
       names = paths.map { |path| File.basename(path) }
       @writes << [operation, names.sort]
