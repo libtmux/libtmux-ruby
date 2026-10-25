@@ -33,7 +33,7 @@ namespace :release do
     desc({"prepare" => "Build and retain the complete release artifact set",
       "verify" => "Verify retained release artifacts without network access",
       "publish" => "Publish verified artifacts from the trusted tag workflow",
-      "github" => "Create or complete the GitHub prerelease from retained artifacts",
+      "github" => "Create or complete the GitHub release from retained artifacts",
       "dry_run" => "Build, verify and test installed artifacts without uploading"}.fetch(operation))
     task operation, [:tag, :commit] do |_, args|
       require "open3"
