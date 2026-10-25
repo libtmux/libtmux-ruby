@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.1 (unreleased)
+
+## 0.1.0 (2026-10-25)
+
+The first final release. Releases are numbered `0.1.N` from here on, so a
+plain `gem install libtmux` installs it without `--pre`. The API is not
+settled: pin an exact version to avoid a break.
 
 ### libtmux
 
