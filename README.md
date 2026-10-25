@@ -41,11 +41,11 @@ loader ship beside the core, under [Packages](#packages).
 
 ## Quick start
 
-Install the core prerelease from RubyGems. It needs Ruby 3.3 or newer and tmux
+Install the core gem from RubyGems. It needs Ruby 3.3 or newer and tmux
 3.3a or newer on `PATH`:
 
 ```console
-$ gem install libtmux --pre
+$ gem install libtmux
 ```
 
 This program creates a session, adds a window, splits it, and prints each
@@ -167,9 +167,8 @@ Start with `libtmux`. Add the companion for your caller:
 | [libtmux-workspace](gems/libtmux-workspace/README.md) | `libtmux/workspace` | YAML/JSON workspace plans and a CLI to apply them |
 
 Requiring a gem starts no tmux process, scheduler, or protocol server. The
-companion gems install separately, and need `--pre` for their alpha versions
-too. [Execution modes][doc-modes] explains blocking calls, Async tasks, and
-control subscriptions.
+companion gems install separately. [Execution modes][doc-modes] explains
+blocking calls, Async tasks, and control subscriptions.
 
 ### [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux): the core
 
@@ -182,7 +181,7 @@ Blocking [server][server], [session][session], [window][window] and
 [RubyGems](https://rubygems.org/gems/libtmux)
 
 ```console
-$ gem install libtmux --pre
+$ gem install libtmux
 ```
 
 The [quick start](#quick-start) and
@@ -199,7 +198,7 @@ application owns. Require `libtmux/async`, then open a scope with
 [RubyGems](https://rubygems.org/gems/libtmux-async)
 
 ```console
-$ gem install libtmux-async --pre
+$ gem install libtmux-async
 ```
 
 Capture every pane concurrently with [`Scope#map`][async-scope-map]. `server`
@@ -229,7 +228,7 @@ Installs `libtmux-mcp`; require `libtmux/mcp` to embed it through
 [RubyGems](https://rubygems.org/gems/libtmux-mcp)
 
 ```console
-$ gem install libtmux-mcp --pre
+$ gem install libtmux-mcp
 ```
 
 The server borrows a tmux server that is already running. Start one on a
@@ -263,7 +262,7 @@ from Ruby through [`LibTmux::Workspace`][workspace].
 [RubyGems](https://rubygems.org/gems/libtmux-workspace)
 
 ```console
-$ gem install libtmux-workspace --pre
+$ gem install libtmux-workspace
 ```
 
 Save this workspace as `workspace.yaml`:

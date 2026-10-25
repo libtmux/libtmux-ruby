@@ -177,9 +177,9 @@ module LibTmuxTest
       (mentioned.uniq - known).map { |flag| "#{path}: #{flag} is not an option of #{program}" }
     end
 
-    # `gem install NAME --pre` names a gem this repository builds, and --pre is
-    # needed because every published version is a prerelease.
-    def gem_install_problems(markdown, path, gems:, versions:)
+    # `gem install NAME` names a gem this repository builds and passes no --pre:
+    # releases are final versions, which a plain install resolves.
+    def gem_install_problems(markdown, path, gems:)
       steps(markdown).filter_map do |step|
         words = words(step.command)
         next unless words.first(2) == %w[gem install]
@@ -188,8 +188,7 @@ module LibTmuxTest
         names = words.drop(2).reject { |word| word.start_with?("-") }
         unknown = names - gems
         next "#{path}:#{step.line}: #{unknown.join(', ')} is not a gem of this repository" unless unknown.empty?
-        next "#{path}:#{step.line}: pass --pre, which every released version requires" unless
-          words.include?("--pre") || versions.none? { |version| version.match?(/[a-z]/i) }
+        next "#{path}:#{step.line}: drop --pre, which no release requires" if words.include?("--pre")
 
         nil
       end

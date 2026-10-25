@@ -37,11 +37,11 @@ core [`Server`][server] and leaves its daemon running when the scope exits.
 
 ## Quick start
 
-Install the alpha. It needs Ruby 3.3 or newer and tmux 3.3a or newer on
+Install the gem. It needs Ruby 3.3 or newer and tmux 3.3a or newer on
 `PATH`:
 
 ```console
-$ gem install libtmux-async --pre
+$ gem install libtmux-async
 ```
 
 Open a scope over a core server with [`LibTmux::Async.open`][async-open], then

@@ -23,16 +23,16 @@ class ReadmeBlocksTest < Minitest::Test
     assert_equal "libtmux-workspace load --json x", Blocks.command(continued)
   end
 
-  def test_gem_installs_name_gems_of_this_repository_and_pass_the_prerelease_flag
-    versions = Blocks::GEMS.map { |name| Gem::Specification.load(File.join(Blocks::ROOT, "gems", name, "#{name}.gemspec")).version.to_s }
+  def test_gem_installs_name_gems_of_this_repository_and_pass_no_prerelease_flag
     Blocks::DOCUMENTS.each do |path|
-      assert_empty Blocks.gem_install_problems(Blocks.read(path), path, gems: Blocks::GEMS, versions: versions)
+      assert_empty Blocks.gem_install_problems(Blocks.read(path), path, gems: Blocks::GEMS)
     end
-    unknown = "```console\n$ gem install libtmux-nothing --pre\n```\n"
-    unpinned = "```console\n$ gem install libtmux-mcp\n```\n"
-    refute_empty Blocks.gem_install_problems(unknown, "control.md", gems: Blocks::GEMS, versions: versions)
-    refute_empty Blocks.gem_install_problems(unpinned, "control.md", gems: Blocks::GEMS, versions: versions)
-    assert_empty Blocks.gem_install_problems(unpinned, "control.md", gems: Blocks::GEMS, versions: %w[1.0.0])
+    unknown = "```console\n$ gem install libtmux-nothing\n```\n"
+    prerelease = "```console\n$ gem install libtmux-mcp --pre\n```\n"
+    plain = "```console\n$ gem install libtmux-mcp\n```\n"
+    refute_empty Blocks.gem_install_problems(unknown, "control.md", gems: Blocks::GEMS)
+    refute_empty Blocks.gem_install_problems(prerelease, "control.md", gems: Blocks::GEMS)
+    assert_empty Blocks.gem_install_problems(plain, "control.md", gems: Blocks::GEMS)
   end
 
   def test_root_and_core_readmes_link_every_gem_directory_from_a_heading
