@@ -205,12 +205,28 @@ words, an unquoted `;` ends a command, and a brace block is one word.
 Tmux command strings nested inside another command are
 not checked: the command given to `if-shell` or `run-shell -C`, the body of a
 brace block, a `$VARIABLE` that expands to a command, and the contents of
-`command-alias` entries. Callers must not nest a command that a gate refuses;
-nested `break-pane` still takes down an exact 3.7 daemon. The guard does not
-parse these recursively. Shell programs given to `run-shell` are not read
-either. The library promises no captured `run-shell` stdout: raw output is what
-the client prints, and control event routing of `run-shell` output differs by
-release.
+`command-alias` entries. The guard does not parse these recursively, so a
+nested form reaches tmux unchanged, and each command below fails the way tmux
+fails on that release:
+
+| Nested command | Affected releases | Failure class |
+| --- | --- | --- |
+| `break-pane` without `-n` | exactly 3.7 | The server exits when the pane's window has other panes. |
+| `select-layout` with a layout string that has no checksum header | 3.3 and 3.3a | The server exits. Tmux 3.4 answers "invalid layout". |
+| `refresh-client -l` | below 3.6a | The server exits: at once on 3.3a when an attached client's TERM is xterm-256color or tmux-256color, on 3.4 to 3.6 when that client leaves before its terminal answers. |
+| `delete-buffer -b NAME`, `set-buffer -b NAME -n NEW` | below 3.4 | A name that does not exist acts on the newest buffer, silently. |
+| `split-window -p` | 3.4 | Tmux answers with an error and nothing changes. |
+| `:` or `.` in a session or window name | exactly 3.7 | Tmux answers with an error and nothing changes. |
+
+On exact tmux 3.7 a raw `break-pane` is refused, with or without `-n`; use
+`Pane#break_out`. Name every nested or key-bound `break-pane` with `-n`,
+including the one inside `if-shell` or `run-shell -C` and the default `prefix !`
+binding, or upgrade to 3.7a. Exact 3.7 ignores the `-n` name and gives the
+window its default name, so `-n` only avoids the crash. Callers must not nest
+any other command that a gate refuses. Shell programs given to `run-shell` are
+not read either. The library promises no captured `run-shell` stdout: raw output
+is what the client prints, and control event routing of `run-shell` output
+differs by release.
 
 ## Raw commands
 

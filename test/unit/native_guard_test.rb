@@ -65,6 +65,13 @@ class NativeGuardTest < Minitest::Test
     %w[3.6b 3.7a 3.7d 3.8 next-3.9].each { |text| allowed(%w[break-pane -d -s %1], text) }
   end
 
+  def test_nested_break_pane_reaches_tmux_unchecked_on_3_7
+    allowed(["if-shell", "-F", "1", "break-pane -d"], "3.7")
+    allowed(["run-shell", "-C", "break-pane -d"], "3.7")
+    allowed(["if-shell", "-F", "1", "break-pane -d -n x"], "3.7")
+    refused(%w[break-pane -d], "3.7")
+  end
+
   def test_split_window_percent_flag_is_refused_on_tmux_3_4_only
     refused(%w[split-window -d -p 30 -t %0], "3.4")
     refused(%w[splitw -dp30], "3.4")

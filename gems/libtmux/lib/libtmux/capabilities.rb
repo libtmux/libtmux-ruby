@@ -105,7 +105,7 @@ module LibTmux
       WORKAROUNDS = [
         Workaround.new(id: "break-pane-misnames-windows", name: "break-pane window naming", releases: ["3.7"],
           handling: :repair,
-          summary: "break-pane gets the new window wrong on exactly tmux 3.7; Pane#break_out names it again, and raw break-pane is refused.",
+          summary: "break-pane gets the new window wrong on exactly tmux 3.7; Pane#break_out names it again, and raw break-pane is refused. A nested break-pane is not checked and stops an exact 3.7 daemon: name every one with -n, which avoids the crash while 3.7 still ignores the name, or upgrade to 3.7a.",
           apis: ["LibTmux::Pane#break_out", "LibTmux::Server#run", "LibTmux::ControlConnection#exchange"],
           commands: [Command.new(command: "break-pane")]),
         Workaround.new(id: "split-window-percent-size", name: "split-window -p", releases: ["3.4"],
