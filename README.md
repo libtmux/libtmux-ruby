@@ -21,8 +21,10 @@ Ruby. Read server state into a [snapshot][snapshot], then query it with
 [API reference](docs/reference/api.md) · [Recipes](docs/recipes.md) ·
 [API on libtmux.org](https://libtmux.org/en/ruby/latest/reference/)
 
+[![compatibility](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml/badge.svg)](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
+[![libtmux](https://img.shields.io/gem/v/libtmux?label=libtmux)](https://rubygems.org/gems/libtmux)
 [![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
-[![libtmux](https://img.shields.io/gem/v/libtmux)](https://rubygems.org/gems/libtmux)
+[![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/libtmux/libtmux-ruby/blob/master/LICENSE)
 
 </div>
 
@@ -165,9 +167,9 @@ Start with `libtmux`. Add the companion for your caller:
 | Gem | Require | Use it for |
 | --- | --- | --- |
 | [libtmux](gems/libtmux/README.md) | `libtmux` | Blocking scripts, snapshots, and control connections |
-| [libtmux-async](gems/libtmux-async/README.md) | `libtmux/async` | Concurrent commands and bounded streams in Async tasks |
-| [libtmux-mcp](gems/libtmux-mcp/README.md) | `libtmux/mcp` | An MCP server with explicit endpoints and tool policy |
-| [libtmux-workspace](gems/libtmux-workspace/README.md) | `libtmux/workspace` | YAML/JSON workspace plans and a CLI to apply them |
+| [libtmux-async](gems/libtmux-async/README.md) | `libtmux/async` | Concurrent commands and bounded streams in Async tasks [![libtmux-async](https://img.shields.io/gem/v/libtmux-async?label=libtmux-async)](https://rubygems.org/gems/libtmux-async) |
+| [libtmux-mcp](gems/libtmux-mcp/README.md) | `libtmux/mcp` | An MCP server with explicit endpoints and tool policy [![libtmux-mcp](https://img.shields.io/gem/v/libtmux-mcp?label=libtmux-mcp)](https://rubygems.org/gems/libtmux-mcp) |
+| [libtmux-workspace](gems/libtmux-workspace/README.md) | `libtmux/workspace` | YAML/JSON workspace plans and a CLI to apply them [![libtmux-workspace](https://img.shields.io/gem/v/libtmux-workspace?label=libtmux-workspace)](https://rubygems.org/gems/libtmux-workspace) |
 
 Requiring a gem starts no tmux process, scheduler, or protocol server. The
 companion gems install separately. [Execution modes][doc-modes] explains
