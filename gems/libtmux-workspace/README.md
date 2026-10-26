@@ -20,7 +20,7 @@
 [Guides](https://libtmux.org/en/ruby/latest/workspace/guides/) ·
 [RubyGems](https://rubygems.org/gems/libtmux-workspace)
 
-[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/latest/workspace/)
 [![libtmux-workspace](https://img.shields.io/gem/v/libtmux-workspace)](https://rubygems.org/gems/libtmux-workspace)
 
 </div>
