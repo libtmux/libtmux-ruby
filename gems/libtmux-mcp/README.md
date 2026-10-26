@@ -21,7 +21,7 @@ tool at a time.
 [RubyGems](https://rubygems.org/gems/libtmux-mcp)
 
 [![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/latest/mcp/)
-[![libtmux-mcp](https://img.shields.io/gem/v/libtmux-mcp)](https://rubygems.org/gems/libtmux-mcp)
+[![libtmux-mcp](https://img.shields.io/gem/v/libtmux-mcp?label=libtmux-mcp)](https://rubygems.org/gems/libtmux-mcp)
 
 </div>
 
