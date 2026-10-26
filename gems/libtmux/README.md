@@ -19,6 +19,9 @@ as handles, [snapshots][snapshot] you filter in plain Ruby, and
 [Guides](https://libtmux.org/en/ruby/latest/guides/) ·
 [RubyGems](https://rubygems.org/gems/libtmux)
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
+[![libtmux](https://img.shields.io/gem/v/libtmux)](https://rubygems.org/gems/libtmux)
+
 </div>
 
 Part of [libtmux for Ruby](https://github.com/libtmux/libtmux-ruby#readme).
