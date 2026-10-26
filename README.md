@@ -21,6 +21,9 @@ Ruby. Read server state into a [snapshot][snapshot], then query it with
 [API reference](docs/reference/api.md) · [Recipes](docs/recipes.md) ·
 [API on libtmux.org](https://libtmux.org/en/ruby/latest/reference/)
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
+[![libtmux](https://img.shields.io/gem/v/libtmux)](https://rubygems.org/gems/libtmux)
+
 </div>
 
 Releases are numbered `0.1.N`, and each release increments `N`. The API is not

@@ -95,24 +95,27 @@ jobs:
                   echo "unsupported Ruby documentation tag: $REF_NAME" >&2
                   exit 1
                 }
-                alias=stable
-                alias_default=true
                 if [[ "$REF_NAME" =~ \.(alpha|beta|rc)\. ]]; then
-                  alias=next
-                  alias_default=false
+                  # A prerelease publishes at its tag and as next.
+                  matrix=$(jq -cn --arg tag "$REF_NAME" \
+                    '{include: [
+                      {version: $tag, kind: "tag", isDefault: false, resolvesTo: "", environment: "docs", publish: true},
+                      {version: "next", kind: "alias", isDefault: false, resolvesTo: $tag, environment: "docs", publish: true}
+                    ]}')
+                else
+                  # A release publishes at its tag only, and is the default
+                  # unless a newer release exists, so a backport cannot take it.
+                  tags=$(git ls-remote --tags --refs "https://github.com/$REPOSITORY" | sed 's#.*refs/tags/##')
+                  newest=$(printf '%s\n%s\n' "$tags" "$REF_NAME" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+                  tag_default=false
+                  [[ "$newest" == "$REF_NAME" ]] && tag_default=true
+                  matrix=$(jq -cn --arg tag "$REF_NAME" --argjson isDefault "$tag_default" \
+                    '{include: [{version: $tag, kind: "tag", isDefault: $isDefault, resolvesTo: "", environment: "docs", publish: true}]}')
                 fi
-                matrix=$(jq -cn \
-                  --arg tag "$REF_NAME" \
-                  --arg alias "$alias" \
-                  --argjson alias_default "$alias_default" \
-                  '{include: [
-                    {version: $tag, kind: "tag", isDefault: false, resolvesTo: "", environment: "docs", publish: true},
-                    {version: $alias, kind: "alias", isDefault: $alias_default, resolvesTo: $tag, environment: "docs", publish: true}
-                  ]}')
               elif [[ "$REF_NAME" == master ]]; then
-                # latest is the default only until the first stable release:
-                # from then on stable is, and a trunk push must not take the
-                # default back from it.
+                # latest is the default only until the first release:
+                # from then on the newest release is, and a trunk push must
+                # not take the default back from it.
                 trunk_default=true
                 tags=$(git ls-remote --tags --refs "https://github.com/$REPOSITORY" | sed 's#.*refs/tags/##')
                 if grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' <<< "$tags"; then

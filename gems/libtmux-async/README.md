@@ -20,6 +20,9 @@ Run libtmux operations inside an application-owned Async task: a
 [Guide](https://libtmux.org/en/ruby/latest/guides/async/) ·
 [RubyGems](https://rubygems.org/gems/libtmux-async)
 
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
+[![libtmux-async](https://img.shields.io/gem/v/libtmux-async)](https://rubygems.org/gems/libtmux-async)
+
 </div>
 
 Part of [libtmux for Ruby](https://github.com/libtmux/libtmux-ruby#readme).
