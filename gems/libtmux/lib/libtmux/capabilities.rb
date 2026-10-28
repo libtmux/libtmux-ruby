@@ -94,7 +94,7 @@ module LibTmux
         Capability.new(id: "layout-json", name: "JSON layout strings", since: "3.8",
           handling: :refuse, error: ERROR,
           summary: "Apply a layout saved in the JSON form tmux reports.",
-          apis: ["LibTmux::Window#select_layout"],
+          apis: ["LibTmux::Window#select_layout", "LibTmux::Server#run", "LibTmux::ControlConnection#exchange"],
           commands: [Command.new(command: "select-layout")]),
         Capability.new(id: "clipboard-query", name: "Clipboard query", since: "3.6a", handling: :refuse, error: ERROR,
           summary: "Ask an attached client's terminal for its clipboard with refresh-client -l.",

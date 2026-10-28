@@ -103,7 +103,9 @@
       "handling": "refuse",
       "error": "LibTmux::UnsupportedFeatureError",
       "apis": [
-        "LibTmux::Window#select_layout"
+        "LibTmux::Window#select_layout",
+        "LibTmux::Server#run",
+        "LibTmux::ControlConnection#exchange"
       ],
       "commands": [
         {

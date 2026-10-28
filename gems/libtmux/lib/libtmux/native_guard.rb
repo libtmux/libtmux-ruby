@@ -317,11 +317,17 @@ module LibTmux
       end
 
       # tmux 3.3a faults on a header that is not four hex digits and a comma, so
-      # only checksummed layouts and built-in names pass before 3.4.
+      # only checksummed layouts and built-in names pass before 3.4. A JSON layout
+      # needs tmux 3.8.
       def check_layout(item, command, release)
+        given = flags(item, command)
+        json = Internal::Capabilities.capability("layout-json")
+        if !json.available?(release) && operands(item, command).first.to_s.start_with?("{") && given.slice("E", "n", "p").empty?
+          raise UnsupportedFeatureError.new("JSON layouts require tmux #{json.since} or newer " \
+            "(connected version #{release.text})", phase: :admission, delivery: :not_sent)
+        end
         return if Internal::Capabilities.capability("layout-without-checksum").available?(release)
 
-        given = flags(item, command)
         return if given.key?("E") || given.key?("n") || given.key?("p")
 
         layout = operands(item, command).first

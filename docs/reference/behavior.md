@@ -182,7 +182,7 @@ workspace builds or MCP tools that do not need them.
 | Raw `split-window -p` | All except 3.4 | Refused on 3.4; typed splits always send `-l N%` | Refusal qualified by tests |
 | Raw `refresh-client -l`, including `ControlConnection#exchange` lines | 3.6a and newer | Refused: tmux 3.3a stops when it asks an attached `xterm-256color` or `tmux-256color` terminal for its clipboard, and 3.4 through 3.6 stop when that client leaves before its terminal answers | Refusal qualified by tests |
 | Malformed layouts | 3.4 and newer | tmux 3.3a faults on a malformed header, so `select_layout` and raw `select-layout` accept only a checksummed layout or a unique built-in name | Refusal qualified by tests |
-| JSON layouts (`layout-json`) in `select_layout` | 3.8 and newer | Refused before dispatch: tmux before 3.8 cannot read a JSON layout | Refusal qualified by tests |
+| JSON layouts (`layout-json`) in `select_layout` and raw `select-layout`, including `ControlConnection#exchange` lines | 3.8 and newer | Refused before dispatch: tmux before 3.8 cannot read a JSON layout | Refusal qualified by tests |
 
 tmux 3.8 saves layouts as JSON.
 

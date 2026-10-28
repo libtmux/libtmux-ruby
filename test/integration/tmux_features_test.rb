@@ -240,6 +240,17 @@ class TmuxFeaturesTest < Minitest::Test
         error = assert_raises(LibTmux::UnsupportedFeatureError) { window.select_layout(json) }
         assert_equal :not_sent, error.delivery
         assert_match(/JSON layouts require tmux 3\.8 or newer/, error.message)
+        raw = assert_raises(LibTmux::UnsupportedFeatureError) { server.run(["select-layout", "-t", window.id, json]) }
+        assert_equal :not_sent, raw.delivery
+        if server.supports_control?
+          layout = fixture.tmux("display-message", "-p", "-t", window.id, "\#{window_layout}").first
+          server.open_control(session: server.list_sessions.first.ref) do |control|
+            line = "select-layout -t #{window.id} #{json}"
+            error = assert_raises(LibTmux::UnsupportedFeatureError) { control.exchange(line, timeout: 1) }
+            assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+            assert_equal layout, fixture.tmux("display-message", "-p", "-t", window.id, "\#{window_layout}").first
+          end
+        end
       else
         saved = fixture.tmux("display-message", "-p", "-t", window.id, "\#{window_layout}").first.strip
         assert saved.start_with?("{"), saved
