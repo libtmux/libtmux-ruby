@@ -34,6 +34,6 @@ class MCPObservationTest < Minitest::Test
     observation = LibTmux::MCP.const_get(:Observation)
     parse = LibTmux::Internal::TmuxVersion.method(:parse)
     %w[3.3a 3.4 next-3.5 3.5-rc 3.5-rc2].each { |value| assert observation.preflight_hooks?(parse.call(value)), value }
-    %w[3.5 3.5a 3.6 3.8-rc next-3.9].each { |value| refute observation.preflight_hooks?(parse.call(value)), value }
+    %w[3.5 3.5a 3.6 3.8 next-3.9].each { |value| refute observation.preflight_hooks?(parse.call(value)), value }
   end
 end

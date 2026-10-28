@@ -91,6 +91,17 @@ class NativeGuardTest < Minitest::Test
     allowed(%w[select-layout -t %0 garbage], "3.4")
   end
 
+  def test_json_layouts_are_refused_before_tmux_3_8
+    json = '{"V":2,"L":{}}'
+    %w[3.3a 3.4 3.7c 3.7d].each do |text|
+      error = refused(["select-layout", "-t", "%0", json], text)
+      assert_equal "JSON layouts require tmux 3.8 or newer (connected version #{text})", error.message
+    end
+    refused(["selectl", json], "3.7c")
+    %w[3.8 next-3.9].each { |text| allowed(["select-layout", "-t", "%0", json], text) }
+    %w[-E -n -p].each { |flag| allowed(["select-layout", flag, "-t", "%0", json], "3.7c") }
+  end
+
   def test_ambiguous_and_unknown_commands_are_not_guessed
     allowed(%w[set -b saved -n x], "3.3a")
     allowed(%w[no-such-command -b saved], "3.3a")
@@ -130,6 +141,7 @@ class NativeGuardTest < Minitest::Test
     refused_line("delete-buffer -b saved", "3.3a")
     refused_line("select-layout garbage", "3.3a")
     allowed_line("select-layout tiled", "3.3a")
+    refused_line(%(select-layout {"V":2,"L":{}}), "3.7c")
     refused_line("display-message -p ok ; refresh -l", "3.3a")
     refused_line("refresh-client -l", "3.6")
     allowed_line("refresh-client -l", "3.6a")

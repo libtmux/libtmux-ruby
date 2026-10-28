@@ -53,7 +53,7 @@ class CapabilitiesTest < Minitest::Test
   def test_availability_follows_the_release_order
     gate = REGISTRY.capability("layout-mirrored-main")
     %w[3.3a 3.4 next-3.5 3.5-rc 3.5-rc2].each { |text| refute gate.available?(release(text)), text }
-    %w[3.5 3.5a 3.7d 3.8-rc2 next-3.9].each { |text| assert gate.available?(release(text)), text }
+    %w[3.5 3.5a 3.7d 3.8 next-3.9].each { |text| assert gate.available?(release(text)), text }
   end
 
   def test_a_workaround_applies_to_its_exact_releases_only

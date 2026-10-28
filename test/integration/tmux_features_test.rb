@@ -230,6 +230,36 @@ class TmuxFeaturesTest < Minitest::Test
     end
   end
 
+  # JSON layouts need tmux 3.8. A saved layout is read back from the daemon, so
+  # 3.8 and newer apply it and older releases refuse before dispatch.
+  def test_json_layouts_apply_from_tmux_3_8_and_are_refused_before_it
+    with_server do |server, fixture|
+      window = server.list_windows.first
+      json = '{"V":2,"L":{}}'
+      if release_before?(server, 3, 8)
+        error = assert_raises(LibTmux::UnsupportedFeatureError) { window.select_layout(json) }
+        assert_equal :not_sent, error.delivery
+        assert_match(/JSON layouts require tmux 3\.8 or newer/, error.message)
+        raw = assert_raises(LibTmux::UnsupportedFeatureError) { server.run(["select-layout", "-t", window.id, json]) }
+        assert_equal :not_sent, raw.delivery
+        if server.supports_control?
+          layout = fixture.tmux("display-message", "-p", "-t", window.id, "\#{window_layout}").first
+          server.open_control(session: server.list_sessions.first.ref) do |control|
+            line = "select-layout -t #{window.id} #{json}"
+            error = assert_raises(LibTmux::UnsupportedFeatureError) { control.exchange(line, timeout: 1) }
+            assert_equal [:not_sent, :admission], [error.delivery, error.phase]
+            assert_equal layout, fixture.tmux("display-message", "-p", "-t", window.id, "\#{window_layout}").first
+          end
+        end
+      else
+        saved = fixture.tmux("display-message", "-p", "-t", window.id, "\#{window_layout}").first.strip
+        assert saved.start_with?("{"), saved
+        assert window.select_layout(saved).success?
+      end
+      assert fixture.tmux("has-session", "-t", "fixture").last.success?
+    end
+  end
+
   # With an attached xterm-256color client, 3.3a stops on refresh-client -l,
   # and 3.4 through 3.6 stop when that client leaves before its terminal
   # answers. The refusal comes first, so the fixture needs no client. The

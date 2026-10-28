@@ -135,7 +135,7 @@ module LibTmux
       value = layout.is_a?(Symbol) ? layout.to_s.tr("_", "-") : layout
       budget = server.__send__(:operation_budget, timeout, cancel)
       # Older tmux can access an invalid pointer for a malformed layout header.
-      # tmux 3.8-rc2 and later report and accept saved layouts as JSON.
+      # tmux 3.8 and later report and accept saved layouts as JSON.
       saved = /\A[0-9a-fA-F]{4},/.match?(value)
       if !saved && value.start_with?("{")
         json = Internal::Capabilities.capability("layout-json")

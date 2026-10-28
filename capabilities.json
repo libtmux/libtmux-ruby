@@ -99,11 +99,13 @@
       "id": "layout-json",
       "name": "JSON layout strings",
       "summary": "Apply a layout saved in the JSON form tmux reports.",
-      "since": "3.8-rc2",
+      "since": "3.8",
       "handling": "refuse",
       "error": "LibTmux::UnsupportedFeatureError",
       "apis": [
-        "LibTmux::Window#select_layout"
+        "LibTmux::Window#select_layout",
+        "LibTmux::Server#run",
+        "LibTmux::ControlConnection#exchange"
       ],
       "commands": [
         {
