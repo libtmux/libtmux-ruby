@@ -79,7 +79,7 @@ class TmuxVersionTest < Minitest::Test
   end
 
   def test_control_gate_vectors
-    %w[3.7 3.7a 3.7d 3.8-rc2 next-3.8 3.8 next-3.9 3.10 4.0].each do |value|
+    %w[3.7 3.7a 3.7d next-3.8 3.8 next-3.9 3.10 4.0].each do |value|
       assert_equal value, version.require_control(version.parse(value)).text
     end
     %w[3.3a 3.6b 3.7-rc 3.7-rc2 next-3.7].each do |value|
@@ -206,7 +206,7 @@ class TmuxVersionTest < Minitest::Test
   # build or candidate of a release stays below the gate that release opens.
   def test_the_mirrored_layout_gate_ranks_development_builds_below_3_5
     ref = Struct.new(:kind, :id).new(:window, "@1")
-    {"next-3.5" => false, "3.5-rc" => false, "3.4" => false, "3.5" => true, "3.5a" => true, "next-3.9" => true, "3.8-rc" => true}.each do |release, allowed|
+    {"next-3.5" => false, "3.5-rc" => false, "3.4" => false, "3.5" => true, "3.5a" => true, "next-3.9" => true, "3.8" => true}.each do |release, allowed|
       calls = []
       server = Object.new
       server.define_singleton_method(:operation_budget) { |*| Struct.new(:options).new({}) }
@@ -225,12 +225,11 @@ class TmuxVersionTest < Minitest::Test
     end
   end
 
-  # tmux 3.8-rc2 is the earliest build measured to print and accept JSON
-  # layouts, so the gate opens there and not at the 3.8 release.
-  def test_the_json_layout_gate_opens_at_3_8_rc2
+  # tmux 3.8 is the first release that prints and accepts JSON layouts.
+  def test_the_json_layout_gate_opens_at_3_8
     ref = Struct.new(:kind, :id).new(:window, "@1")
     json = '{"V":2,"L":{}}'
-    {"3.7d" => false, "3.8-rc" => false, "3.8-rc2" => true, "3.8-rc3" => true, "3.8" => true, "next-3.9" => true}.each do |release, allowed|
+    {"3.7c" => false, "3.7d" => false, "3.8" => true, "next-3.9" => true}.each do |release, allowed|
       calls = []
       server = Object.new
       server.define_singleton_method(:operation_budget) { |*| Struct.new(:options).new({}) }
@@ -247,6 +246,19 @@ class TmuxVersionTest < Minitest::Test
         assert_empty calls, release
       end
     end
+  end
+
+  def test_the_json_layout_floor_is_tmux_3_8_and_the_refusal_names_it
+    json = LibTmux::Internal::Capabilities.capability("layout-json")
+    assert_equal "3.8", json.since
+    ref = Struct.new(:kind, :id).new(:window, "@1")
+    server = Object.new
+    server.define_singleton_method(:operation_budget) { |*| Struct.new(:options).new({}) }
+    server.define_singleton_method(:tmux_release) { LibTmux::Internal::TmuxVersion.parse("3.7c") }
+    error = assert_raises(LibTmux::UnsupportedFeatureError) do
+      LibTmux::Window.send(:new, server, ref).select_layout('{"V":2,"L":{}}')
+    end
+    assert_equal "JSON layouts require tmux 3.8 or newer (connected version 3.7c)", error.message
   end
 
   def test_connected_probe_separates_an_absent_server_from_other_failures

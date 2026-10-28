@@ -2,6 +2,10 @@
 
 ## 0.1.1 (unreleased)
 
+- `Window#select_layout` accepts a JSON layout only on tmux 3.8 or newer. The
+  `UnsupportedFeatureError` names tmux 3.8 as the minimum; upgrade tmux to
+  apply a JSON layout. (#67)
+
 ## 0.1.0 (2026-10-25)
 
 The first final release. Releases are numbered `0.1.N` from here on, so a

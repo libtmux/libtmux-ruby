@@ -91,7 +91,7 @@ module LibTmux
           summary: "Apply main-horizontal-mirrored and main-vertical-mirrored.",
           apis: ["LibTmux::Window#select_layout"],
           commands: [Command.new(command: "select-layout")]),
-        Capability.new(id: "layout-json", name: "JSON layout strings", since: "3.8-rc2",
+        Capability.new(id: "layout-json", name: "JSON layout strings", since: "3.8",
           handling: :refuse, error: ERROR,
           summary: "Apply a layout saved in the JSON form tmux reports.",
           apis: ["LibTmux::Window#select_layout"],
