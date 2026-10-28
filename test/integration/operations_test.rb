@@ -286,9 +286,9 @@ class OperationsTest < Minitest::Test
       blocked = assert_raises(LibTmux::DeadlineExceeded) { server.wait_for(channel, action: :lock, timeout: 0.1) }
       assert_equal :possibly_sent, blocked.delivery
       assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
-      # Before 3.8-rc2 the retired client's queued lock still acquires in tmux
-      # after unlock; later builds drop it, so the channel is no longer locked.
-      if LibTmux::Internal::TmuxVersion.parse(server.tmux_version) < LibTmux::Internal::TmuxVersion.parse("3.8-rc2")
+      # Before tmux 3.8 the retired client's queued lock still acquires in tmux
+      # after unlock; 3.8 drops it, so the channel is no longer locked.
+      if LibTmux::Internal::TmuxVersion.parse(server.tmux_version) < LibTmux::Internal::TmuxVersion.parse("3.8")
         assert server.wait_for(channel, action: :unlock, timeout: 0.5).success?
       else
         assert_raises(LibTmux::CommandError) { server.wait_for(channel, action: :unlock, timeout: 0.5) }
