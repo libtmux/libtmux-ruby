@@ -185,7 +185,10 @@ and never reconciles an existing one.
 [`Workspace.load`][workspace-load] reads the file,
 [`workspace.plan`][workspace-plan-method] plans it against a snapshot, and
 `apply` creates the session. Calling `apply` authorizes the configuration's
-shell commands:
+shell commands.
+
+The path below belongs to [the example file](../../examples/api/workspace_apply.rb)
+under `examples/api/`; it loads `examples/workspace.yaml` in this checkout:
 
 <!-- example: api_workspace_apply/main -->
 ```ruby
@@ -203,8 +206,7 @@ end
 ```
 <!-- /example -->
 
-The program runs next to the `workspace.yaml` above, on a private server, and
-prints:
+The program runs on a private server and prints:
 
 ```text
 planned steps: 11
