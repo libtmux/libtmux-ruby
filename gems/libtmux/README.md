@@ -732,7 +732,8 @@ See the [changelog](../../CHANGELOG.md).
   `fiddle` and `io-console`.
 - **tmux 3.3a or newer.** Unpatched 3.3 is below the minimum. A
   [server handle][server] checks the connected daemon's release before it sends
-  a command, and refuses an older daemon even when its client is newer.
+  the requested command, and refuses an older daemon even when its client is
+  newer.
 - **Control connections need tmux 3.7 or newer.** An older daemon refuses
   [`open_control`][server-open_control] before a control client attaches.
   Subprocess operations and snapshots do not need it. The
