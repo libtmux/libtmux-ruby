@@ -612,8 +612,9 @@ application owns. Require `libtmux/async`, then open a scope with
 $ gem install libtmux-async
 ```
 
-Capture every pane concurrently with [`Scope#map`][async-scope-map]. `server`
-is an open [`LibTmux::Server`][server]:
+Capture every pane concurrently with [`Scope#map`][async-scope-map]. This
+excerpt uses an open [`LibTmux::Server`][server] and the `Example.check`
+assertion helper from the [complete program](../../examples/async_cancel.rb):
 
 <!-- example: async_cancel/map -->
 ```ruby
