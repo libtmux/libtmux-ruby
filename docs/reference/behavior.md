@@ -110,6 +110,10 @@ or an `-rc` candidate ranks below the release it names, and a report that is
 not a numbered release, such as `master`, is refused as unrecognized. The
 refusal names what the daemon or executable reported.
 
+tmux release candidates are not supported: a feature can require one only
+until its release ships, and a candidate such as `X.Y-rcN` ranks below
+`X.Y`. See [Release candidates](https://libtmux.org/en/tmux/guides/tmux-support/#release-candidates).
+
 `Server.new` and `Server.open` read the connected daemon's release through the
 private route with `run-shell -C`, which fires no tmux hook. The configured
 client's `-V` output is not consulted, so a newer client cannot accept an older
