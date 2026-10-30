@@ -361,6 +361,9 @@ changelog marks each break. Pin an exact version to avoid one.
 - **Ruby 3.3 or newer** and **tmux 3.3a or newer.** Unpatched 3.3 is below the
   minimum. A [server handle][server] checks the connected daemon's release, not
   the client's, and refuses an older daemon before any requested command runs.
+  tmux release candidates are not supported: a feature can require one only
+  until its release ships, and a candidate such as `X.Y-rcN` ranks below
+  `X.Y`. See [Release candidates][rc-policy].
 - **Linux, including WSL, and macOS.** The [compatibility workflow][compat]
   runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04.
   macOS is supported on a best-effort basis, and CI coverage for it is highly
@@ -429,6 +432,7 @@ MIT. See [LICENSE](LICENSE).
 [nomatcherror]: https://libtmux.org/en/ruby/latest/reference/libtmux-nomatcherror/
 [pane]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-14z6/
 [pane-capture]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-capture/
+[rc-policy]: https://libtmux.org/en/tmux/guides/tmux-support/#release-candidates
 [selection-one]: https://libtmux.org/en/ruby/latest/reference/libtmux-selection-one/
 [selection-one_or_nil]: https://libtmux.org/en/ruby/latest/reference/libtmux-selection-one_or_nil/
 [selection-select]: https://libtmux.org/en/ruby/latest/reference/libtmux-selection-select/
