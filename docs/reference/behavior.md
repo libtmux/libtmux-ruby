@@ -346,7 +346,8 @@ creation. Errors can leave dispatched entities without an observed receipt.
 `list_sessions`, `list_windows`, `list_panes` and `list_window_links` perform
 explicit tmux reads and return arrays of handles. Server methods use global
 scope; session/window methods constrain it. Empty arrays represent an empty
-successful read, and native listing order is retained. Reads can race with
+successful read. Global session/window/pane listings deduplicate IDs and sort
+by numeric ID; scoped listings retain tmux's order. Reads can race with
 concurrent mutation and do not establish atomic graph coverage.
 
 `list_clients` returns captured client records. Client tty/name/PID/creation
@@ -459,8 +460,7 @@ servers raise `UnsupportedFeatureError`.
 Unknown or ambiguous names and malformed headers raise `ArgumentError` before
 mutation; tmux validates the remaining checksum and geometry. Mirrored names
 require tmux 3.5+, otherwise raising `UnsupportedFeatureError`. Name resolution
-may read the version under the operation's shared deadline. The five base names
-and framed saved layouts need no version read.
+uses the binding's captured daemon release.
 
 ## Cancellation tokens
 
