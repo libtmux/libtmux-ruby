@@ -7,6 +7,15 @@
   instead of sending it. The `UnsupportedFeatureError` names tmux 3.8 as the
   minimum; upgrade tmux, or apply a checksummed layout. (#67)
 
+- **Behavior change:** `Endpoint.new`, `Server.new` and `Server.open` no longer
+  need a socket. With no `socket_path:` or `socket_name:`, they pick the socket
+  tmux picks when it is given none: the path in `LIBTMUX_SOCKET_PATH`, else the
+  name in `LIBTMUX_SOCKET`, else the socket `TMUX` names inside tmux, else
+  tmux's default socket. They raised `ArgumentError` before. A program started
+  inside tmux that names no socket now reaches that tmux's server; pass
+  `socket_name:` or `socket_path:` to keep it off, as a test suite should.
+  `Endpoint.from_env` still follows `TMUX` alone. (#71)
+
 ## 0.1.0 (2026-10-25)
 
 The first final release. Releases are numbered `0.1.N` from here on, so a

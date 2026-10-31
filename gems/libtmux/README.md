@@ -341,8 +341,10 @@ connected sessions: 1
 sessions after client close: 1
 ```
 
-- [`Endpoint.new`][endpoint-new] takes an explicit socket path or socket name.
-  [`Endpoint.from_env`][endpoint-from_env] is the opt-in for `$TMUX`.
+- [`Endpoint.new`][endpoint-new] takes a socket path or socket name. With
+  neither, it picks the socket tmux would: `LIBTMUX_SOCKET_PATH`,
+  `LIBTMUX_SOCKET`, the server `$TMUX` names, then tmux's default socket.
+  [`Endpoint.from_env`][endpoint-from_env] follows `$TMUX` alone.
 - A binding keeps a private link to the socket it bound, so commands never
   reach a different daemon that later takes the same path.
 - A ref is valid on the server that issued it. Another server raises

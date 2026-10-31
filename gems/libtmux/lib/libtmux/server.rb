@@ -32,7 +32,10 @@ module LibTmux
   #
   # **Connecting.** {#initialize Server.new} and {Server.open} bind an endpoint
   # that already exists; {Server.open} with a block closes the server when the
-  # block ends. {Server.start} starts a private daemon instead, creates no
+  # block ends. Given no `endpoint:`, `socket_path:` or `socket_name:`, they
+  # bind the socket {Endpoint#initialize Endpoint.new} picks from
+  # `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET`, `TMUX` and tmux's default socket,
+  # in that order. {Server.start} starts a private daemon instead, creates no
   # session, and owns the daemon's exit. {#endpoint} answers the {Endpoint}
   # and {#owned?} says whether this server started its daemon. {#diagnostics}
   # reports the request and control slots in use, and the limits. {#close}

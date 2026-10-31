@@ -17,26 +17,43 @@ caller data even when diagnostic inspection omits it.
 
 ## Endpoints
 
-`Endpoint.new` requires exactly one explicit socket path or socket name. It
-expands the path and resolves `executable: "tmux"` through PATH without
-starting a client. Socket names use `socket_directory`, then `TMUX_TMPDIR`,
-then `/tmp`, with tmux's per-user directory. Invalid paths/names or an
-unavailable executable raise `ArgumentError`.
+`Endpoint.new` takes a socket path or a socket name, and raises
+`ArgumentError` when given both. It expands the path and resolves
+`executable: "tmux"` through PATH without starting a client. Socket names use
+`socket_directory`, then `TMUX_TMPDIR`, then `/tmp`, with tmux's per-user
+directory. Invalid paths/names or an unavailable executable raise
+`ArgumentError`.
 
-`Endpoint.from_env` is the explicit opt-in to environment discovery: it uses
-the socket from `TMUX`, or tmux's `default` socket name when absent. The
-ordinary constructor does not infer that choice. Descriptor equality compares
-resolved executable and socket path; it does not establish server identity.
+With neither a path nor a name, `Endpoint.new` picks the socket as tmux does
+when it is given neither `-S` nor `-L`, reading `environment:`, which is the
+process environment by default. The path in `LIBTMUX_SOCKET_PATH` wins; else
+the name in `LIBTMUX_SOCKET`; else the socket path before the first comma of
+`TMUX`, when run inside tmux; else tmux's `default` socket name. When both
+variables are set, the path wins. An empty variable counts as unset, and
+tmux ignores an empty `TMUX` or one that starts with a comma. A path or name
+passed as an argument ignores every variable. An invalid variable raises
+`ArgumentError` whose message names the variable and never its value.
+
+The choice is made in Ruby, not by tmux, because every client runs with `TMUX`
+and `TMUX_PANE` removed and reaches the daemon through a private route to the
+socket (see [Borrowed bindings](#borrowed-bindings)). Choosing a socket never
+starts a server: a socket that does not exist raises a typed binding error.
+
+`Endpoint.from_env` follows `TMUX` alone: it uses the socket from `TMUX`, or
+tmux's `default` socket name when absent, and ignores `LIBTMUX_SOCKET_PATH` and
+`LIBTMUX_SOCKET`. Descriptor equality compares resolved executable and socket
+path; it does not establish server identity.
 
 ## Borrowed bindings
 
 `Server.new` and `Server.open` bind an existing endpoint through a private
-socket route. They do filesystem I/O and one version probe of the running
-daemon (see [Supported tmux](#supported-tmux)), but do not start a daemon. The
-route pins the selected socket incarnation; replacing the public path or
-restarting there does not authorize retargeting. Ownership of the private
-directory is exclusive; deliberate same-user tampering is outside this
-ownership contract.
+socket route; without `endpoint:`, `socket_path:` or `socket_name:` they bind
+the endpoint `Endpoint.new` picks. They do filesystem I/O and one version
+probe of the running daemon (see [Supported tmux](#supported-tmux)), but do
+not start a daemon. The route pins the selected socket incarnation; replacing
+the public path or restarting there does not authorize retargeting. Ownership
+of the private directory is exclusive; deliberate same-user tampering is
+outside this ownership contract.
 
 Defaults admit 32 command requests and four control connections. `open` with
 a block closes the binding and returns the block's value; without a block it
