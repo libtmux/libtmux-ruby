@@ -341,8 +341,10 @@ connected sessions: 1
 sessions after client close: 1
 ```
 
-- [`Endpoint.new`][endpoint-new] takes an explicit socket path or socket name.
-  [`Endpoint.from_env`][endpoint-from_env] is the opt-in for `$TMUX`.
+- [`Endpoint.new`][endpoint-new] takes a socket path or socket name. With
+  neither, it picks the socket tmux would: `LIBTMUX_SOCKET_PATH`,
+  `LIBTMUX_SOCKET`, the server `$TMUX` names, then tmux's default socket.
+  [`Endpoint.from_env`][endpoint-from_env] follows `$TMUX` alone.
 - A binding keeps a private link to the socket it bound, so commands never
   reach a different daemon that later takes the same path.
 - A ref is valid on the server that issued it. Another server raises
@@ -711,8 +713,11 @@ server and lists every option.
   [Live handles][behavior-live-handles].
 - **A terminal emulator.** [`Pane#capture`][pane-capture] returns the bytes
   tmux holds for the screen, with the flags above to shape them.
-- **An implied server.** [`Endpoint.new`][endpoint-new] needs an explicit
-  socket, and no API in the recipes uses the default server.
+- **A server it starts on its own.** [`Server.new`][server-new] and
+  [`Server.open`][server-open] bind a running server and never start one. With
+  no socket named, [`Endpoint.new`][endpoint-new] picks the one tmux would:
+  `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET`, the server `TMUX` names, then tmux's
+  default socket. The recipes name a socket or own one.
 - **Replay.** A reconnected control connection reports a gap and never replays
   requests or missed output. See [Control flow][behavior-control-flow].
 - **Transactions.** A [group][server-run_group] runs in order and keeps the

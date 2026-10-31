@@ -6,6 +6,25 @@
   raw `select-layout`, including control lines, now refuses one below tmux 3.8
   instead of sending it. The `UnsupportedFeatureError` names tmux 3.8 as the
   minimum; upgrade tmux, or apply a checksummed layout. (#67)
+- **Behavior change:** `Endpoint.new`, `Server.new` and `Server.open` no longer
+  need a socket. With no `socket_path:` or `socket_name:`, they pick the socket
+  tmux picks when it is given none: the path in `LIBTMUX_SOCKET_PATH`, else the
+  name in `LIBTMUX_SOCKET`, else the socket `TMUX` names inside tmux, else
+  tmux's default socket. They raised `ArgumentError` before. A program started
+  inside tmux that names no socket now reaches that tmux's server; pass
+  `socket_name:` or `socket_path:` to keep it off, as a test suite should.
+  `Endpoint.from_env` still follows `TMUX` alone. Two edge cases now match
+  tmux: an empty `TMUX_TMPDIR` means `/tmp`, where `Endpoint.new(socket_name:)`
+  raised, and `Endpoint.from_env` reads `TMUX_TMPDIR` only from the hash it is
+  given and ignores a `TMUX` that starts with a comma, where it raised. (#71)
+- **Behavior change:** `libtmux-workspace load` and `plan --live` no longer
+  need `--socket`. Without it they use the same choice as `Server.new`, so a
+  command that failed with status 2 for a missing socket now acts on the
+  server tmux would pick. (#71)
+- **Behavior change:** `libtmux-mcp` no longer needs `--socket` or
+  `--socket-name`, and still refuses both together. Without a flag it serves
+  the same choice as `Server.new`, so start it with `--socket-name` or
+  `LIBTMUX_SOCKET` when an agent needs a server of its own. (#71)
 
 ## 0.1.0 (2026-10-25)
 

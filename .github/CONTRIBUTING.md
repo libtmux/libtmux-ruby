@@ -173,6 +173,20 @@ default tmux server or sweep another port's temporary files.
 Record the actual tmux version when behavior depends on it. A passing subset
 does not establish support for an entire version range.
 
+A command run by hand from a checkout, such as `libtmux-workspace load` or
+`libtmux-mcp` with no `--socket`, picks the socket tmux would pick, so inside a
+tmux pane it drives the server you work in. Keep a socket of your own in an
+uncommitted `.env`, which `.gitignore` already excludes, and load it before
+running one:
+
+```console
+$ echo 'LIBTMUX_SOCKET=libtmux-ruby-dev' > .env
+```
+
+```console
+$ set -a && . ./.env && set +a
+```
+
 ## Running CI against any tmux
 
 The [compatibility workflow](workflows/compatibility.yml) plans its jobs with

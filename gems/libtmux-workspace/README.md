@@ -317,9 +317,13 @@ $ libtmux-workspace plan \
     workspace.yaml
 ```
 
-[`load`][cli-load] and `plan --live` require `--socket` for an existing
-server. This detached creation example uses an explicitly supplied
-`TMUX_SOCKET` value:
+[`load`][cli-load] and `plan --live` act on an existing server. Without
+`--socket`, they use the socket in `LIBTMUX_SOCKET_PATH`, else the name in
+`LIBTMUX_SOCKET`, else the server `TMUX` names when run inside tmux, else
+tmux's default socket. When both variables are set, the path wins, an empty
+variable counts as unset, and `--socket` ignores both. A command run from a tmux
+pane with none of these set acts on that pane's server. This detached creation
+example names its socket with a `TMUX_SOCKET` value:
 
 ```console
 $ libtmux-workspace load \
@@ -334,7 +338,7 @@ $ libtmux-workspace load \
 | Option | Effect |
 | --- | --- |
 | `--json` | Write one structured result or error object to stdout |
-| `--socket PATH` | Select the existing server's socket for `load` or `plan --live` |
+| `--socket PATH` | Select the existing server's socket for `load` or `plan --live`; the default follows the socket variables, then `TMUX`, then tmux's default socket |
 | `--live` | Capture a snapshot before planning |
 | `--timeout SECONDS` | Bound each apply, live capture or switch operation; the default is 5 |
 | `--compensate` | Run guarded cleanup after an apply failure |

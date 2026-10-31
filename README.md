@@ -345,8 +345,11 @@ isolated installation and runs the recipes outside the checkout.
   a change.
 - **A terminal emulator.** [`Pane#capture`][pane-capture] returns what tmux's
   `capture-pane` prints for the pane.
-- **An implied server.** [`Endpoint.new`][endpoint-new] needs an explicit
-  socket, and no API in the recipes uses the default server.
+- **A server it starts on its own.** [`Server.new`][server-new] and
+  [`Server.open`][server-open] bind a running server and never start one. With
+  no socket named, [`Endpoint.new`][endpoint-new] picks the one tmux would:
+  `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET`, the server `TMUX` names, then tmux's
+  default socket. The recipes name a socket or own one.
 - **Whole-program typing.** RBS declarations ship with each gem, and selected
   installed calls are checked. See the [public methods][doc-api].
 - **Throughput claims.** The [benchmarks][doc-benchmark] list their workloads,

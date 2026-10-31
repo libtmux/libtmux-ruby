@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "minitest/autorun"
+require_relative "../test_helper"
 require_relative "../../gems/libtmux/lib/libtmux/source_query"
 require_relative "../../gems/libtmux/lib/libtmux/snapshot"
 

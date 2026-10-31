@@ -5,38 +5,52 @@ require "securerandom"
 require_relative "errors"
 
 module LibTmux
-  # Explicit executable and socket selection. Construction starts no clients.
+  # Executable and socket selection. Construction starts no clients.
+  #
+  # {#initialize Endpoint.new} takes a `socket_path:` or a `socket_name:`.
+  # With neither, it picks the socket as tmux does when it is given none, and
+  # `environment:` (the process environment by default) decides which: the
+  # path in `LIBTMUX_SOCKET_PATH`, else the name in `LIBTMUX_SOCKET`, else the
+  # socket `TMUX` names when run inside tmux, else tmux's `default` socket. A
+  # variable that is empty counts as unset, and a socket given as an argument
+  # ignores the variables. {.from_env} skips the `LIBTMUX_*` variables.
   class Endpoint
     attr_reader :executable, :socket_path
 
-    def initialize(socket_path: nil, socket_name: nil, executable: "tmux", socket_directory: nil)
-      unless [socket_path, socket_name].count { |value| !value.nil? } == 1
-        raise ArgumentError, "choose exactly one socket_path or socket_name"
+    def initialize(socket_path: nil, socket_name: nil, executable: "tmux", socket_directory: nil, environment: ENV)
+      unless socket_path.nil? || socket_name.nil?
+        raise ArgumentError, "choose at most one socket_path or socket_name"
+      end
+      origin = path_label = nil
+      if socket_path.nil? && socket_name.nil?
+        raise ArgumentError, "socket_directory applies only to socket_name" if socket_directory
+        socket_path, socket_name, origin = Internal::SocketChoice.call(environment)
       end
       if socket_name
-        validate_string(socket_name, "socket_name")
+        label = origin || "socket_name"
+        validate_string(socket_name, label)
         if socket_name.include?("/") || [".", ".."].include?(socket_name)
-          raise ArgumentError, "socket_name must be a single filename"
+          raise ArgumentError, "#{label} must be a single filename"
         end
-        directory = socket_directory || ENV["TMUX_TMPDIR"] || "/tmp"
+        directory = socket_directory || Internal::SocketChoice.present(environment["TMUX_TMPDIR"]) || "/tmp"
         validate_string(directory, "socket_directory")
+        path_label = socket_directory ? "socket_directory" : "TMUX_TMPDIR"
         socket_path = File.join(directory, "tmux-#{Process.uid}", socket_name)
       elsif socket_directory
         raise ArgumentError, "socket_directory applies only to socket_name"
       end
-      validate_string(socket_path, "socket_path")
+      validate_string(socket_path, origin || "socket_path")
       validate_string(executable, "executable")
-      @socket_path = File.expand_path(socket_path).freeze
+      @socket_path = expand(socket_path, path_label || origin || "socket_path").freeze
       @executable = resolve_executable(executable).freeze
       freeze
     end
 
+    # The socket of the tmux server this process runs inside, else tmux's
+    # `default` socket. It ignores `LIBTMUX_SOCKET_PATH` and `LIBTMUX_SOCKET`.
     def self.from_env(env = ENV, **options)
-      if env["TMUX"] && !env["TMUX"].empty?
-        new(socket_path: env["TMUX"].split(",", 3).first, **options)
-      else
-        new(socket_name: "default", socket_directory: env["TMUX_TMPDIR"], **options)
-      end
+      socket_path, socket_name = Internal::SocketChoice.tmux(env)
+      new(socket_path: socket_path, socket_name: socket_name, environment: env, **options)
     end
 
     def ==(other)
@@ -49,10 +63,18 @@ module LibTmux
     end
 
     def inspect
-      "#<#{self.class} explicit Unix socket>"
+      "#<#{self.class} Unix socket>"
     end
 
     private
+
+    # File.expand_path puts the user it cannot find in its message, so the
+    # message here names the argument or variable instead.
+    def expand(path, label, base = nil)
+      base ? File.expand_path(path, base) : File.expand_path(path)
+    rescue ArgumentError
+      raise ArgumentError, "#{label} cannot be expanded to a path; its leading ~ names no home directory"
+    end
 
     def validate_string(value, name)
       unless value.is_a?(String) && !value.empty? && !value.include?("\0")
@@ -62,10 +84,10 @@ module LibTmux
 
     def resolve_executable(value)
       candidates = if value.include?(File::SEPARATOR)
-        [File.expand_path(value)]
+        [expand(value, "executable")]
       else
         ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).map do |directory|
-          File.expand_path(value, directory.empty? ? Dir.pwd : directory)
+          expand(value, "executable", directory.empty? ? Dir.pwd : directory)
         end
       end
       candidates.find { |path| File.file?(path) && File.executable?(path) } ||
@@ -74,6 +96,37 @@ module LibTmux
   end
 
   module Internal
+    # Picks the socket tmux would use if it were given neither -S nor -L, from
+    # the variables that stand for them and the ones tmux reads itself: -S
+    # beats -L, and -L beats TMUX. Each pick is [path, name, variable], with
+    # the variable named so that a bad value is reported by name.
+    module SocketChoice
+      module_function
+
+      def call(environment)
+        if (path = present(environment["LIBTMUX_SOCKET_PATH"]))
+          [path, nil, "LIBTMUX_SOCKET_PATH"]
+        elsif (name = present(environment["LIBTMUX_SOCKET"]))
+          [nil, name, "LIBTMUX_SOCKET"]
+        else
+          tmux(environment)
+        end
+      end
+
+      # tmux ignores a TMUX that is empty or starts with a comma, and takes
+      # the socket path before the first comma of one that does not.
+      def tmux(environment)
+        inside = present(environment["TMUX"])
+        return [nil, "default", nil] if inside.nil? || inside.start_with?(",")
+
+        [inside.split(",", 2).first, nil, "TMUX"]
+      end
+
+      def present(value)
+        value if value.is_a?(String) && !value.empty?
+      end
+    end
+
     # Keep the socket inode alive and route through it; PID timestamps can repeat.
     class SocketIdentity
       attr_reader :key, :release

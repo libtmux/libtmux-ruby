@@ -85,7 +85,9 @@ module LibTmux
         @parser ||= OptionParser.new do |options|
           options.banner = "Usage: libtmux-workspace validate|plan|load [options] [FILE]"
           options.on("--json", "Write structured JSON to stdout") { @json = true }
-          options.on("--socket PATH", "Explicit existing tmux socket for load or plan --live") { |value| @options[:socket] = value }
+          options.on("--socket PATH", "Socket of the existing tmux server for load or plan --live",
+            "Default: LIBTMUX_SOCKET_PATH, then LIBTMUX_SOCKET, then the",
+            "server TMUX names, then tmux's default socket") { |value| @options[:socket] = value }
           options.on("--live", "Acquire a snapshot before planning") { @options[:live] = true }
           options.on("--timeout SECONDS", Float, "Per-operation apply/capture/switch deadline (default: 5)") { |value| @options[:timeout] = value }
           options.on("--compensate", "Attempt guarded cleanup of positively created resources on failure") { @options[:compensate] = true }
@@ -125,7 +127,7 @@ module LibTmux
         raise ArgumentError if command != "load" && (@options[:attach] || @options[:switch] || @options[:compensate])
         raise ArgumentError if @options[:live] && command != "plan"
         live = command == "load" || @options[:live]
-        raise ArgumentError if live && (!@options[:socket].is_a?(String) || @options[:socket].empty?)
+        raise ArgumentError if @options.key?(:socket) && @options[:socket].empty?
         raise ArgumentError if !live && @options[:socket]
         if @options[:attach]
           term = @environment["TERM"]
@@ -145,7 +147,23 @@ module LibTmux
       end
 
       def with_server(&block)
-        LibTmux::Server.open(socket_path: File.expand_path(@options.fetch(:socket), @directory), &block)
+        LibTmux::Server.open(endpoint: endpoint, &block)
+      end
+
+      # --socket wins; otherwise the core reads the variables, TMUX and tmux's default.
+      def endpoint
+        socket = @options[:socket]
+        LibTmux::Endpoint.new(socket_path: (expand_socket(socket) if socket), environment: @environment)
+      rescue ArgumentError => error
+        @argument_message = "Invalid arguments: #{error.message}."
+        raise
+      end
+
+      # File.expand_path puts the user it cannot find in its message.
+      def expand_socket(socket)
+        File.expand_path(socket, @directory)
+      rescue ArgumentError
+        raise ArgumentError, "--socket cannot be expanded to a path; its leading ~ names no home directory"
       end
 
       def human_plan(plan)

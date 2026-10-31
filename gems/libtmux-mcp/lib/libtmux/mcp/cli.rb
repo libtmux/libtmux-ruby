@@ -6,12 +6,12 @@ require "optparse"
 module LibTmux
   module MCP
     class CLI
-      def self.run(arguments, input: $stdin, out: $stdout, err: $stderr)
-        new(arguments, input, out, err).run
+      def self.run(arguments, input: $stdin, out: $stdout, err: $stderr, environment: ENV)
+        new(arguments, input, out, err, environment).run
       end
 
-      def initialize(arguments, input, output, error)
-        @arguments, @input, @output, @error = arguments.dup, input, output, error
+      def initialize(arguments, input, output, error, environment = ENV)
+        @arguments, @input, @output, @error, @environment = arguments.dup, input, output, error, environment
         @options = {endpoint_name: "local", executable: "tmux", tools: Catalog::READ_ONLY.dup,
           timeout: 5.0, concurrency: 4, max_requests: 32, max_frame_bytes: 1 << 20,
           max_output_bytes: 1 << 22, max_response_bytes: 1 << 20,
@@ -27,8 +27,7 @@ module LibTmux
           return 0
         end
         validate_arguments
-        endpoint = Endpoint.new(socket_path: @options[:socket_path], socket_name: @options[:socket_name],
-          executable: @options.fetch(:executable))
+        endpoint = build_endpoint
         Async do |task|
           begin
             serve(endpoint, task)
@@ -44,7 +43,7 @@ module LibTmux
           end
         end.wait
       rescue OptionParser::ParseError, ArgumentError => error
-        report("Invalid arguments; use --help for supported options.", 2, failure: error)
+        report(@invalid_endpoint || "Invalid arguments; use --help for supported options.", 2, failure: error)
       rescue Interrupt, LibTmux::Cancelled => error
         report("MCP interrupted; dispatched effects may remain.", 130, failure: error)
       rescue StandardError => error
@@ -52,6 +51,25 @@ module LibTmux
       end
 
       private
+
+      # --socket and --socket-name win; otherwise the core reads the variables,
+      # TMUX and tmux's default.
+      def build_endpoint
+        socket_path = @options[:socket_path]
+        socket_path = expand_socket(socket_path) unless socket_path.nil? || socket_path.empty?
+        Endpoint.new(socket_path: socket_path, socket_name: @options[:socket_name],
+          executable: @options.fetch(:executable), environment: @environment)
+      rescue ArgumentError => error
+        @invalid_endpoint = "Invalid arguments: #{error.message}."
+        raise
+      end
+
+      # File.expand_path puts the user it cannot find in its message.
+      def expand_socket(socket)
+        File.expand_path(socket)
+      rescue ArgumentError
+        raise ArgumentError, "--socket cannot be expanded to a path; its leading ~ names no home directory"
+      end
 
       def serve(endpoint, task)
         Server.open(endpoint: endpoint) do |server|
@@ -185,9 +203,12 @@ module LibTmux
 
       def parser
         @parser ||= OptionParser.new do |options|
-          options.banner = "Usage: libtmux-mcp (--socket PATH | --socket-name NAME) [options]"
-          options.on("--socket PATH", "Borrow this existing tmux Unix socket") { |value| @options[:socket_path] = value }
-          options.on("--socket-name NAME", "Borrow this explicit tmux socket name") { |value| @options[:socket_name] = value }
+          options.banner = "Usage: libtmux-mcp [--socket PATH | --socket-name NAME] [options]"
+          options.on("--socket PATH", "Borrow the tmux server at this Unix socket",
+            "Default: LIBTMUX_SOCKET_PATH, then LIBTMUX_SOCKET, then the",
+            "server TMUX names, then tmux's default socket") { |value| @options[:socket_path] = value }
+          options.on("--socket-name NAME", "Borrow the tmux server with this socket name",
+            "Not with --socket") { |value| @options[:socket_name] = value }
           options.on("--endpoint NAME", "Public endpoint alias (default: local)") { |value| @options[:endpoint_name] = value }
           options.on("--tmux EXECUTABLE", "Resolve and pin this tmux executable at startup") { |value| @options[:executable] = value }
           options.on("--enable-tool NAME", "Enable one additional tool; repeat as needed") { |value| @options.fetch(:tools) << value }
@@ -211,7 +232,7 @@ module LibTmux
 
       def validate_arguments
         raise ArgumentError unless @arguments.empty?
-        raise ArgumentError unless [@options[:socket_path], @options[:socket_name]].compact.length == 1
+        raise ArgumentError if @options[:socket_path] && @options[:socket_name]
         raise ArgumentError unless @options.fetch(:tools).all? { |name| Catalog::NAMES.include?(name) }
         raise ArgumentError unless /\A[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\z/.match?(@options.fetch(:endpoint_name))
         raise ArgumentError unless @options.fetch(:timeout).finite? && @options.fetch(:timeout).positive?

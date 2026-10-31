@@ -58,7 +58,7 @@ module LibTmux
   class Endpoint
     attr_reader executable: String
     attr_reader socket_path: String
-    def initialize: (?socket_path: String?, ?socket_name: String?, ?executable: String, ?socket_directory: String?) -> void
+    def initialize: (?socket_path: String?, ?socket_name: String?, ?executable: String, ?socket_directory: String?, ?environment: untyped) -> void
     def self.from_env: (?untyped, **untyped) -> Endpoint
     def ==: (untyped) -> bool
     alias eql? ==

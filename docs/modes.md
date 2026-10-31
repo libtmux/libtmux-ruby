@@ -11,8 +11,10 @@
 | Workspace | Parsing and planning are inert; apply performs ordered commands | Created-reference ledger, observed effects and explicit uncertainty |
 
 Use `Server.open(socket_path: ...)` to borrow a daemon through a pinned
-binding. `Server.start` creates an owned daemon on a unique socket and closes
-it with the block. No API in these recipes chooses the default server.
+binding. With no socket named, `Server.open` borrows the daemon tmux would pick
+(see [Endpoints](reference/behavior.md#endpoints)). `Server.start` creates an
+owned daemon on a unique socket and closes it with the block. These recipes
+name a socket or own one.
 
 `CommandResult#success?` means the client exited successfully. Sending input
 does not establish shell completion. A `GuardedReply` has no `success?`:

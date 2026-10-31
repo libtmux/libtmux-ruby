@@ -88,6 +88,35 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
     end
   end
 
+  def test_load_and_live_plan_without_a_socket_flag_use_the_server_the_environment_names
+    LibTmuxTest::TmuxFixture.open do |fixture|
+      # An unnamed socket would land in the fixture's directory, where no server runs.
+      environment = {"LIBTMUX_SOCKET_PATH" => fixture.socket_path, "TMUX_TMPDIR" => File.dirname(fixture.socket_path)}
+      status, value, diagnostics = cli(fixture, ["plan", "--live", write_config(fixture, "from-variable")], socket: false, environment: environment)
+      assert_equal 0, status
+      assert_equal "captured_create", value.fetch("mode")
+      assert_empty diagnostics
+      status, value, diagnostics = cli(fixture, ["load", write_config(fixture, "from-variable")], socket: false, environment: environment)
+      assert_equal 0, status
+      assert_equal true, value.fetch("success")
+      assert_empty diagnostics
+      assert_equal ["fixture", "from-variable"], fixture.tmux("list-sessions", "-F", '#{session_name}').first.lines.map(&:chomp).sort
+    end
+  end
+
+  def test_load_without_a_socket_flag_or_server_fails_without_starting_one
+    Dir.mktmpdir("libtmux-ruby-cli-") do |directory|
+      file = File.join(directory, "workspace.json")
+      File.write(file, JSON.generate({session_name: "none", windows: [{window_name: "one", panes: [{}]}]}))
+      output, diagnostics = StringIO.new, StringIO.new
+      status = LibTmux::Workspace::CLI.run(["load", file, "--json"], out: output, err: diagnostics, directory: directory,
+        environment: {"TMUX_TMPDIR" => directory})
+      assert_equal 1, status
+      assert_equal "execution", JSON.parse(output.string).fetch("error").fetch("kind")
+      assert_empty Dir.glob(File.join(directory, "**", "*"), File::FNM_DOTMATCH).select { |path| File.socket?(path) }
+    end
+  end
+
   def test_partial_application_and_interrupt_keep_the_ledger_with_distinct_exit_codes
     LibTmuxTest::TmuxFixture.open do |fixture|
       original = LibTmux::Options.instance_method(:set)
@@ -171,9 +200,10 @@ class WorkspaceCLIIntegrationTest < Minitest::Test
     file
   end
 
-  def cli(fixture, arguments)
+  def cli(fixture, arguments, socket: true, environment: {})
     output, diagnostics = StringIO.new, StringIO.new
-    status = LibTmux::Workspace::CLI.run([*arguments, "--json", "--socket", fixture.socket_path], out: output, err: diagnostics, environment: {})
+    flags = socket ? ["--socket", fixture.socket_path] : []
+    status = LibTmux::Workspace::CLI.run([*arguments, "--json", *flags], out: output, err: diagnostics, environment: environment)
     [status, JSON.parse(output.string), diagnostics.string]
   end
 end
