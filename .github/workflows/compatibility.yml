@@ -32,6 +32,13 @@ on:
         type: choice
         options: [ubuntu-24.04, ubuntu-latest, ubuntu-22.04]
         default: ubuntu-24.04
+      tmate:
+        description: >-
+          Open a tmate session on the one job, before the tests or after a
+          failure. It needs scope custom with a single tmux-ref and ruby.
+        type: choice
+        options: ['off', before-tests, on-failure]
+        default: 'off'
   workflow_call:
     inputs:
       scope:
@@ -82,6 +89,7 @@ jobs:
           TMUX_REF: ${{ inputs.tmux-ref }}
           RUBY: ${{ inputs.ruby }}
           IMAGE: ${{ inputs.os }}
+          TMATE: ${{ inputs.tmate }}
         run: |
           ruby scripts/ci-plan plan \
             --event "$EVENT" \
@@ -89,6 +97,7 @@ jobs:
             --tmux-ref "$TMUX_REF" \
             --ruby "$RUBY" \
             --os "$IMAGE" \
+            --tmate "$TMATE" \
             --github-output "$GITHUB_OUTPUT" \
             --summary "$GITHUB_STEP_SUMMARY"
 
@@ -123,7 +132,8 @@ jobs:
     needs: plan
     if: needs.plan.outputs.run_cells == 'true'
     runs-on: ${{ needs.plan.outputs.os }}
-    timeout-minutes: 20
+    # A tmate session needs longer than a test run does.
+    timeout-minutes: ${{ matrix.tmate == 'off' && 20 || 60 }}
     strategy:
       fail-fast: false
       # The plan chooses the cells and never leaves this empty when it runs.
@@ -165,6 +175,12 @@ jobs:
           make -j2
           make install
           test "$("$RUNNER_TEMP/tmux-install/bin/tmux" -V)" = "tmux $TMUX_VERSION"
+      - name: Open a tmate session before the tests
+        if: ${{ github.event_name == 'workflow_dispatch' && matrix.tmate == 'before-tests' }}
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
       - name: Run the complete cell
         timeout-minutes: 5
         run: >-
@@ -180,13 +196,19 @@ jobs:
           name: matrix-${{ matrix.system }}-${{ matrix.ruby }}-${{ matrix.tmux }}
           path: build/matrix/
           if-no-files-found: warn
+      - name: Open a tmate session after a failure
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' && matrix.tmate == 'on-failure' }}
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
 
   unsupported:
     name: ${{ matrix.name }}
     needs: plan
     if: needs.plan.outputs.run_unsupported == 'true'
     runs-on: ${{ needs.plan.outputs.os }}
-    timeout-minutes: 10
+    timeout-minutes: ${{ matrix.tmate == 'off' && 10 || 60 }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.unsupported) }}
@@ -221,6 +243,12 @@ jobs:
           ./configure --prefix="$RUNNER_TEMP/unsupported-tmux"
           make -j2
           make install
+      - name: Open a tmate session before the tests
+        if: ${{ github.event_name == 'workflow_dispatch' && matrix.tmate == 'before-tests' }}
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
       - name: Exercise native refusal through a supported client
         env:
           LIBTMUX_VERSION_CHECK_CLIENT_TMUX: /usr/bin/tmux
@@ -238,6 +266,12 @@ jobs:
               echo "no version-check test is assigned to tmux $TMUX_VERSION" >&2
               exit 1 ;;
           esac
+      - name: Open a tmate session after a failure
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' && matrix.tmate == 'on-failure' }}
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
 
   # The development build and any ref the manifest does not list: built from
   # source at a commit and run through the outer suite.
@@ -246,7 +280,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.run_development == 'true'
     runs-on: ${{ needs.plan.outputs.os }}
-    timeout-minutes: 25
+    timeout-minutes: ${{ matrix.tmate == 'off' && 25 || 60 }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.development) }}
@@ -278,9 +312,21 @@ jobs:
           fi
           dirname "$binary" >> "$GITHUB_PATH"
           echo "LIBTMUX_TEST_TMUX=$binary" >> "$GITHUB_ENV"
+      - name: Open a tmate session before the tests
+        if: ${{ github.event_name == 'workflow_dispatch' && matrix.tmate == 'before-tests' }}
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
       - name: Run the outer suite against the build
         timeout-minutes: 10
         run: bundle exec scripts/check outer
+      - name: Open a tmate session after a failure
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' && matrix.tmate == 'on-failure' }}
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
+        timeout-minutes: 30
+        with:
+          limit-access-to-actor: true
 
   # One check to require. A job the plan scheduled has to have succeeded and a
   # job it left out has to have been skipped, so a failure that skips its

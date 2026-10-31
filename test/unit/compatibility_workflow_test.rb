@@ -99,7 +99,7 @@ class CompatibilityWorkflowTest < Minitest::Test
       group["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
 
     inputs = triggers(workflow).dig("workflow_dispatch", "inputs")
-    found << "the dispatch inputs are not the plan's" unless inputs.keys.sort == %w[os ruby scope tmux-ref]
+    found << "the dispatch inputs are not the plan's" unless inputs.keys.sort == %w[os ruby scope tmate tmux-ref]
     found << "the scope input must offer exactly the plan's scopes and default to edges" unless
       inputs.dig("scope", "options") == CIPlan::SCOPES && inputs.dig("scope", "default") == "edges"
     found << "the os input must offer exactly the plan's runner images" unless inputs.dig("os", "options") == CIPlan::RUNNERS
@@ -124,6 +124,37 @@ class CompatibilityWorkflowTest < Minitest::Test
     (release.fetch("jobs").keys - [name]).each do |job|
       found << "release: #{job} must wait for the full compatibility run" unless reaches.call(job)
     end
+    found
+  end
+
+  TMATE = "mxschmitt/action-tmate"
+  TEST_JOBS = %w[cell unsupported development].freeze
+
+  # What makes a debugging session unsafe or misplaced.
+  def self.session_problems(workflow, release)
+    found = []
+    jobs = workflow.fetch("jobs")
+    jobs.each do |name, job|
+      sessions = steps_of(job).select { |step| step["uses"].to_s.start_with?(TMATE) }
+      found << "#{name}: a debugging session belongs only in the test jobs" if !sessions.empty? && !TEST_JOBS.include?(name)
+      next unless TEST_JOBS.include?(name)
+
+      found << "#{name}: must offer a session before the tests and one after a failure" unless sessions.length == 2
+      sessions.each do |step|
+        found << "a debugging session must be pinned to a full commit SHA" unless step["uses"].match?(/\A#{TMATE}@[0-9a-f]{40}\z/)
+        found << "a debugging session must be limited to the actor" unless step.dig("with", "limit-access-to-actor") == true
+        found << "a debugging session needs its own time limit" unless step["timeout-minutes"].is_a?(Integer)
+        found << "a debugging session runs only on a dispatch, on the job the plan chose" unless
+          step["if"].to_s.include?("github.event_name == 'workflow_dispatch'") && step["if"].to_s.include?("matrix.tmate ==")
+      end
+      found << "#{name}: the job must cap its time and give the debugging job more" unless job["timeout-minutes"].to_s.match?(/\A\$\{\{ matrix\.tmate == 'off' && \d+ \|\| \d+ \}\}\z/)
+    end
+    inputs = triggers(workflow).dig("workflow_dispatch", "inputs")
+    found << "the tmate input must offer exactly the plan's modes and default to off" unless
+      inputs.dig("tmate", "options") == CIPlan::TMATE_MODES && inputs.dig("tmate", "default") == "off"
+    plan_env = steps_of(jobs.fetch("plan")).filter_map { |step| step["env"] }.reduce({}, :merge)
+    found << "plan: must pass the tmate input through env" unless plan_env["TMATE"] == "${{ inputs.tmate }}"
+    found << "release: a release never opens a debugging session" if strings(release).any? { |text| text.include?(TMATE) }
     found
   end
 
@@ -175,6 +206,41 @@ class CompatibilityWorkflowTest < Minitest::Test
     "the release prepares without waiting" => [->(_w, r) { r["jobs"]["prepare"].delete("needs") }, "prepare must wait for the full compatibility run"],
     "the upload skips the preparation" => [->(_w, r) { r["jobs"]["publish"]["needs"] = [] }, "publish must wait for the full compatibility run"]
   }.freeze
+
+  SESSION_MUTATIONS = {
+    "the session is not pinned to a commit" => [->(w, _r) { w["jobs"]["cell"]["steps"].each { |s| s["uses"] = "#{TMATE}@v3" if s["uses"].to_s.start_with?(TMATE) } }, "pinned to a full commit SHA"],
+    "the session is open to every collaborator" => [->(w, _r) { w["jobs"]["cell"]["steps"].each { |s| s["with"]["limit-access-to-actor"] = false if s["uses"].to_s.start_with?(TMATE) } }, "limited to the actor"],
+    "the session has no time limit of its own" => [->(w, _r) { w["jobs"]["development"]["steps"].each { |s| s.delete("timeout-minutes") if s["uses"].to_s.start_with?(TMATE) } }, "its own time limit"],
+    "the session runs on every event" => [->(w, _r) { w["jobs"]["unsupported"]["steps"].each { |s| s["if"] = "${{ matrix.tmate == 'before-tests' }}" if s["uses"].to_s.start_with?(TMATE) } }, "only on a dispatch"],
+    "the session runs on every job" => [->(w, _r) { w["jobs"]["cell"]["steps"].each { |s| s["if"] = "${{ github.event_name == 'workflow_dispatch' }}" if s["uses"].to_s.start_with?(TMATE) } }, "on the job the plan chose"],
+    "the session moves to the report" => [->(w, _r) { w["jobs"]["report"]["steps"] << {"uses" => "#{TMATE}@#{'a' * 40}"} }, "report: a debugging session belongs only in the test jobs"],
+    "a test job drops one session" => [->(w, _r) { w["jobs"]["cell"]["steps"].reject! { |s| s["name"] == "Open a tmate session after a failure" } }, "cell: must offer a session before the tests"],
+    "a test job's time ignores the session" => [->(w, _r) { w["jobs"]["unsupported"]["timeout-minutes"] = 10 }, "give the debugging job more"],
+    "the tmate input offers another mode" => [->(w, _r) { CompatibilityWorkflowTest.triggers(w)["workflow_dispatch"]["inputs"]["tmate"]["options"] = %w[off always] }, "the plan's modes"],
+    "the tmate input defaults to a session" => [->(w, _r) { CompatibilityWorkflowTest.triggers(w)["workflow_dispatch"]["inputs"]["tmate"]["default"] = "before-tests" }, "default to off"],
+    "the plan stops hearing the tmate input" => [->(w, _r) { w["jobs"]["plan"]["steps"].each { |s| s["env"]&.delete("TMATE") } }, "must pass the tmate input"],
+    "a session returns to the release" => [->(_w, r) { r["jobs"]["publish"]["steps"] << {"uses" => "#{TMATE}@#{'a' * 40}"} }, "a release never opens a debugging session"]
+  }.freeze
+
+  def test_the_debugging_session_is_safe
+    assert_equal [], self.class.session_problems(WORKFLOW, RELEASE)
+  end
+
+  def test_no_other_workflow_opens_a_session
+    Dir[File.join(ROOT, ".github/workflows/*.yml")].each do |path|
+      next if File.basename(path) == "compatibility.yml"
+
+      refute_includes File.read(path), TMATE, path
+    end
+  end
+
+  def test_a_session_mutation_is_reported
+    SESSION_MUTATIONS.each do |description, (mutation, message)|
+      workflow, release = mutate(&mutation)
+      problems = self.class.session_problems(workflow, release)
+      assert problems.any? { |problem| problem.include?(message) }, "#{description}: #{message} not in #{problems.inspect}"
+    end
+  end
 
   def test_a_mutation_is_reported
     MUTATIONS.each do |description, (mutation, message)|
