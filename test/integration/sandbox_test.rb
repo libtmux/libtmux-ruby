@@ -3,18 +3,40 @@
 require_relative "../test_helper"
 require "libtmux"
 require "open3"
+require "tmpdir"
 
 # Each case first requires the sandbox to hold, so a broken one fails before
 # any client runs. The clients here name no socket; the sandbox is what
-# decides where they look, and nothing listens there.
+# decides where they look, and nothing listens there. The controls run the
+# same client in a world that is not the sandbox and need the canary's own
+# test to reject it. Failure messages are fixed text: what tmux prints names
+# paths taken from the environment.
 class SandboxCanaryTest < Minitest::Test
   EXECUTABLE = ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")
 
   def test_a_client_that_names_no_socket_looks_only_in_the_sandbox
     require_sandbox
-    output, status = Open3.capture2e(EXECUTABLE, "-N", "-f", "/dev/null", "list-sessions")
+    output, status = bare_client
     refute_predicate status, :success?
-    assert_includes output, default_socket
+    assert looks_in_the_sandbox?(output), "the client looked outside the sandbox"
+  end
+
+  def test_the_canary_rejects_a_client_whose_tmux_tmpdir_is_another_directory
+    require_sandbox
+    Dir.mktmpdir("libtmux-ruby-canary-", "/tmp") do |other|
+      output, status = bare_client("TMUX_TMPDIR" => other)
+      refute_predicate status, :success?
+      refute looks_in_the_sandbox?(output)
+      assert output.include?(File.join(other, "tmux-#{Process.uid}", "default")), "the client did not name the path it looked in"
+    end
+  end
+
+  def test_the_canary_rejects_a_client_that_inherits_a_server
+    require_sandbox
+    output, status = bare_client("TMUX" => "/lt-rb-canary-decoy/socket,1,0")
+    refute_predicate status, :success?
+    refute looks_in_the_sandbox?(output)
+    assert output.include?("/lt-rb-canary-decoy/socket"), "the client did not name the path it looked in"
   end
 
   def test_the_resolver_looks_where_a_client_looks
@@ -41,6 +63,14 @@ class SandboxCanaryTest < Minitest::Test
 
   def require_sandbox
     assert_empty LibTmuxTest::Sandbox.violations(ENV), "refusing to start a client outside the sandbox"
+  end
+
+  def bare_client(env = {})
+    Open3.capture2e(env, EXECUTABLE, "-N", "-f", "/dev/null", "list-sessions")
+  end
+
+  def looks_in_the_sandbox?(output)
+    output.include?(default_socket)
   end
 
   def default_socket

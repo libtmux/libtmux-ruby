@@ -249,6 +249,18 @@ class SandboxTest < Minitest::Test
     end
   end
 
+  def test_the_canary_failure_does_not_echo_what_tmux_printed
+    canary = File.join(TESTS, "integration", "sandbox_test.rb")
+    Dir.mktmpdir("libtmux-ruby-sandbox-") do |directory|
+      printer = fake_tmux(directory, "echo 'error connecting to /lt-rb-echo-decoy/socket (No such file or directory)'; exit 1")
+      output, error, status = Open3.capture3({"LIBTMUX_TEST_TMUX" => printer}, Gem.ruby, "-I#{TESTS}", canary, "-n",
+        "test_a_client_that_names_no_socket_looks_only_in_the_sandbox")
+      refute_predicate status, :success?, "the canary accepted a client that looked elsewhere"
+      assert_includes output, "the client looked outside the sandbox"
+      refute_includes output + error, "lt-rb-echo-decoy"
+    end
+  end
+
   def test_a_run_that_leaves_nothing_exits_clean_and_removes_its_directory
     with_recorder do |recorder, run|
       output, error, status = run.call(true, 'puts ENV.fetch("TMUX_TMPDIR")')
