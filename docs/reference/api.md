@@ -312,13 +312,13 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#==](../../gems/libtmux/lib/libtmux/endpoint.rb#L55) | `bool` | [Endpoints](behavior.md#endpoints) |
-| [#eql?](../../gems/libtmux/lib/libtmux/endpoint.rb#L55) | `bool` | [Endpoints](behavior.md#endpoints) |
+| [#==](../../gems/libtmux/lib/libtmux/endpoint.rb#L56) | `bool` | [Endpoints](behavior.md#endpoints) |
+| [#eql?](../../gems/libtmux/lib/libtmux/endpoint.rb#L56) | `bool` | [Endpoints](behavior.md#endpoints) |
 | [#executable](../../gems/libtmux/lib/libtmux/endpoint.rb#L18) | `::String` | [Endpoints](behavior.md#endpoints) |
-| [#hash](../../gems/libtmux/lib/libtmux/endpoint.rb#L60) | `::Integer` | [Endpoints](behavior.md#endpoints) |
-| [#inspect](../../gems/libtmux/lib/libtmux/endpoint.rb#L64) | `::String` | [Endpoints](behavior.md#endpoints) |
+| [#hash](../../gems/libtmux/lib/libtmux/endpoint.rb#L61) | `::Integer` | [Endpoints](behavior.md#endpoints) |
+| [#inspect](../../gems/libtmux/lib/libtmux/endpoint.rb#L65) | `::String` | [Endpoints](behavior.md#endpoints) |
 | [#socket_path](../../gems/libtmux/lib/libtmux/endpoint.rb#L18) | `::String` | [Endpoints](behavior.md#endpoints) |
-| [.from_env](../../gems/libtmux/lib/libtmux/endpoint.rb#L50) | `::LibTmux::Endpoint` | [Endpoints](behavior.md#endpoints) |
+| [.from_env](../../gems/libtmux/lib/libtmux/endpoint.rb#L51) | `::LibTmux::Endpoint` | [Endpoints](behavior.md#endpoints) |
 | [.new](../../gems/libtmux/lib/libtmux/endpoint.rb#L20) | `::LibTmux::Endpoint` | [Endpoints](behavior.md#endpoints) |
 
 ## LibTmux::Entity

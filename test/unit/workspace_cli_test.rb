@@ -133,6 +133,22 @@ class WorkspaceCLITest < Minitest::Test
     end
   end
 
+  def test_a_socket_that_cannot_expand_is_refused_by_name_before_any_server_opens
+    user = "libtmux-ruby-no-such-user"
+    Dir.mktmpdir("libtmux-ruby-cli-") do |work|
+      file = write_config(work)
+      [[["--socket", "~#{user}/x"], {}, "--socket"], [[], {"LIBTMUX_SOCKET_PATH" => "~#{user}/x"}, "LIBTMUX_SOCKET_PATH"]].each do |flags, variables, name|
+        status, endpoints, output = capturing_open do |environment|
+          run_cli(["load", "--json", *flags, file], work, environment: environment.merge(variables))
+        end
+        assert_equal 2, status, name
+        assert_empty endpoints, name
+        assert_includes output, name
+        refute_includes output, user
+      end
+    end
+  end
+
   def test_an_empty_socket_flag_and_a_socket_flag_without_a_live_command_are_refused_before_any_server_opens
     Dir.mktmpdir("libtmux-ruby-cli-") do |work|
       file = write_config(work)

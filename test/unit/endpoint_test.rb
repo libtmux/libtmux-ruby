@@ -100,6 +100,19 @@ class EndpointTest < Minitest::Test
     end
   end
 
+  def test_a_path_that_cannot_expand_is_refused_by_name_without_naming_the_user
+    user = "libtmux-ruby-no-such-user"
+    [[{socket_path: "~#{user}/x"}, "socket_path"],
+      [{environment: {"LIBTMUX_SOCKET_PATH" => "~#{user}/x"}}, "LIBTMUX_SOCKET_PATH"],
+      [{environment: {"TMUX" => "~#{user}/x,1,0"}}, "TMUX"],
+      [{socket_name: "named", socket_directory: "~#{user}"}, "socket_directory"],
+      [{environment: {"LIBTMUX_SOCKET" => "named", "TMUX_TMPDIR" => "~#{user}"}}, "TMUX_TMPDIR"]].each do |options, label|
+      error = assert_raises(ArgumentError) { LibTmux::Endpoint.new(**options) }
+      assert_includes error.message, label
+      refute_includes error.message, user
+    end
+  end
+
   def test_from_env_follows_tmux_alone_and_ignores_the_variables
     variables = {"LIBTMUX_SOCKET_PATH" => "/variable/path.sock", "LIBTMUX_SOCKET" => "variable", "TMUX_TMPDIR" => TMUX_DIRECTORY}
     assert_equal "/inside/socket", LibTmux::Endpoint.from_env(variables.merge("TMUX" => "/inside/socket,1,0")).socket_path

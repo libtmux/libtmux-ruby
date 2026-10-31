@@ -93,6 +93,25 @@ class McpCLITest < Minitest::Test
     refute_includes error, "private-"
   end
 
+  def test_a_socket_that_cannot_expand_is_refused_by_name_before_any_server_opens
+    user = "libtmux-ruby-no-such-user"
+    private_directory = {"TMUX_TMPDIR" => "/private-tmux-tmpdir"}
+    [[%W[--socket ~#{user}/x], {}, "--socket"], [[], {"LIBTMUX_SOCKET_PATH" => "~#{user}/x"}, "LIBTMUX_SOCKET_PATH"]].each do |arguments, variables, name|
+      status, endpoint, error = serve_stopped(arguments, private_directory.merge(variables))
+      assert_equal 2, status, name
+      assert_nil endpoint, name
+      assert_includes error, name
+      refute_includes error, user
+    end
+  end
+
+  def test_an_empty_socket_flag_is_still_refused
+    status, endpoint, error = serve_stopped(["--socket", ""], {"TMUX_TMPDIR" => "/private-tmux-tmpdir"})
+    assert_equal 2, status
+    assert_nil endpoint
+    assert_includes error, "Invalid arguments"
+  end
+
   def test_both_flags_are_refused_even_when_a_variable_names_a_socket
     status, endpoint, error = serve_stopped(%w[--socket /flag/path.sock --socket-name flag], {"LIBTMUX_SOCKET" => "variable"})
     assert_equal 2, status

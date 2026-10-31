@@ -21,7 +21,7 @@ module LibTmux
       unless socket_path.nil? || socket_name.nil?
         raise ArgumentError, "choose at most one socket_path or socket_name"
       end
-      origin = nil
+      origin = path_label = nil
       if socket_path.nil? && socket_name.nil?
         raise ArgumentError, "socket_directory applies only to socket_name" if socket_directory
         socket_path, socket_name, origin = Internal::SocketChoice.call(environment)
@@ -34,13 +34,14 @@ module LibTmux
         end
         directory = socket_directory || Internal::SocketChoice.present(environment["TMUX_TMPDIR"]) || "/tmp"
         validate_string(directory, "socket_directory")
+        path_label = socket_directory ? "socket_directory" : "TMUX_TMPDIR"
         socket_path = File.join(directory, "tmux-#{Process.uid}", socket_name)
       elsif socket_directory
         raise ArgumentError, "socket_directory applies only to socket_name"
       end
       validate_string(socket_path, origin || "socket_path")
       validate_string(executable, "executable")
-      @socket_path = File.expand_path(socket_path).freeze
+      @socket_path = expand(socket_path, path_label || origin || "socket_path").freeze
       @executable = resolve_executable(executable).freeze
       freeze
     end
@@ -66,6 +67,14 @@ module LibTmux
     end
 
     private
+
+    # File.expand_path puts the user it cannot find in its message, so the
+    # message here names the argument or variable instead.
+    def expand(path, label)
+      File.expand_path(path)
+    rescue ArgumentError
+      raise ArgumentError, "#{label} cannot be expanded to a path; its leading ~ names no home directory"
+    end
 
     def validate_string(value, name)
       unless value.is_a?(String) && !value.empty? && !value.include?("\0")

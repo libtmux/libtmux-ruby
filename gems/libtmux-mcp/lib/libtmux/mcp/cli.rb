@@ -55,11 +55,20 @@ module LibTmux
       # --socket and --socket-name win; otherwise the core reads the variables,
       # TMUX and tmux's default.
       def build_endpoint
-        Endpoint.new(socket_path: @options[:socket_path], socket_name: @options[:socket_name],
+        socket_path = @options[:socket_path]
+        socket_path = expand_socket(socket_path) unless socket_path.nil? || socket_path.empty?
+        Endpoint.new(socket_path: socket_path, socket_name: @options[:socket_name],
           executable: @options.fetch(:executable), environment: @environment)
       rescue ArgumentError => error
         @invalid_endpoint = "Invalid arguments: #{error.message}."
         raise
+      end
+
+      # File.expand_path puts the user it cannot find in its message.
+      def expand_socket(socket)
+        File.expand_path(socket)
+      rescue ArgumentError
+        raise ArgumentError, "--socket cannot be expanded to a path; its leading ~ names no home directory"
       end
 
       def serve(endpoint, task)

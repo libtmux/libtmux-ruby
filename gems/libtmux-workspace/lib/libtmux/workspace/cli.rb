@@ -153,10 +153,17 @@ module LibTmux
       # --socket wins; otherwise the core reads the variables, TMUX and tmux's default.
       def endpoint
         socket = @options[:socket]
-        LibTmux::Endpoint.new(socket_path: (File.expand_path(socket, @directory) if socket), environment: @environment)
+        LibTmux::Endpoint.new(socket_path: (expand_socket(socket) if socket), environment: @environment)
       rescue ArgumentError => error
         @argument_message = "Invalid arguments: #{error.message}."
         raise
+      end
+
+      # File.expand_path puts the user it cannot find in its message.
+      def expand_socket(socket)
+        File.expand_path(socket, @directory)
+      rescue ArgumentError
+        raise ArgumentError, "--socket cannot be expanded to a path; its leading ~ names no home directory"
       end
 
       def human_plan(plan)
