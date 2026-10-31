@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.1.1 (unreleased)
+## 0.1.2 (unreleased)
+
+## 0.1.1 (2026-10-31)
+
+Applies a JSON layout only on tmux 3.8 or newer, and picks the socket tmux
+would pick when a caller names none. Upgraders must pass `socket_name:` or
+`socket_path:` to keep a program started inside tmux off that tmux's server,
+and must give older tmux a checksummed layout instead of a JSON one.
 
 - `Window#select_layout` accepts a JSON layout only on tmux 3.8 or newer, and
   raw `select-layout`, including control lines, now refuses one below tmux 3.8
