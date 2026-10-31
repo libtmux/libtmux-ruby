@@ -1,0 +1,281 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Plans the compatibility jobs from scripts/ci-matrix.json and the event.
+#
+# A push and a pull request used to run every supported tmux release on every
+# Ruby, although the oldest and newest release bracket the rest. This script
+# decides what a run covers, so the workflow lists no version.
+#
+# Scopes:
+#   edges   the oldest and newest supported release on every Ruby. The default
+#           for a push, a pull request and a dispatch.
+#   full    every supported release on every Ruby, the refusal jobs and the
+#           development build. A release, and a dispatch that asks.
+#   custom  only the tmux versions, tags, branches or commits a dispatch names.
+#
+# Usage:
+#   scripts/ci-plan plan --event EVENT [--scope S] [--tmux-ref REFS] [--ruby V]
+#                        [--os IMAGE] [--tmate MODE] [--github-output FILE]
+#   scripts/ci-plan verify          # reads the NEEDS environment variable
+
+require "json"
+require "optparse"
+require_relative "ci_manifest"
+
+module CIPlan
+  class Error < StandardError; end
+
+  SCOPES = %w[edges full custom].freeze
+  EVENT_SCOPES = {"push" => "edges", "pull_request" => "edges", "workflow_dispatch" => "edges", "schedule" => "full"}.freeze
+  TMATE_MODES = %w[off before-tests on-failure].freeze
+  RUNNERS = %w[ubuntu-24.04 ubuntu-latest ubuntu-22.04].freeze
+  REF = %r{\A[A-Za-z0-9._/-]{1,64}\z}
+  FULL_COMMIT = /\A[0-9a-f]{40}\z/
+  SHORT_COMMIT = /\A[0-9a-f]{7,39}\z/
+
+  # A mistyped list should fail rather than fan out into a huge matrix.
+  MAX_CUSTOM_LEGS = 12
+
+  # The plan and the report, which every run has.
+  FIXED_JOBS = 2
+
+  # Each conditional job and the plan output that says whether it runs.
+  PLANNED_JOBS = {
+    "release_artifacts" => "release_artifacts",
+    "cell" => "run_cells",
+    "unsupported" => "run_unsupported",
+    "development" => "run_development"
+  }.freeze
+
+  def self.split_list(value)
+    value.to_s.split(",").map(&:strip).reject(&:empty?).uniq
+  end
+
+  def self.resolve_scope(event, scope)
+    unless scope.to_s.empty?
+      raise Error, "scope must be one of #{SCOPES.join(', ')}, not #{scope.inspect}" unless SCOPES.include?(scope)
+
+      return scope
+    end
+    EVENT_SCOPES.fetch(event) { raise Error, "no scope is defined for the #{event.inspect} event" }
+  end
+
+  def self.check_scope_inputs(scope, tmux_ref)
+    raise Error, "tmux-ref is only used with scope custom" if !tmux_ref.to_s.empty? && scope != "custom"
+  end
+
+  def self.edge_versions(supported)
+    [supported.first, supported.last].uniq
+  end
+
+  def self.check_ref(ref)
+    raise Error, "tmux ref #{ref.inspect} must match #{REF.source}" unless REF.match?(ref)
+    raise Error, "tmux ref #{ref.inspect} is not a usable git ref" if ref.start_with?("-") || ref.include?("..") || ref.end_with?("/", ".lock")
+    raise Error, "tmux ref #{ref.inspect} looks like an abbreviated commit; give all 40 hex digits" if SHORT_COMMIT.match?(ref)
+
+    ref
+  end
+
+  def self.custom_refs(tmux_ref)
+    refs = split_list(tmux_ref)
+    raise Error, "scope custom needs tmux-ref, a comma-separated list of tmux refs" if refs.empty?
+
+    refs.map { |ref| check_ref(ref) }
+  end
+
+  def self.select_rubies(requested, available)
+    chosen = split_list(requested)
+    chosen.each do |ruby|
+      raise Error, "ruby must name versions from #{available.join(', ')}, not #{ruby.inspect}" unless available.include?(ruby)
+    end
+    chosen
+  end
+
+  def self.choose_image(image)
+    return RUNNERS.first if image.to_s.empty?
+    raise Error, "os must be one of #{RUNNERS.join(', ')}, not #{image.inspect}" unless RUNNERS.include?(image)
+
+    image
+  end
+
+  # The dry run of a release belongs to a push or a pull request. A dispatch
+  # skips it, and so does a release, whose own job runs the same dry run.
+  def self.release_artifacts?(event, scope)
+    %w[push pull_request].include?(event) && scope.to_s.empty?
+  end
+
+  def self.cell(manifest, ruby, tmux)
+    system = manifest.fetch("systems").first
+    {"id" => [system, ruby, tmux].join("/"), "system" => system, "ruby" => ruby, "tmux" => tmux,
+     "sha256" => CIManifest.sha256(manifest, tmux), "tmate" => "off"}
+  end
+
+  def self.suffix(ruby, default)
+    ruby == default ? "" : " on Ruby #{ruby}"
+  end
+
+  def self.unsupported_leg(manifest, entry, ruby)
+    {"name" => "Refuse tmux #{entry.fetch('tmux')} before effects#{suffix(ruby, CIManifest.rubies(manifest).last)}",
+     "tmux" => entry.fetch("tmux"), "sha256" => entry.fetch("sha256"), "check" => entry.fetch("check"),
+     "ruby" => ruby, "tmate" => "off"}
+  end
+
+  def self.development_leg(manifest, entry, ruby)
+    {"name" => "tmux development build (#{entry.fetch('tmux')})#{suffix(ruby, CIManifest.rubies(manifest).last)}",
+     "tmux" => entry.fetch("tmux"), "ref" => entry.fetch("commit"), "expect" => "^tmux next-", "ruby" => ruby, "tmate" => "off"}
+  end
+
+  def self.source_leg(manifest, ref, ruby)
+    {"name" => "tmux #{ref} (Ruby #{ruby})", "tmux" => ref, "ref" => ref, "expect" => "", "ruby" => ruby, "tmate" => "off"}
+  end
+
+  # Sort each name of a custom run into the job that can run it: a supported
+  # release is a matrix cell, a refused one a refusal job, the development
+  # build its pinned commit, and anything else is built from the ref.
+  def self.custom_legs(manifest, refs, cell_rubies, source_rubies)
+    legs = {"cells" => [], "unsupported" => [], "development" => []}
+    refs.each do |ref|
+      if CIManifest.supported(manifest).include?(ref)
+        cell_rubies.each { |ruby| legs["cells"] << cell(manifest, ruby, ref) }
+      elsif (entry = manifest.fetch("unsupported").find { |item| item.fetch("tmux") == ref })
+        source_rubies.each { |ruby| legs["unsupported"] << unsupported_leg(manifest, entry, ruby) }
+      elsif (entry = manifest.fetch("development").find { |item| item.fetch("tmux") == ref })
+        source_rubies.each { |ruby| legs["development"] << development_leg(manifest, entry, ruby) }
+      else
+        source_rubies.each { |ruby| legs["development"] << source_leg(manifest, ref, ruby) }
+      end
+    end
+    legs
+  end
+
+  def self.require_legs(legs)
+    raise Error, "the plan has no job" if legs.values.all?(&:empty?)
+  end
+
+  def self.assign_tmate(event, mode, legs)
+    raise Error, "tmate must be one of #{TMATE_MODES.join(', ')}, not #{mode.inspect}" unless TMATE_MODES.include?(mode)
+    return if mode == "off"
+    raise Error, "tmate is only available on a workflow_dispatch run" unless event == "workflow_dispatch"
+
+    all = legs.values.flatten
+    raise Error, "tmate needs exactly one job and this run has #{all.length}; use scope custom with one tmux-ref and one ruby" unless all.length == 1
+
+    all.first["tmate"] = mode
+  end
+
+  def self.plan(manifest, event:, scope: "", tmux_ref: "", ruby: "", os: "", tmate: "")
+    chosen = resolve_scope(event, scope)
+    check_scope_inputs(chosen, tmux_ref)
+    image = choose_image(os)
+    rubies = CIManifest.rubies(manifest)
+    requested = select_rubies(ruby, rubies)
+    cell_rubies = requested.empty? ? rubies : requested
+    source_rubies = requested.empty? ? [rubies.last] : requested
+    supported = CIManifest.supported(manifest)
+
+    legs =
+      if chosen == "custom"
+        refs = custom_refs(tmux_ref)
+        planned = custom_legs(manifest, refs, cell_rubies, source_rubies)
+        total = planned.values.sum(&:length)
+        raise Error, "this run would have #{total} jobs; at most #{MAX_CUSTOM_LEGS} fit a custom run" if total > MAX_CUSTOM_LEGS
+
+        planned
+      else
+        versions = chosen == "full" ? supported : edge_versions(supported)
+        {"cells" => cell_rubies.product(versions).map { |r, tmux| cell(manifest, r, tmux) },
+         "unsupported" => [], "development" => []}.tap do |full|
+          next unless chosen == "full"
+
+          manifest.fetch("unsupported").product(source_rubies).each { |entry, r| full["unsupported"] << unsupported_leg(manifest, entry, r) }
+          manifest.fetch("development").product(source_rubies).each { |entry, r| full["development"] << development_leg(manifest, entry, r) }
+        end
+      end
+    require_legs(legs)
+    assign_tmate(event, tmate.to_s.empty? ? "off" : tmate, legs)
+
+    artifacts = release_artifacts?(event, scope)
+    legs.merge("scope" => chosen, "os" => image, "release_artifacts" => artifacts,
+      "expected_jobs" => FIXED_JOBS + (artifacts ? 1 : 0) + legs.values.sum(&:length))
+  end
+
+  def self.job_names(result)
+    names = ["plan", "All required cells"]
+    names << "Release artifacts (no publishing)" if result.fetch("release_artifacts")
+    names + result.fetch("cells").map { |c| "#{c['system']} / Ruby #{c['ruby']} / tmux #{c['tmux']}" } +
+      result.fetch("unsupported").map { |leg| leg.fetch("name") } + result.fetch("development").map { |leg| leg.fetch("name") }
+  end
+
+  # A planned job must have succeeded and a job the plan left out must have
+  # been skipped; accepting a skip for a planned job would let a failure that
+  # skips its dependents pass.
+  def self.check_needs(needs)
+    problems = []
+    plan_result = needs.dig("plan", "result")
+    problems << "plan finished #{plan_result || 'missing'}, not success" unless plan_result == "success"
+    outputs = needs.dig("plan", "outputs") || {}
+    PLANNED_JOBS.each do |job, flag|
+      wanted = outputs[flag] == "true" ? "success" : "skipped"
+      result = needs.dig(job, "result")
+      problems << "#{job} finished #{result || 'missing'}, not #{wanted}" unless result == wanted
+    end
+    problems
+  end
+
+  def self.outputs(result)
+    compact = ->(legs) { JSON.generate("include" => legs) }
+    {"scope" => result.fetch("scope"), "os" => result.fetch("os"),
+     "release_artifacts" => result.fetch("release_artifacts").to_s,
+     "cells" => compact.call(result.fetch("cells")), "run_cells" => (!result.fetch("cells").empty?).to_s,
+     "ids" => result.fetch("cells").map { |c| c.fetch("id") }.join(","),
+     "unsupported" => compact.call(result.fetch("unsupported")), "run_unsupported" => (!result.fetch("unsupported").empty?).to_s,
+     "development" => compact.call(result.fetch("development")), "run_development" => (!result.fetch("development").empty?).to_s,
+     "expected_jobs" => result.fetch("expected_jobs").to_s}
+  end
+
+  def self.summary(result)
+    lines = ["### Compatibility plan: #{result.fetch('scope')}", "", "Expected jobs in this workflow: #{result.fetch('expected_jobs')}", ""]
+    (job_names(result) - ["plan", "All required cells"]).each { |name| lines << "- #{name}" }
+    "#{lines.join("\n")}\n"
+  end
+
+  def self.run(arguments, environment = ENV)
+    command = arguments.shift
+    options = {}
+    parser = OptionParser.new do |args|
+      args.on("--event EVENT") { |value| options[:event] = value }
+      args.on("--scope SCOPE") { |value| options[:scope] = value }
+      args.on("--tmux-ref REFS") { |value| options[:tmux_ref] = value }
+      args.on("--ruby VERSIONS") { |value| options[:ruby] = value }
+      args.on("--os IMAGE") { |value| options[:os] = value }
+      args.on("--tmate MODE") { |value| options[:tmate] = value }
+      args.on("--github-output FILE") { |value| options[:github_output] = value }
+      args.on("--summary FILE") { |value| options[:summary] = value }
+    end
+    parser.parse!(arguments)
+    case command
+    when "verify"
+      problems = check_needs(JSON.parse(environment.fetch("NEEDS", "{}")))
+      problems.each { |problem| warn "report: #{problem}" }
+      problems.empty? ? 0 : 1
+    when "plan"
+      raise OptionParser::MissingArgument, "--event" unless options[:event]
+
+      result = plan(CIManifest.load, event: options[:event], scope: options[:scope].to_s, tmux_ref: options[:tmux_ref].to_s,
+        ruby: options[:ruby].to_s, os: options[:os].to_s, tmate: options[:tmate].to_s)
+      puts JSON.pretty_generate(result)
+      File.open(options[:github_output], "a") { |file| outputs(result).each { |key, value| file.puts("#{key}=#{value}") } } if options[:github_output]
+      File.open(options[:summary], "a") { |file| file.write(summary(result)) } if options[:summary]
+      0
+    else
+      warn "usage: scripts/ci-plan plan --event EVENT [options] | verify"
+      2
+    end
+  rescue Error, OptionParser::ParseError, JSON::ParserError => error
+    warn "plan: #{error.message}"
+    1
+  end
+end
+
+exit CIPlan.run(ARGV) if $PROGRAM_NAME == __FILE__

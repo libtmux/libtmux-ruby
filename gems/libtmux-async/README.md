@@ -249,9 +249,11 @@ changelog marks each break. Pin an exact version to avoid one.
 - **Async 2.46.** The gem depends on `async` ~> 2.46.0 and the same version of
   `libtmux`.
 - **Linux, including WSL, and macOS.** The [compatibility workflow][compat]
-  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04 and retains
-  per-revision results. macOS is supported on a best-effort basis, and CI
-  coverage for it is highly limited.
+  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04 and
+  retains per-revision results. A push and a pull request run the oldest and
+  newest of those releases, 3.3a and 3.8, and a release runs all of them. macOS
+  is supported on a best-effort basis, and CI coverage for it is highly
+  limited.
 
 ## Documentation
 

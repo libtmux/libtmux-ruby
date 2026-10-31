@@ -6,11 +6,13 @@ require "optparse"
 require "digest"
 require "fileutils"
 require "open3"
+require_relative "ci_manifest"
 
 module CompatibilityMatrix
-  RUBIES = %w[3.3.12 3.4.10 4.0.7].freeze
-  TMUXES = %w[3.3a 3.4 3.5a 3.6 3.7c 3.8].freeze
-  SYSTEMS = %w[linux].freeze
+  MANIFEST = CIManifest.load
+  RUBIES = CIManifest.rubies(MANIFEST).freeze
+  TMUXES = CIManifest.supported(MANIFEST).freeze
+  SYSTEMS = MANIFEST.fetch("systems").freeze
   ROOT = File.expand_path("..", __dir__)
 
   def self.cells
@@ -95,18 +97,22 @@ module CompatibilityMatrix
       args.on("--output DIR", "JSON report and per-cell logs") { |value| options[:directory] = File.expand_path(value) }
       args.on("--merge DIR", "Merge cell reports without omitting missing or failed cells") { |value| options[:merge] = File.expand_path(value) }
       args.on("--require-all", "Exit unsuccessfully unless every required cell passes") { options[:require_all] = true }
+      args.on("--only IDS", "Require only these comma-separated os/ruby/tmux cells (default: every cell)") { |value| options[:only] = value.split(",") }
     end
     parser.parse!(arguments)
     raise ArgumentError, "unexpected arguments" unless arguments.empty?
     raise ArgumentError, "unknown cell" if options[:cell] && !cells.any? { |cell| cell.fetch("id") == options[:cell] }
     raise ArgumentError, "unknown Ruby version" unless (options[:rubies].keys - RUBIES).empty?
     raise ArgumentError, "unknown tmux version" unless (options[:tmuxes].keys - TMUXES).empty?
+    raise ArgumentError, "unknown cell in --only" unless (options[:only].to_a - cells.map { |cell| cell.fetch("id") }).empty?
+    raise ArgumentError, "--only names no cell" if options[:only]&.empty?
+    selected = options[:only] ? cells.select { |cell| options[:only].include?(cell.fetch("id")) } : cells
     fingerprint = digest
-    report_cells = cells
+    report_cells = selected
     if options[:merge]
       inputs = Dir[File.join(options[:merge], "**/matrix.json")].sort.map { |path| JSON.parse(File.read(path)) }
       raise ArgumentError, "matrix reports use different source digests" unless inputs.all? { |input| input.fetch("source_digest") == fingerprint }
-      report_cells = cells.map do |cell|
+      report_cells = selected.map do |cell|
         evidence = inputs.flat_map { |input| input.fetch("cells") }.select do |item|
           item.fetch("id") == cell.fetch("id") && item.fetch("status") != "UNVERIFIED"
         end.map do |item|
@@ -124,7 +130,7 @@ module CompatibilityMatrix
     end
     changed = fingerprint != digest
     report_cells.each { |cell| cell["status"] = "STALE_SOURCE" if changed && cell["status"] == "PASS" }
-    report = {"required_cells" => cells.length, "source_digest" => fingerprint,
+    report = {"required_cells" => selected.length, "source_digest" => fingerprint,
       "status" => report_cells.all? { |cell| cell.fetch("status") == "PASS" } ? "PASS" : "PARTIAL", "cells" => report_cells}
     json = JSON.pretty_generate(report) + "\n"
     if options[:run] || options[:merge]

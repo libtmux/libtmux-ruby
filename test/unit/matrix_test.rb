@@ -19,7 +19,8 @@ class MatrixTest < Minitest::Test
     assert_equal expected, report.fetch("cells").map { |cell| cell.fetch("id") }.uniq.length
     assert_equal "PARTIAL", report.fetch("status")
     assert report.fetch("cells").all? { |cell| cell.fetch("status") == "UNVERIFIED" }
-    assert_equal %w[3.3a 3.4 3.5a 3.6 3.7c 3.8], report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
+    assert_equal CIManifest.supported(CIManifest.load), report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
+    assert_equal CIManifest.rubies(CIManifest.load), report.fetch("cells").map { |cell| cell.fetch("ruby") }.uniq
     assert_equal ["linux"], report.fetch("cells").map { |cell| cell.fetch("os") }.uniq
     assert_equal ["positive_native_identity"], report.fetch("cells").map { |cell| cell["process_bound_mcp"] }.uniq
     output, _, status = Open3.capture3(Gem.ruby, path, "--require-all")
@@ -74,6 +75,41 @@ class MatrixTest < Minitest::Test
       end
       assert_equal 1, result
       assert_equal "INVALID_EVIDENCE", JSON.parse(output).fetch("cells").first.fetch("status")
+    end
+  end
+
+  def test_only_limits_the_required_cells_and_still_rejects_the_rest
+    ids = CompatibilityMatrix.cells.map { |cell| cell.fetch("id") }
+    chosen = [ids.first, ids.last]
+    Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
+      passing = CompatibilityMatrix.cells.select { |cell| chosen.include?(cell.fetch("id")) }.map do |cell|
+        cell.merge("status" => "PASS", "exit_status" => 0, "observed_ruby" => cell.fetch("ruby"), "observed_tmux" => "tmux #{cell.fetch('tmux')}",
+          "ruby_sha256" => "a" * 64, "tmux_sha256" => "b" * 64, "whole_monotonic_seconds" => 1.0,
+          "suites" => Array.new(3) { {"tests" => 1, "assertions" => 1, "failures" => 0, "errors" => 0, "skips" => 0} })
+      end
+      File.write(File.join(directory, "matrix.json"), JSON.generate("source_digest" => CompatibilityMatrix.digest, "cells" => passing))
+      merge = lambda do |*extra|
+        status = nil
+        output, = capture_io { status = CompatibilityMatrix.run(["--merge", directory, "--output", File.join(directory, "result"), *extra]) }
+        [status, output]
+      end
+
+      status, output = merge.call("--only", chosen.join(","))
+      assert_equal 0, status
+      report = JSON.parse(output)
+      assert_equal 2, report.fetch("required_cells")
+      assert_equal chosen, report.fetch("cells").map { |cell| cell.fetch("id") }
+
+      status, output = merge.call
+      assert_equal 1, status
+      assert_equal "PARTIAL", JSON.parse(output).fetch("status")
+
+      status, output = merge.call("--only", [ids[1], ids.first].join(","))
+      assert_equal 1, status
+      assert_equal "UNVERIFIED", JSON.parse(output).fetch("cells").find { |cell| cell.fetch("id") == ids[1] }.fetch("status")
+
+      assert_equal 2, merge.call("--only", "linux/1.0/9.9").first
+      assert_equal 2, merge.call("--only", "").first
     end
   end
 

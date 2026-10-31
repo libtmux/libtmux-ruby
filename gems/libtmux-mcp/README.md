@@ -353,8 +353,10 @@ changelog marks each break. Pin an exact version to avoid one.
   client.
 - **Linux, including WSL, and macOS.** The core
   [compatibility workflow][compat] runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a
-  through 3.8 on Ubuntu 24.04. macOS is supported on a best-effort basis, and
-  CI coverage for it is highly limited.
+  through 3.8 on Ubuntu 24.04. A push and a pull request run the oldest and
+  newest of those releases, 3.3a and 3.8, and a release runs all of them. macOS
+  is supported on a best-effort basis, and CI coverage for it is highly
+  limited.
 
 ## Documentation
 

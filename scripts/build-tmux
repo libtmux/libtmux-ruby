@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Build tmux from any tag, branch or commit of github.com/tmux/tmux.
+#
+#   scripts/build-tmux <tag|branch|40-hex commit>
+#
+# Prints binary=, commit= and version= lines. The ref is resolved to a commit
+# first, and the build lives under that commit, never under the ref's name, so
+# a branch that moves cannot be mistaken for the build it used to name. The
+# compatibility cells build their release from a tarball with a pinned digest
+# instead; this script is for the refs the manifest does not list.
+set -euo pipefail
+
+readonly REPOSITORY="${LIBTMUX_TMUX_REPOSITORY:-https://github.com/tmux/tmux.git}"
+BUILD_ROOT="${LIBTMUX_TMUX_BUILD_ROOT:-build/tmux}"
+readonly BUILD_ROOT
+
+[[ $# -eq 1 ]] || { echo "usage: scripts/build-tmux <tag|branch|40-hex commit>" >&2; exit 2; }
+readonly REF="$1"
+
+if [[ ! "${REF}" =~ ^[A-Za-z0-9._/-]{1,64}$ \
+    || "${REF}" == -* || "${REF}" == *..* || "${REF}" == */ || "${REF}" == *.lock ]]; then
+    echo "not a usable tmux ref: ${REF}" >&2
+    exit 1
+fi
+if [[ "${REF}" =~ ^[0-9a-f]{7,39}$ ]]; then
+    echo "not a usable tmux ref: ${REF} is an abbreviated commit; give all 40 hex digits" >&2
+    exit 1
+fi
+
+# A tag, peeled to its commit, wins over a branch of the same name, as it does
+# for a clone.
+resolve_commit() {
+    if [[ "${REF}" =~ ^[0-9a-f]{40}$ ]]; then
+        printf '%s\n' "${REF}"
+        return 0
+    fi
+    local listing name commit
+    listing="$(git ls-remote -- "${REPOSITORY}" \
+        "refs/tags/${REF}^{}" "refs/tags/${REF}" "refs/heads/${REF}")" || return 1
+    for name in "refs/tags/${REF}^{}" "refs/tags/${REF}" "refs/heads/${REF}"; do
+        commit="$(awk -v name="${name}" '$2 == name {print $1; exit}' <<<"${listing}")"
+        if [[ "${commit}" =~ ^[0-9a-f]{40}$ ]]; then
+            printf '%s\n' "${commit}"
+            return 0
+        fi
+    done
+    echo "${REF} is not a tag, a branch or a full commit of ${REPOSITORY}" >&2
+    return 1
+}
+
+COMMIT="$(resolve_commit)"
+readonly COMMIT
+mkdir -p "${BUILD_ROOT}"
+SOURCE="$(realpath "${BUILD_ROOT}")/source-${COMMIT}"
+INSTALL="$(realpath "${BUILD_ROOT}")/install-${COMMIT}"
+readonly SOURCE INSTALL
+readonly BINARY="${INSTALL}/bin/tmux"
+
+report() {
+    printf 'binary=%s\n' "${BINARY}"
+    printf 'commit=%s\n' "${COMMIT}"
+    printf 'version=%s\n' "$("${BINARY}" -V | sed -n 's/^tmux //p')"
+}
+
+if [[ -x "${BINARY}" && "$(<"${INSTALL}/source-commit")" == "${COMMIT}" ]]; then
+    report
+    exit 0
+fi
+
+mkdir -p "${SOURCE}"
+if [[ "$(git -C "${SOURCE}" rev-parse --verify --quiet HEAD 2>/dev/null || true)" != "${COMMIT}" ]]; then
+    git -C "${SOURCE}" init --quiet
+    git -C "${SOURCE}" fetch --quiet --depth 1 -- "${REPOSITORY}" "${COMMIT}"
+    git -C "${SOURCE}" checkout --quiet --detach FETCH_HEAD
+fi
+if [[ "$(git -C "${SOURCE}" rev-parse HEAD)" != "${COMMIT}" ]]; then
+    echo "tmux source is not at ${COMMIT}" >&2
+    exit 1
+fi
+
+mkdir -p "${INSTALL}"
+(
+    cd "${SOURCE}"
+    sh autogen.sh
+    ./configure --prefix="${INSTALL}" --disable-utf8proc
+    make -j2
+    make install
+) >&2
+[[ -x "${BINARY}" ]] || { echo "tmux build did not produce ${BINARY}" >&2; exit 1; }
+printf '%s\n' "${COMMIT}" > "${INSTALL}/source-commit"
+report

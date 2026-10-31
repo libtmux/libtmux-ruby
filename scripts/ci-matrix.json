@@ -1,0 +1,21 @@
+{
+  "systems": ["linux"],
+  "rubies": ["3.3.12", "3.4.10", "4.0.7"],
+  "supported": [
+    {"tmux": "3.3a", "sha256": "e4fd347843bd0772c4f48d6dde625b0b109b7a380ff15db21e97c11a4dcdf93f"},
+    {"tmux": "3.4", "sha256": "551ab8dea0bf505c0ad6b7bb35ef567cdde0ccb84357df142c254f35a23e19aa"},
+    {"tmux": "3.5a", "sha256": "16216bd0877170dfcc64157085ba9013610b12b082548c7c9542cc0103198951"},
+    {"tmux": "3.6", "sha256": "136db80cfbfba617a103401f52874e7c64927986b65b1b700350b6058ad69607"},
+    {"tmux": "3.7c", "sha256": "7c60cae9a0e25288e2e24750aafc9e8800fc7fd4555e447e1b29ee4201cfb3bf"},
+    {"tmux": "3.8", "sha256": "e79c699c7e949dccd0a4a125e17b8d1261e311b16979dbc8eb34542f3966d82e"}
+  ],
+  "unsupported": [
+    {"tmux": "3.0a", "sha256": "4ad1df28b4afa969e59c08061b45082fdc49ff512f30fc8e43217d7b0e5f8db9", "check": "old_daemon"},
+    {"tmux": "3.1c", "sha256": "918f7220447bef33a1902d4faff05317afd9db4ae1c9971bef5c787ac6c88386", "check": "old_daemon"},
+    {"tmux": "3.2a", "sha256": "551553a4f82beaa8dadc9256800bcc284d7c000081e47aa6ecbb6ff36eacd05f", "check": "refused"},
+    {"tmux": "3.3", "sha256": "b2382ac391f6a1c5b93293016cdc9488337d9a04b9d611ae05eac164740351dc", "check": "refused"}
+  ],
+  "development": [
+    {"tmux": "next-3.9", "commit": "d68e56f130ba44d13ae5f1f353526c7ce604099f"}
+  ]
+}

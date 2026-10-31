@@ -173,6 +173,61 @@ default tmux server or sweep another port's temporary files.
 Record the actual tmux version when behavior depends on it. A passing subset
 does not establish support for an entire version range.
 
+## Running CI against any tmux
+
+The [compatibility workflow](workflows/compatibility.yml) plans its jobs with
+[scripts/ci-plan](../scripts/ci-plan) from
+[scripts/ci-matrix.json](../scripts/ci-matrix.json), which lists the Rubies, the
+supported tmux releases oldest first, the refused releases and the development
+build. A push and a pull request run the oldest and newest supported release
+only (3.3a and 3.8) on every Ruby. The full scope adds every other supported
+release, the refusal jobs and the development build. The
+[Release workflow](workflows/release.yml) runs the full scope on the tag before
+it publishes anything. The `All required cells` job is the one check to
+require: it passes when every planned job succeeded and every other job was
+skipped.
+
+Run the workflow on any branch, against any tmux version, tag, branch or full
+commit of github.com/tmux/tmux. Put the comma-separated list in `tmux-ref`,
+with `scope=custom`:
+
+```console
+$ gh workflow run compatibility.yml \
+    --ref my-branch \
+    -f scope=custom \
+    -f tmux-ref=3.6,master
+```
+
+A supported release runs as a matrix cell, on every Ruby unless `ruby` names
+some. A refused release runs its refusal job. Any other ref, and the
+development build, is built from source by `scripts/build-tmux` at the commit
+it names and runs the outer suite on the newest Ruby, or on the Rubies that
+`ruby` names. The `os` input picks the Ubuntu image.
+
+The `tmate` input opens a [tmate](https://github.com/mxschmitt/action-tmate)
+session on exactly one job, before the tests or after a failure. The session
+admits only the GitHub account that dispatched the run and ends after 30
+minutes. The plan refuses it when the run has more than one job:
+
+```console
+$ gh workflow run compatibility.yml \
+    --ref my-branch \
+    -f scope=custom \
+    -f tmux-ref=master \
+    -f ruby=4.0.7 \
+    -f tmate=on-failure
+```
+
+Run every job a release runs, without tagging:
+
+```console
+$ gh workflow run compatibility.yml \
+    --ref my-branch \
+    -f scope=full
+```
+
+Dispatched runs do not cancel one another or the push run of the same commit.
+
 ## Documentation publisher updates
 
 [`renovate.json`](../renovate.json) groups the docs checkout and reusable
