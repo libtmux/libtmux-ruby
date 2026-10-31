@@ -6,6 +6,10 @@ require "stringio"
 require "tmpdir"
 
 class WorkspaceCLITest < Minitest::Test
+  # A directory no server lives in. run_cli and capturing_open name it, so a
+  # case that reaches for the default socket finds nothing there.
+  PRIVATE_TMUX_TMPDIR = "/private-tmux-tmpdir"
+
   def test_version_does_not_require_configuration_or_a_tmux_endpoint
     [[], %w[validate], %w[plan], %w[load]].each do |command|
       status, output, error = run_cli([*command, "--version"], "/libtmux-ruby-missing-config")
@@ -85,7 +89,7 @@ class WorkspaceCLITest < Minitest::Test
   end
 
   def test_load_and_live_plan_take_the_socket_the_core_picks_when_no_flag_names_one
-    directory = "/private-tmux-tmpdir"
+    directory = PRIVATE_TMUX_TMPDIR
     inside = "/inside/socket,1,0"
     named = "#{directory}/tmux-#{Process.uid}"
     cases = [
@@ -179,7 +183,7 @@ class WorkspaceCLITest < Minitest::Test
       endpoints << options.fetch(:endpoint)
       raise LibTmux::TargetNotFoundError.new("stopped by the test", phase: :bind)
     end
-    status, output, = yield({"TMUX_TMPDIR" => "/private-tmux-tmpdir"})
+    status, output, = yield({"TMUX_TMPDIR" => PRIVATE_TMUX_TMPDIR})
     [status, endpoints, output]
   ensure
     LibTmux::Server.define_singleton_method(:open, original)
@@ -195,7 +199,8 @@ class WorkspaceCLITest < Minitest::Test
 
   def run_cli(arguments, directory, environment: {})
     output, error = StringIO.new, StringIO.new
-    status = LibTmux::Workspace::CLI.run(arguments, out: output, err: error, directory: directory, environment: environment)
+    status = LibTmux::Workspace::CLI.run(arguments, out: output, err: error, directory: directory,
+      environment: {"TMUX_TMPDIR" => PRIVATE_TMUX_TMPDIR}.merge(environment))
     [status, output.string, error.string]
   end
 end
