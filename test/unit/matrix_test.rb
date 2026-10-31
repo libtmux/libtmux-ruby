@@ -78,6 +78,41 @@ class MatrixTest < Minitest::Test
     end
   end
 
+  def test_only_limits_the_required_cells_and_still_rejects_the_rest
+    ids = CompatibilityMatrix.cells.map { |cell| cell.fetch("id") }
+    chosen = [ids.first, ids.last]
+    Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
+      passing = CompatibilityMatrix.cells.select { |cell| chosen.include?(cell.fetch("id")) }.map do |cell|
+        cell.merge("status" => "PASS", "exit_status" => 0, "observed_ruby" => cell.fetch("ruby"), "observed_tmux" => "tmux #{cell.fetch('tmux')}",
+          "ruby_sha256" => "a" * 64, "tmux_sha256" => "b" * 64, "whole_monotonic_seconds" => 1.0,
+          "suites" => Array.new(3) { {"tests" => 1, "assertions" => 1, "failures" => 0, "errors" => 0, "skips" => 0} })
+      end
+      File.write(File.join(directory, "matrix.json"), JSON.generate("source_digest" => CompatibilityMatrix.digest, "cells" => passing))
+      merge = lambda do |*extra|
+        status = nil
+        output, = capture_io { status = CompatibilityMatrix.run(["--merge", directory, "--output", File.join(directory, "result"), *extra]) }
+        [status, output]
+      end
+
+      status, output = merge.call("--only", chosen.join(","))
+      assert_equal 0, status
+      report = JSON.parse(output)
+      assert_equal 2, report.fetch("required_cells")
+      assert_equal chosen, report.fetch("cells").map { |cell| cell.fetch("id") }
+
+      status, output = merge.call
+      assert_equal 1, status
+      assert_equal "PARTIAL", JSON.parse(output).fetch("status")
+
+      status, output = merge.call("--only", [ids[1], ids.first].join(","))
+      assert_equal 1, status
+      assert_equal "UNVERIFIED", JSON.parse(output).fetch("cells").find { |cell| cell.fetch("id") == ids[1] }.fetch("status")
+
+      assert_equal 2, merge.call("--only", "linux/1.0/9.9").first
+      assert_equal 2, merge.call("--only", "").first
+    end
+  end
+
   def test_failed_identity_probe_cannot_dispatch_the_suite
     Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
       ruby, tmux = %w[ruby tmux].map { |name| File.join(directory, name) }
