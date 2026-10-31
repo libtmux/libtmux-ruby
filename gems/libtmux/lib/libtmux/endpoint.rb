@@ -70,8 +70,8 @@ module LibTmux
 
     # File.expand_path puts the user it cannot find in its message, so the
     # message here names the argument or variable instead.
-    def expand(path, label)
-      File.expand_path(path)
+    def expand(path, label, base = nil)
+      base ? File.expand_path(path, base) : File.expand_path(path)
     rescue ArgumentError
       raise ArgumentError, "#{label} cannot be expanded to a path; its leading ~ names no home directory"
     end
@@ -84,10 +84,10 @@ module LibTmux
 
     def resolve_executable(value)
       candidates = if value.include?(File::SEPARATOR)
-        [File.expand_path(value)]
+        [expand(value, "executable")]
       else
         ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).map do |directory|
-          File.expand_path(value, directory.empty? ? Dir.pwd : directory)
+          expand(value, "executable", directory.empty? ? Dir.pwd : directory)
         end
       end
       candidates.find { |path| File.file?(path) && File.executable?(path) } ||

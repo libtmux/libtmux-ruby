@@ -113,6 +113,20 @@ class EndpointTest < Minitest::Test
     end
   end
 
+  def test_an_executable_that_cannot_expand_is_refused_without_naming_the_user
+    user = "libtmux-ruby-no-such-user"
+    ["~#{user}/tmux", "~#{user}"].each do |executable|
+      error = assert_raises(ArgumentError) { LibTmux::Endpoint.new(socket_path: "/unused", executable: executable) }
+      assert_includes error.message, "executable cannot be expanded"
+      refute_includes error.message, user
+    end
+    with_process_environment("PATH" => ["~#{user}/bin", ENV.fetch("PATH")].join(File::PATH_SEPARATOR)) do
+      error = assert_raises(ArgumentError) { LibTmux::Endpoint.new(socket_path: "/unused") }
+      assert_includes error.message, "executable cannot be expanded"
+      refute_includes error.message, user
+    end
+  end
+
   def test_from_env_follows_tmux_alone_and_ignores_the_variables
     variables = {"LIBTMUX_SOCKET_PATH" => "/variable/path.sock", "LIBTMUX_SOCKET" => "variable", "TMUX_TMPDIR" => TMUX_DIRECTORY}
     assert_equal "/inside/socket", LibTmux::Endpoint.from_env(variables.merge("TMUX" => "/inside/socket,1,0")).socket_path

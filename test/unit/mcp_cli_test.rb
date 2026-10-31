@@ -105,6 +105,16 @@ class McpCLITest < Minitest::Test
     end
   end
 
+  def test_a_tmux_executable_that_cannot_expand_is_refused_by_name_before_any_server_opens
+    user = "libtmux-ruby-no-such-user"
+    status, endpoint, error = serve_stopped(["--socket", "/flag/path.sock", "--tmux", "~#{user}/tmux"],
+      {"TMUX_TMPDIR" => "/private-tmux-tmpdir"})
+    assert_equal 2, status
+    assert_nil endpoint
+    assert_includes error, "executable cannot be expanded"
+    refute_includes error, user
+  end
+
   def test_an_empty_socket_flag_is_still_refused
     status, endpoint, error = serve_stopped(["--socket", ""], {"TMUX_TMPDIR" => "/private-tmux-tmpdir"})
     assert_equal 2, status
