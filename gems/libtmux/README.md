@@ -713,8 +713,11 @@ server and lists every option.
   [Live handles][behavior-live-handles].
 - **A terminal emulator.** [`Pane#capture`][pane-capture] returns the bytes
   tmux holds for the screen, with the flags above to shape them.
-- **An implied server.** [`Endpoint.new`][endpoint-new] needs an explicit
-  socket, and no API in the recipes uses the default server.
+- **A server it starts on its own.** [`Server.new`][server-new] and
+  [`Server.open`][server-open] bind a running server and never start one. With
+  no socket named, [`Endpoint.new`][endpoint-new] picks the one tmux would:
+  `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET`, the server `TMUX` names, then tmux's
+  default socket. The recipes name a socket or own one.
 - **Replay.** A reconnected control connection reports a gap and never replays
   requests or missed output. See [Control flow][behavior-control-flow].
 - **Transactions.** A [group][server-run_group] runs in order and keeps the
