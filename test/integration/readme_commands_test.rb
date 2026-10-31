@@ -41,7 +41,7 @@ class ReadmeCommandsTest < Minitest::Test
       end
       @env = {"HOME" => home, "TMPDIR" => directory, "TMUX_TMPDIR" => File.join(directory, "t"),
               "PATH" => "#{bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "TMUX" => nil, "TMUX_PANE" => nil,
-              "XDG_CONFIG_HOME" => File.join(home, ".config")}
+              "LIBTMUX_SOCKET" => nil, "LIBTMUX_SOCKET_PATH" => nil, "XDG_CONFIG_HOME" => File.join(home, ".config")}
     end
 
     def tmux
