@@ -43,7 +43,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: compatibility-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: compatibility-${{ github.event_name }}-${{ inputs.scope && github.run_id || github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

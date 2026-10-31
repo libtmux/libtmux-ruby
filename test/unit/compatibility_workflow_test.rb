@@ -89,6 +89,15 @@ class CompatibilityWorkflowTest < Minitest::Test
     found << "report: must require the planned cells" unless merge && merge["run"].include?("--require-all") && merge["run"].include?('--only "$CELLS"') &&
       merge.dig("env", "CELLS") == "${{ needs.plan.outputs.ids }}"
 
+    group = workflow.fetch("concurrency")
+    # A dispatch and a call carry a scope, and a push and a pull request do not.
+    found << "a dispatched or called run must have its own concurrency group" unless
+      group["group"].include?("inputs.scope && github.run_id ||")
+    found << "a push and a pull request must keep their groups" unless
+      group["group"].include?("github.event_name == 'pull_request' && github.ref || github.sha")
+    found << "only a pull request may cancel the run it supersedes" unless
+      group["cancel-in-progress"] == "${{ github.event_name == 'pull_request' }}"
+
     inputs = triggers(workflow).dig("workflow_dispatch", "inputs")
     found << "the dispatch inputs are not the plan's" unless inputs.keys.sort == %w[os ruby scope tmux-ref]
     found << "the scope input must offer exactly the plan's scopes and default to edges" unless
@@ -150,6 +159,9 @@ class CompatibilityWorkflowTest < Minitest::Test
     "a job is added that the report does not wait for" => [->(w, _r) { w["jobs"]["extra"] = {"runs-on" => "ubuntu-24.04", "steps" => []} }, "must wait for every other job"],
     "the report stops verifying the plan" => [->(w, _r) { w["jobs"]["report"]["steps"].reject! { |s| s["run"].to_s.include?("ci-plan verify") } }, "must verify the needs context"],
     "the report requires every cell again" => [->(w, _r) { w["jobs"]["report"]["steps"].find { |s| s["run"].to_s.include?("matrix --merge") }["run"].sub!(' --only "$CELLS"', "") }, "must require the planned cells"],
+    "a dispatch shares its group with the push" => [->(w, _r) { w["concurrency"]["group"] = w["concurrency"]["group"].sub("inputs.scope && github.run_id || ", "") }, "must have its own concurrency group"],
+    "a pull request shares one group with every other" => [->(w, _r) { w["concurrency"]["group"] = w["concurrency"]["group"].sub("github.event_name == 'pull_request' && github.ref || ", "") }, "must keep their groups"],
+    "every run cancels its predecessor" => [->(w, _r) { w["concurrency"]["cancel-in-progress"] = true }, "only a pull request may cancel"],
     "an input is dropped from the dispatch" => [->(w, _r) { CompatibilityWorkflowTest.triggers(w)["workflow_dispatch"]["inputs"].delete("ruby") }, "the dispatch inputs are not the plan's"],
     "the scope input defaults to full" => [->(w, _r) { CompatibilityWorkflowTest.triggers(w)["workflow_dispatch"]["inputs"]["scope"]["default"] = "full" }, "default to edges"],
     "the scope input offers another scope" => [->(w, _r) { CompatibilityWorkflowTest.triggers(w)["workflow_dispatch"]["inputs"]["scope"]["options"] = %w[edges full] }, "the plan's scopes"],
