@@ -271,6 +271,23 @@ class SandboxTest < Minitest::Test
     end
   end
 
+  def test_the_benchmark_enters_the_sandbox_before_it_starts_tmux
+    bench = File.expand_path("../../scripts/bench", __dir__)
+    with_recorder do |recorder, _run, env|
+      directory = File.dirname(recorder)
+      arguments = ["run", "--output", File.join(directory, "evidence"), "--panes", "1", "--samples", "2",
+                   "--tmux", File.join(directory, "bin", "tmux")]
+      _, error, status = Open3.capture3(env.merge("TMPDIR" => directory), Gem.ruby, bench, *arguments,
+        chdir: File.expand_path("../..", __dir__))
+      refute_predicate status, :success?, "the recorder serves no benchmark"
+      calls = File.read(recorder)
+      assert_includes calls, "ARG -V\n", error
+      DECOYS.each_key { |name| refute_includes calls, "SET #{name}\n" }
+      assert_includes calls, "TMUX_TMPDIR sandbox\n"
+      refute_includes calls, "TMUX_TMPDIR decoy\n"
+    end
+  end
+
   def test_the_runner_enters_the_sandbox_before_it_starts_a_suite
     Dir.mktmpdir("libtmux-ruby-sandbox-") do |directory|
       probe = File.join(directory, "probe_test.rb")
@@ -339,7 +356,7 @@ class SandboxTest < Minitest::Test
         preloads = preload ? ["-rsupport/sandbox"] : []
         Open3.capture3(env, Gem.ruby, "-I#{TESTS}", *preloads, "-e", code, *arguments)
       end
-      yield log, run
+      yield log, run, env
     end
   end
 end

@@ -2,6 +2,10 @@
 # frozen_string_literal: true
 
 require "bundler/setup"
+# After Bundler, which refuses a default gem already loaded at another
+# version, and before anything starts tmux: the benchmark's tmux inherits this
+# process's environment.
+require_relative "../test/support/sandbox"
 require "libtmux/async"
 require "json"
 require "optparse"
