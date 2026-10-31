@@ -176,22 +176,34 @@ names no socket to that pane's server, because tmux follows `TMUX` ahead of
 that. It removes `TMUX`, `TMUX_PANE` and every `LIBTMUX_SOCKET*` variable, makes
 an `lt-rb-` directory under `TMPDIR` the process's `TMUX_TMPDIR`, and exits with
 status 2 when either did not hold. `scripts/check`, `scripts/matrix`,
-`test/test_helper.rb` and the tmux fixture load it, and a child process joins
-the sandbox its parent entered. A test file that starts tmux and loads none of
-those must require `test/support/sandbox.rb` first. At the end of the run, a
-socket under `tmux-<uid>` in the sandbox fails the run and its server is
-stopped: every test addresses its server with `-S`, so tmux chose that socket
-for a command that named none.
+`scripts/bench`, `test/test_helper.rb` and the tmux fixture load it, and a
+child process joins the sandbox its parent entered. `scripts/matrix` gives each
+cell a sandbox of its own and checks it when the cell ends, with the cell's
+tmux. A test file that starts tmux and loads none of those must require
+`test/support/sandbox.rb` first.
+
+At the end of the run, a socket anywhere in the sandbox fails the run, even
+when every test passed. Every test puts its server on a socket in a directory
+of its own, so a socket in the sandbox, whether tmux chose it for a command
+that named none or a test named it with `-S`, is a server nothing stopped.
+The sandbox stops each one with `tmux -S <socket> kill-server`, then connects
+to confirm nothing answers. If one still answers, it keeps the directory and
+names the sockets and the directory in the failure. Messages carry names,
+never the values of environment variables.
 
 `TMPDIR` must stay short enough for a socket path. The sandbox falls back to
 `/tmp` and refuses to run when neither fits. The README runner keeps its own
-directory under `/tmp`.
+`lt-rb-readme-` directory under `/tmp`. It starts servers on purpose, so it
+fails a test only when one still answers after kill-server, and then keeps
+the directory.
 
 `test/unit/sandbox_test.rb` shows the sandbox with a recording `tmux` that
 receives decoy selectors with the sandbox absent and none with it loaded.
 `test/integration/sandbox_test.rb` is the canary: it requires the sandbox to
 hold, then shows that a client naming no socket looks only in the sandbox and
-that `Endpoint` resolves the default to the same path.
+that `Endpoint` resolves the default to the same path. Two controls run the
+same client with another `TMUX_TMPDIR` and with an inherited `TMUX`, and
+require the canary's own test to reject both.
 
 Record the actual tmux version when behavior depends on it. A passing subset
 does not establish support for an entire version range.
