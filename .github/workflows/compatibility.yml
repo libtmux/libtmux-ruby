@@ -5,6 +5,39 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: >-
+          edges runs the oldest and newest supported tmux, full runs the whole
+          table with the refusal jobs and the development build, custom runs
+          the refs in tmux-ref. A release is bound to a full run.
+        type: choice
+        options: [edges, full, custom]
+        default: edges
+      tmux-ref:
+        description: >-
+          With scope custom, comma-separated tmux versions, tags, branches or
+          40-hex commit SHAs from github.com/tmux/tmux, such as 3.6,master.
+        type: string
+        default: ''
+      ruby:
+        description: >-
+          Comma-separated Ruby versions from scripts/ci-matrix.json, such as
+          3.3.12,4.0.7. Empty runs every Ruby for the supported cells and the
+          newest for the other jobs.
+        type: string
+        default: ''
+      os:
+        description: Runner image for the test jobs
+        type: choice
+        options: [ubuntu-24.04, ubuntu-latest, ubuntu-22.04]
+        default: ubuntu-24.04
+  workflow_call:
+    inputs:
+      scope:
+        description: How much of the table to cover. Release passes full.
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -14,9 +47,55 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # What a run covers is decided here from scripts/ci-matrix.json and the
+  # event, so no job below lists a version. A push and a pull request test the
+  # oldest and newest supported tmux; a release and a dispatch with scope full
+  # test the whole table.
+  plan:
+    name: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      scope: ${{ steps.plan.outputs.scope }}
+      os: ${{ steps.plan.outputs.os }}
+      release_artifacts: ${{ steps.plan.outputs.release_artifacts }}
+      cells: ${{ steps.plan.outputs.cells }}
+      run_cells: ${{ steps.plan.outputs.run_cells }}
+      ids: ${{ steps.plan.outputs.ids }}
+      unsupported: ${{ steps.plan.outputs.unsupported }}
+      run_unsupported: ${{ steps.plan.outputs.run_unsupported }}
+      development: ${{ steps.plan.outputs.development }}
+      run_development: ${{ steps.plan.outputs.run_development }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+      - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
+        with:
+          ruby-version: '4.0.7'
+      - name: Plan the run
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          SCOPE: ${{ inputs.scope }}
+          TMUX_REF: ${{ inputs.tmux-ref }}
+          RUBY: ${{ inputs.ruby }}
+          IMAGE: ${{ inputs.os }}
+        run: |
+          ruby scripts/ci-plan plan \
+            --event "$EVENT" \
+            --scope "$SCOPE" \
+            --tmux-ref "$TMUX_REF" \
+            --ruby "$RUBY" \
+            --os "$IMAGE" \
+            --github-output "$GITHUB_OUTPUT" \
+            --summary "$GITHUB_STEP_SUMMARY"
+
   release_artifacts:
     name: Release artifacts (no publishing)
-    if: github.event_name != 'workflow_dispatch'
+    needs: plan
+    if: needs.plan.outputs.release_artifacts == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
@@ -40,21 +119,22 @@ jobs:
           bundle exec rake "release:dry_run[v$version]"
 
   cell:
-    name: ${{ matrix.platform.system }} / Ruby ${{ matrix.ruby }} / tmux ${{ matrix.tmux }}
-    runs-on: ${{ matrix.platform.runner }}
+    name: ${{ matrix.system }} / Ruby ${{ matrix.ruby }} / tmux ${{ matrix.tmux }}
+    needs: plan
+    if: needs.plan.outputs.run_cells == 'true'
+    runs-on: ${{ needs.plan.outputs.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
-      matrix:
-        platform: [{system: linux, runner: ubuntu-24.04}]
-        ruby: ['3.3.12', '3.4.10', '4.0.7']
-        tmux: ['3.3a', '3.4', '3.5a', '3.6', '3.7c', '3.8']
+      # The plan chooses the cells and never leaves this empty when it runs.
+      matrix: ${{ fromJSON(needs.plan.outputs.cells) }}
     env:
       BUNDLE_FROZEN: 'true'
       LIBTMUX_VERSION_CHECK_EXPECT: supported
       TMUX_VERSION: ${{ matrix.tmux }}
+      TMUX_SHA256: ${{ matrix.sha256 }}
       RUBY_VERSION: ${{ matrix.ruby }}
-      MATRIX_SYSTEM: ${{ matrix.platform.system }}
+      MATRIX_SYSTEM: ${{ matrix.system }}
       TMPDIR: /tmp
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,7 +157,7 @@ jobs:
           curl --location --fail --silent --show-error \
             "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
             --output "$archive"
-          ruby -r./scripts/ci_manifest -rdigest -e 'expected = CIManifest.sha256(CIManifest.load, ENV.fetch("TMUX_VERSION")); abort "tmux archive checksum mismatch" unless Digest::SHA256.file(ARGV.fetch(0)).hexdigest == expected' "$archive"
+          echo "$TMUX_SHA256  $archive" | sha256sum --check --strict
           tar -xzf "$archive" -C "$RUNNER_TEMP"
           configure_options=(--disable-utf8proc)
           cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
@@ -97,28 +177,31 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: matrix-${{ matrix.platform.system }}-${{ matrix.ruby }}-${{ matrix.tmux }}
+          name: matrix-${{ matrix.system }}-${{ matrix.ruby }}-${{ matrix.tmux }}
           path: build/matrix/
           if-no-files-found: warn
 
   unsupported:
-    name: Refuse tmux ${{ matrix.tmux }} before effects
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.run_unsupported == 'true'
+    runs-on: ${{ needs.plan.outputs.os }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      matrix:
-        tmux: ['3.0a', '3.1c', '3.2a', '3.3']
+      matrix: ${{ fromJSON(needs.plan.outputs.unsupported) }}
     env:
       BUNDLE_FROZEN: 'true'
       TMUX_VERSION: ${{ matrix.tmux }}
+      TMUX_SHA256: ${{ matrix.sha256 }}
+      VERSION_CHECK: ${{ matrix.check }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
-          ruby-version: '4.0.7'
+          ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       - name: Install native build dependencies and supported client
         run: |
@@ -132,8 +215,7 @@ jobs:
           curl --location --fail --silent --show-error \
             "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
             --output "$archive"
-          expected=$(ruby -r./scripts/ci_manifest -e 'print CIManifest.sha256(CIManifest.load, ENV.fetch("TMUX_VERSION"))')
-          echo "$expected  $archive" | sha256sum --check
+          echo "$TMUX_SHA256  $archive" | sha256sum --check --strict
           tar -xzf "$archive" -C "$RUNNER_TEMP"
           cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
           ./configure --prefix="$RUNNER_TEMP/unsupported-tmux"
@@ -145,11 +227,11 @@ jobs:
           LIBTMUX_TEST_TMUX: ${{ runner.temp }}/unsupported-tmux/bin/tmux
         run: |
           set -euo pipefail
-          case "$TMUX_VERSION" in
-            3.0a|3.1c)
+          case "$VERSION_CHECK" in
+            old_daemon)
               export LIBTMUX_VERSION_CHECK_EXPECT="$TMUX_VERSION"
               timeout 120 bundle exec ruby -Itest test/old_daemon/pre_3_2_refusal_test.rb ;;
-            3.2a|3.3)
+            refused)
               export LIBTMUX_VERSION_CHECK_EXPECT=refused
               bundle exec ruby -Itest test/integration/tmux_version_check_test.rb ;;
             *)
@@ -157,49 +239,56 @@ jobs:
               exit 1 ;;
           esac
 
+  # The development build and any ref the manifest does not list: built from
+  # source at a commit and run through the outer suite.
   development:
-    name: tmux development build (next-3.9)
-    runs-on: ubuntu-24.04
+    name: ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.run_development == 'true'
+    runs-on: ${{ needs.plan.outputs.os }}
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.development) }}
     env:
       BUNDLE_FROZEN: 'true'
       LIBTMUX_VERSION_CHECK_EXPECT: supported
-      TMUX_COMMIT: d68e56f130ba44d13ae5f1f353526c7ce604099f
+      TMUX_REF: ${{ matrix.ref }}
+      EXPECT_VERSION: ${{ matrix.expect }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
-          ruby-version: '4.0.7'
+          ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       - name: Install native build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config autoconf automake zsh
-      - name: Build tmux master at a pinned commit
+      - name: Build tmux at the commit the ref names
         shell: bash
         run: |
           set -euo pipefail
-          git clone --quiet https://github.com/tmux/tmux.git "$RUNNER_TEMP/tmux-master"
-          cd "$RUNNER_TEMP/tmux-master"
-          git checkout --quiet "$TMUX_COMMIT"
-          sh autogen.sh
-          ./configure --prefix="$RUNNER_TEMP/tmux-master-install" --disable-utf8proc
-          make -j2
-          make install
-          "$RUNNER_TEMP/tmux-master-install/bin/tmux" -V | grep -E '^tmux next-'
-          echo "$RUNNER_TEMP/tmux-master-install/bin" >> "$GITHUB_PATH"
-      - name: Run the outer suite against the development build
+          scripts/build-tmux "$TMUX_REF" | tee "$RUNNER_TEMP/tmux-build.txt"
+          binary="$(sed -n 's/^binary=//p' "$RUNNER_TEMP/tmux-build.txt")"
+          if [ -n "$EXPECT_VERSION" ]; then
+            "$binary" -V | grep -E "$EXPECT_VERSION"
+          fi
+          dirname "$binary" >> "$GITHUB_PATH"
+          echo "LIBTMUX_TEST_TMUX=$binary" >> "$GITHUB_ENV"
+      - name: Run the outer suite against the build
         timeout-minutes: 10
-        env:
-          LIBTMUX_TEST_TMUX: ${{ runner.temp }}/tmux-master-install/bin/tmux
         run: bundle exec scripts/check outer
 
+  # One check to require. A job the plan scheduled has to have succeeded and a
+  # job it left out has to have been skipped, so a failure that skips its
+  # dependents cannot pass. The cells must also have passed with evidence.
   report:
     name: All required cells
     if: ${{ always() }}
-    needs: [cell, unsupported, development]
+    needs: [plan, release_artifacts, cell, unsupported, development]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -210,20 +299,22 @@ jobs:
         with:
           ruby-version: '4.0.7'
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: ${{ needs.plan.outputs.run_cells == 'true' }}
         with:
           pattern: matrix-*
           path: build/matrix-input
-      - name: Require unsupported-daemon version checks
-        if: ${{ needs.unsupported.result != 'success' }}
-        run: exit 1
-      - name: Require the tmux development build
-        if: ${{ needs.development.result != 'success' }}
-        run: exit 1
+      - name: Require every planned job
+        if: always()
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: ruby scripts/ci-plan verify
       - name: Reject missing, failed, skipped or stale cells
-        if: always()
-        run: scripts/matrix --merge build/matrix-input --require-all --output build/matrix
+        if: ${{ always() && needs.plan.outputs.run_cells == 'true' }}
+        env:
+          CELLS: ${{ needs.plan.outputs.ids }}
+        run: scripts/matrix --merge build/matrix-input --require-all --only "$CELLS" --output build/matrix
       - name: Retain the combined report
-        if: always()
+        if: ${{ always() && needs.plan.outputs.run_cells == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: compatibility-report

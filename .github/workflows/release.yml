@@ -16,8 +16,19 @@ env:
   RELEASE_COMMIT: ${{ github.sha }}
 
 jobs:
+  # The tagged commit runs the whole table itself, so the release does not
+  # depend on a push having run it.
+  compatibility:
+    name: Compatibility
+    permissions:
+      contents: read
+    uses: ./.github/workflows/compatibility.yml
+    with:
+      scope: full
+
   prepare:
     name: Validate and retain artifacts
+    needs: compatibility
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
