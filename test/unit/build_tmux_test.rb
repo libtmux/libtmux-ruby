@@ -5,7 +5,7 @@ require "fileutils"
 require "open3"
 require "tmpdir"
 
-load File.expand_path("../../scripts/ci-plan", __dir__)
+load File.expand_path("../../scripts/ci-plan", __dir__) unless defined?(CIPlan)
 
 # scripts/build-tmux against a local repository whose "build" installs a tmux
 # that reports the contents of VERSION, so no network and no compiler runs.

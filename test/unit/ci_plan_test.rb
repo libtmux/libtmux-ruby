@@ -5,7 +5,7 @@ require "json"
 require "open3"
 require "tmpdir"
 
-load File.expand_path("../../scripts/ci-plan", __dir__)
+load File.expand_path("../../scripts/ci-plan", __dir__) unless defined?(CIPlan)
 
 # Every rule of the plan has a check, and every check has a deliberate break:
 # the rule is replaced with its absence and the check has to notice. A check

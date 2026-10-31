@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 require "yaml"
 
-load File.expand_path("../../scripts/ci-plan", __dir__)
+load File.expand_path("../../scripts/ci-plan", __dir__) unless defined?(CIPlan)
 
 # The workflow takes its jobs from the plan and lists no version, the release
 # stays bound to a full run, and a matrix entry that builds a tmux release but

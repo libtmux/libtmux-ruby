@@ -365,8 +365,9 @@ changelog marks each break. Pin an exact version to avoid one.
   until its release ships, and a candidate such as `X.Y-rcN` ranks below
   `X.Y`. See [Release candidates][rc-policy].
 - **Linux, including WSL, and macOS.** The [compatibility workflow][compat]
-  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04.
-  macOS is supported on a best-effort basis, and CI coverage for it is highly
+  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04. A push
+  and a pull request run the oldest and newest of those releases, 3.3a and 3.8,
+  and a release runs all of them. macOS is supported on a best-effort basis, and CI coverage for it is highly
   limited.
 - **Control connections need tmux 3.7 or newer.** On an older daemon
   `open_control` raises `UnsupportedFeatureError` before a client attaches,

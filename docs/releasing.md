@@ -93,7 +93,10 @@ On `master`, update to the approved commit:
 $ git pull --ff-only origin master
 ```
 
-Require a successful master compatibility run for that exact commit:
+Require a successful master compatibility run for that exact commit. A push
+runs the oldest and newest tmux release only, so this check shows that the
+normal checks passed on master; the release workflow itself runs the whole
+table on the tag before it publishes:
 
 ```console
 $ mise exec -- bundle exec scripts/release-ci "$(git rev-parse HEAD)"
@@ -112,8 +115,10 @@ $ git push origin refs/tags/v<version>
 ```
 
 The [Release workflow](../.github/workflows/release.yml) validates the tag,
-requires successful compatibility for its exact commit, tests the entire
-artifact set and retains it before requesting credentials. It uploads core,
+runs the full compatibility scope on its exact commit (every supported tmux
+release on every Ruby, the refusal jobs and the development build), requires
+the master push check above, tests the entire artifact set and retains it
+before requesting credentials. It uploads core,
 Async, MCP and workspace in that order, then creates a GitHub release with
 the same files. Publishing does not change versions or create tags.
 Releases run serially; an active publication is not cancelled by a newer tag.

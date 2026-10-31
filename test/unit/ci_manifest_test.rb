@@ -2,7 +2,7 @@
 
 require_relative "../test_helper"
 
-load File.expand_path("../../scripts/ci_manifest.rb", __dir__)
+require_relative "../../scripts/ci_manifest"
 
 # The manifest is the one list of what CI covers. Each rule below has a case
 # that breaks it, so a guard that stops guarding fails here.
@@ -61,6 +61,8 @@ class CIManifestTest < Minitest::Test
     assert_includes broken { |copy| copy["supported"].first["tmux"] = "master" }, "master is not a tmux release"
   end
 
+  CONTRIBUTING = ".github/CONTRIBUTING.md"
+
   # What a README says about the tested range, against the manifest.
   def range_problems(path, text)
     supported = CIManifest.supported(manifest)
@@ -70,6 +72,8 @@ class CIManifestTest < Minitest::Test
     found << "#{path} states another tmux range" unless
       text.match(/tmux (\d\.\d[a-z]?) through (\d\.\d[a-z]?)/)&.captures == [supported.first, supported.last]
     found << "#{path} states other Rubies" unless text.include?("Ruby #{rubies[0..-2].join(', ')} and #{rubies.last}")
+    found << "#{path} states other edges" unless
+      text.match(/oldest and newest of those releases, (\S+) and (\S+),/)&.captures == [supported.first, supported.last]
     found
   end
 
@@ -79,9 +83,16 @@ class CIManifestTest < Minitest::Test
     end
   end
 
+  def test_the_contributor_guide_names_the_edges_the_manifest_lists
+    text = File.read(File.join(ROOT, CONTRIBUTING)).gsub(/\s+/, " ")
+    supported = CIManifest.supported(manifest)
+    assert_includes text, "oldest and newest supported release only (#{supported.first} and #{supported.last})"
+  end
+
   def test_a_readme_that_states_another_range_is_reported
     text = File.read(File.join(ROOT, "README.md"))
     assert_equal ["README.md states another tmux range"], range_problems("README.md", text.sub("through 3.8", "through 3.7c"))
     assert_equal ["README.md states other Rubies"], range_problems("README.md", text.sub("Ruby 3.3, 3.4 and 4.0", "Ruby 3.3 and 4.0"))
+    assert_equal ["README.md states other edges"], range_problems("README.md", text.sub("3.3a and 3.8,", "3.3a and 3.7c,"))
   end
 end

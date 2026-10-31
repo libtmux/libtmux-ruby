@@ -738,10 +738,11 @@ See the [changelog](../../CHANGELOG.md).
   [optional feature table](../../docs/reference/behavior.md#optional-tmux-features)
   lists the other per-release requirements.
 - **Linux, including WSL, and macOS.** The [compatibility workflow][compat]
-  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04.
-  macOS is supported on a best-effort basis, and CI coverage for it is highly
+  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04. A push
+  and a pull request run the oldest and newest of those releases, 3.3a and 3.8,
+  and a release runs all of them. macOS is supported on a best-effort basis, and CI coverage for it is highly
   limited.
-- **tmux master and old daemons.** On Ubuntu the workflow also runs the suite
+- **tmux master and old daemons.** On Ubuntu a release also runs the suite
   against a pinned tmux master, and checks that tmux 3.0a, 3.1c, 3.2a and 3.3
   daemons are refused.
 - **Per-revision results.** Read the workflow's results for your revision
