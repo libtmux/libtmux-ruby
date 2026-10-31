@@ -28,18 +28,48 @@ class MatrixTest < Minitest::Test
     assert_equal "PARTIAL", JSON.parse(output).fetch("status")
   end
 
-  def test_a_cell_runs_in_the_sandbox_not_the_selectors_of_the_saved_environment
+  def test_a_cell_runs_in_the_sandbox_it_is_given_not_the_selectors_of_the_saved_environment
     selectors = {"TMUX" => "/decoy/server,1,0", "TMUX_PANE" => "%9", "LIBTMUX_SOCKET" => "decoy-name",
                  "LIBTMUX_SOCKET_PATH" => "/decoy/path", "PATH" => "/usr/bin"}
     ["/decoy/tmpdir", nil].each do |tmpdir|
       saved = tmpdir ? selectors.merge("TMUX_TMPDIR" => tmpdir) : selectors
-      environment = CompatibilityMatrix.cell_environment(saved, "/opt/ruby/bin/ruby", "/opt/tmux/bin/tmux")
+      environment = CompatibilityMatrix.cell_environment(saved, "/opt/ruby/bin/ruby", "/opt/tmux/bin/tmux", "/tmp/lt-rb-cell")
       %w[TMUX TMUX_PANE LIBTMUX_SOCKET LIBTMUX_SOCKET_PATH].each do |name|
         assert environment.key?(name) && environment[name].nil?, name
       end
-      assert_equal ENV.fetch("TMUX_TMPDIR"), environment.fetch("TMUX_TMPDIR")
-      assert_equal ENV.fetch(LibTmuxTest::Sandbox::MARKER), environment.fetch(LibTmuxTest::Sandbox::MARKER)
+      assert_equal "/tmp/lt-rb-cell", environment.fetch("TMUX_TMPDIR")
+      assert_equal "/tmp/lt-rb-cell", environment.fetch(LibTmuxTest::Sandbox::MARKER)
       assert_equal "/opt/tmux/bin/tmux", environment.fetch("LIBTMUX_TEST_TMUX")
+    end
+  end
+
+  # The cell's tmux is a script that answers -V and logs the rest of its
+  # arguments. The cell's Ruby logs the TMUX_TMPDIR it was given, prints three
+  # clean suite summaries and, when told to, leaves a socket behind.
+  def test_a_server_a_cell_leaves_fails_that_cell_and_is_stopped_with_that_cells_tmux
+    skip "the matrix runs on Linux only" unless RUBY_PLATFORM.include?("linux")
+    cell = CompatibilityMatrix.cells.find { |item| item.fetch("id") == "linux/4.0.7/3.7c" }
+    parent = ENV.fetch("TMUX_TMPDIR")
+    [false, true].each do |leaks|
+      Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
+        ruby, tmux, tmuxes, sandboxes = fake_toolchain(directory, leaks)
+        result = CompatibilityMatrix.execute(cell, {"4.0.7" => ruby}, {"3.7c" => tmux}, directory)
+        sandbox = File.read(sandboxes).lines.map(&:chomp).last
+        assert_equal 0, result.fetch("exit_status")
+        refute_equal parent, sandbox, "the cell joined this process's sandbox"
+        assert_includes sandbox, "/lt-rb-"
+        refute File.exist?(sandbox)
+        if leaks
+          assert_equal "FAIL", result.fetch("status")
+          assert_equal ["custom.sock"], result.fetch("leaked_sockets")
+          assert_empty result.fetch("answering_sockets")
+          assert_equal ["-S #{sandbox}/custom.sock kill-server"], File.read(tmuxes).lines.map(&:chomp).grep(/kill-server/)
+        else
+          assert_equal "PASS", result.fetch("status")
+          refute result.key?("leaked_sockets")
+          refute_includes File.read(tmuxes), "kill-server"
+        end
+      end
     end
   end
 
@@ -141,5 +171,32 @@ class MatrixTest < Minitest::Test
       assert_equal "WRONG_TOOLCHAIN", result.fetch("status")
       refute File.exist?(marker)
     end
+  end
+
+  private
+
+  # Returns paths of a Ruby and a tmux that stand in for a cell's toolchain,
+  # the log of the tmux commands, and the log of the sandboxes the Ruby saw.
+  def fake_toolchain(directory, leaks)
+    ruby, tmux, tmuxes, sandboxes = %w[ruby tmux tmux.log sandboxes].map { |name| File.join(directory, name) }
+    File.write(tmuxes, "")
+    File.write(ruby, <<~RUBY, perm: 0o755)
+      #!#{Gem.ruby}
+      if ARGV.first == "--disable=gems"
+        print "4.0.7"
+        exit
+      end
+      require "socket"
+      File.write("#{sandboxes}", ENV.fetch("TMUX_TMPDIR") + "\n", mode: "a")
+      #{leaks ? 'UNIXServer.new(File.join(ENV.fetch("TMUX_TMPDIR"), "custom.sock"))' : ""}
+      3.times { puts "1 runs, 1 assertions, 0 failures, 0 errors, 0 skips" }
+    RUBY
+    File.write(tmux, <<~SH, perm: 0o755)
+      #!/bin/sh
+      if [ "$1" = -V ]; then printf 'tmux 3.7c\\n'; exit 0; fi
+      echo "$@" >> '#{tmuxes}'
+      exit 1
+    SH
+    [ruby, tmux, tmuxes, sandboxes]
   end
 end
