@@ -13,7 +13,10 @@
   tmux's default socket. They raised `ArgumentError` before. A program started
   inside tmux that names no socket now reaches that tmux's server; pass
   `socket_name:` or `socket_path:` to keep it off, as a test suite should.
-  `Endpoint.from_env` still follows `TMUX` alone. (#71)
+  `Endpoint.from_env` still follows `TMUX` alone. Two edge cases now match
+  tmux: an empty `TMUX_TMPDIR` means `/tmp`, where `Endpoint.new(socket_name:)`
+  raised, and `Endpoint.from_env` reads `TMUX_TMPDIR` only from the hash it is
+  given and ignores a `TMUX` that starts with a comma, where it raised. (#71)
 - **Behavior change:** `libtmux-workspace load` and `plan --live` no longer
   need `--socket`. Without it they use the same choice as `Server.new`, so a
   command that failed with status 2 for a missing socket now acts on the
