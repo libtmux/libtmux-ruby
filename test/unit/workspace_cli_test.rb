@@ -41,10 +41,10 @@ class WorkspaceCLITest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-cli-") do |directory|
       file = File.join(directory, "private-config.json")
       File.write(file, '{"session_name":"a","session_name":"secret-name"}')
-      cases = [["validate", "--json", file], ["load", "--json", file],
+      cases = [["validate", "--json", file], ["load", "--json", "--socket", "private-socket", file],
         ["load", "--json", "--attach", "--switch", file],
         ["load", "--json", "--socket", "private-socket", "--switch", file],
-        ["plan", "--json", "--live", file], ["load", "--json", "--timeout", "NaN", file],
+        ["plan", "--json", "--live", "--socket", "private-socket", file], ["load", "--json", "--timeout", "NaN", file],
         ["validate", "--json", "--unknown=private-value", file]]
       cases.each do |arguments|
         status, output, error = run_cli(arguments, directory)
