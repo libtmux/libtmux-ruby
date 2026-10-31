@@ -19,7 +19,8 @@ class MatrixTest < Minitest::Test
     assert_equal expected, report.fetch("cells").map { |cell| cell.fetch("id") }.uniq.length
     assert_equal "PARTIAL", report.fetch("status")
     assert report.fetch("cells").all? { |cell| cell.fetch("status") == "UNVERIFIED" }
-    assert_equal %w[3.3a 3.4 3.5a 3.6 3.7c 3.8], report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
+    assert_equal CIManifest.supported(CIManifest.load), report.fetch("cells").map { |cell| cell.fetch("tmux") }.uniq
+    assert_equal CIManifest.rubies(CIManifest.load), report.fetch("cells").map { |cell| cell.fetch("ruby") }.uniq
     assert_equal ["linux"], report.fetch("cells").map { |cell| cell.fetch("os") }.uniq
     assert_equal ["positive_native_identity"], report.fetch("cells").map { |cell| cell["process_bound_mcp"] }.uniq
     output, _, status = Open3.capture3(Gem.ruby, path, "--require-all")

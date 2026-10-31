@@ -6,11 +6,13 @@ require "optparse"
 require "digest"
 require "fileutils"
 require "open3"
+require_relative "ci_manifest"
 
 module CompatibilityMatrix
-  RUBIES = %w[3.3.12 3.4.10 4.0.7].freeze
-  TMUXES = %w[3.3a 3.4 3.5a 3.6 3.7c 3.8].freeze
-  SYSTEMS = %w[linux].freeze
+  MANIFEST = CIManifest.load
+  RUBIES = CIManifest.rubies(MANIFEST).freeze
+  TMUXES = CIManifest.supported(MANIFEST).freeze
+  SYSTEMS = MANIFEST.fetch("systems").freeze
   ROOT = File.expand_path("..", __dir__)
 
   def self.cells

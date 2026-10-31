@@ -77,7 +77,7 @@ jobs:
           curl --location --fail --silent --show-error \
             "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
             --output "$archive"
-          ruby -rjson -rdigest -e 'expected = JSON.parse(File.read("scripts/tmux-releases.json")).fetch(ENV.fetch("TMUX_VERSION")); abort "tmux archive checksum mismatch" unless Digest::SHA256.file(ARGV.fetch(0)).hexdigest == expected' "$archive"
+          ruby -r./scripts/ci_manifest -rdigest -e 'expected = CIManifest.sha256(CIManifest.load, ENV.fetch("TMUX_VERSION")); abort "tmux archive checksum mismatch" unless Digest::SHA256.file(ARGV.fetch(0)).hexdigest == expected' "$archive"
           tar -xzf "$archive" -C "$RUNNER_TEMP"
           configure_options=(--disable-utf8proc)
           cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
@@ -132,7 +132,7 @@ jobs:
           curl --location --fail --silent --show-error \
             "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
             --output "$archive"
-          expected=$(ruby -rjson -e 'print JSON.parse(File.read("scripts/tmux-releases.json")).fetch(ENV.fetch("TMUX_VERSION"))')
+          expected=$(ruby -r./scripts/ci_manifest -e 'print CIManifest.sha256(CIManifest.load, ENV.fetch("TMUX_VERSION"))')
           echo "$expected  $archive" | sha256sum --check
           tar -xzf "$archive" -C "$RUNNER_TEMP"
           cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
