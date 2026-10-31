@@ -84,7 +84,90 @@ class WorkspaceCLITest < Minitest::Test
     end
   end
 
+  def test_load_and_live_plan_take_the_socket_the_core_picks_when_no_flag_names_one
+    directory = "/private-tmux-tmpdir"
+    inside = "/inside/socket,1,0"
+    named = "#{directory}/tmux-#{Process.uid}"
+    cases = [
+      [{"LIBTMUX_SOCKET_PATH" => "/variable/path.sock", "LIBTMUX_SOCKET" => "variable"}, "/variable/path.sock"],
+      [{"LIBTMUX_SOCKET" => "variable"}, "#{named}/variable"],
+      [{"TMUX" => inside}, "/inside/socket"],
+      [{"LIBTMUX_SOCKET" => "variable", "TMUX" => inside}, "#{named}/variable"],
+      [{}, "#{named}/default"]
+    ]
+    Dir.mktmpdir("libtmux-ruby-cli-") do |work|
+      file = write_config(work)
+      [["load"], ["plan", "--live"]].each do |command|
+        cases.each do |variables, socket|
+          status, endpoints, = capturing_open { |environment| run_cli([*command, "--json", file], work, environment: environment.merge(variables)) }
+          assert_equal 1, status, "#{command} #{variables.keys}"
+          assert_equal [socket], endpoints.map(&:socket_path), "#{command} #{variables.keys}"
+        end
+      end
+    end
+  end
+
+  def test_the_socket_flag_wins_over_every_variable
+    Dir.mktmpdir("libtmux-ruby-cli-") do |work|
+      file = write_config(work)
+      variables = {"LIBTMUX_SOCKET_PATH" => "/variable/path.sock", "LIBTMUX_SOCKET" => "variable", "TMUX" => "/inside/socket,1,0"}
+      [["load"], ["plan", "--live"]].each do |command|
+        _, endpoints, = capturing_open do |environment|
+          run_cli([*command, "--json", "--socket", "flag.sock", file], work, environment: environment.merge(variables))
+        end
+        assert_equal [File.join(work, "flag.sock")], endpoints.map(&:socket_path), command.inspect
+      end
+    end
+  end
+
+  def test_a_bad_variable_is_refused_by_name_before_any_server_opens
+    Dir.mktmpdir("libtmux-ruby-cli-") do |work|
+      file = write_config(work)
+      status, endpoints, output = capturing_open do |environment|
+        run_cli(["load", "--json", file], work, environment: environment.merge("LIBTMUX_SOCKET" => "private-a/b"))
+      end
+      assert_equal 2, status
+      assert_empty endpoints
+      assert_includes output, "LIBTMUX_SOCKET"
+      refute_includes output, "private-"
+    end
+  end
+
+  def test_an_empty_socket_flag_and_a_socket_flag_without_a_live_command_are_refused_before_any_server_opens
+    Dir.mktmpdir("libtmux-ruby-cli-") do |work|
+      file = write_config(work)
+      [["load", "--socket", ""], ["plan", "--live", "--socket", ""], ["plan", "--socket", "flag.sock"],
+        ["validate", "--socket", "flag.sock"]].each do |arguments|
+        status, endpoints, = capturing_open { |environment| run_cli([*arguments, "--json", file], work, environment: environment) }
+        assert_equal 2, status, arguments.inspect
+        assert_empty endpoints, arguments.inspect
+      end
+    end
+  end
+
   private
+
+  def write_config(directory)
+    file = File.join(directory, "workspace.json")
+    File.write(file, JSON.generate({session_name: "cli", windows: [{window_name: "one", panes: [{}]}]}))
+    file
+  end
+
+  # Stops the CLI where it would open a server, so no tmux client starts, and
+  # answers the status, the endpoints it was asked to open and its output. The
+  # block gets an environment whose tmux directory is private.
+  def capturing_open
+    endpoints = []
+    original = LibTmux::Server.method(:open)
+    LibTmux::Server.define_singleton_method(:open) do |**options, &_block|
+      endpoints << options.fetch(:endpoint)
+      raise LibTmux::TargetNotFoundError.new("stopped by the test", phase: :bind)
+    end
+    status, output, = yield({"TMUX_TMPDIR" => "/private-tmux-tmpdir"})
+    [status, endpoints, output]
+  ensure
+    LibTmux::Server.define_singleton_method(:open, original)
+  end
 
   def with_open_raising(error)
     original = LibTmux::Server.method(:open)
@@ -94,9 +177,9 @@ class WorkspaceCLITest < Minitest::Test
     LibTmux::Server.define_singleton_method(:open, original)
   end
 
-  def run_cli(arguments, directory)
+  def run_cli(arguments, directory, environment: {})
     output, error = StringIO.new, StringIO.new
-    status = LibTmux::Workspace::CLI.run(arguments, out: output, err: error, directory: directory, environment: {})
+    status = LibTmux::Workspace::CLI.run(arguments, out: output, err: error, directory: directory, environment: environment)
     [status, output.string, error.string]
   end
 end

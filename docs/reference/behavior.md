@@ -943,7 +943,8 @@ its raw message. Explicit exports retain caller data; inspection is redacted.
 
 `CLI.run` implements validate, plan and explicit load. Ordinary validate/plan
 remain inert except configuration reads; `plan --live` explicitly acquires a
-snapshot to add preconditions. Load borrows an explicit server endpoint;
+snapshot to add preconditions. Load borrows the server that `--socket` names,
+or with no flag the one `Endpoint.new` picks from the `environment:` argument;
 `--attach` opens the caller terminal for the explicit core attach operation.
 `load --switch CLIENT` switches that explicit current native selector only
 after apply succeeds. It preserves session environment and does not infer a
@@ -962,8 +963,8 @@ The CLI supports human or JSON output and returns exit status: zero for
 success, two for usage/configuration errors, three for partial/uncertain
 effects, one for failures before effects including preflight conflicts, and 130
 for interruption. Authored shell commands are authorized by load without a
-second trust prompt. Output streams, directory and expansion environment can
-be supplied to the library entry point.
+second trust prompt. Output streams, the directory and the environment
+(`TERM` and the socket variables) can be supplied to the library entry point.
 
 ## Errors
 
