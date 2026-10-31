@@ -28,6 +28,7 @@ class SandboxTest < Minitest::Test
         *) echo "TMUX_TMPDIR other" ;;
       esac
     } >> "$FAKE_TMUX_LOG"
+    if [ -n "$FAKE_TMUX_KILLS" ] && [ "$1" = -S ] && [ "$3" = kill-server ]; then rm -f -- "${2:?}"; fi
     exit 1
   SH
 
@@ -76,7 +77,7 @@ class SandboxTest < Minitest::Test
     assert_equal 0o700, File.stat(directory).mode & 0o777
     refute directory == ENV.fetch("TMUX_TMPDIR"), "made no directory of its own"
   ensure
-    assert_empty Sandbox.release(directory) if directory
+    assert_predicate Sandbox.release(directory), :clean? if directory
     refute File.exist?(directory) if directory
   end
 
@@ -96,13 +97,93 @@ class SandboxTest < Minitest::Test
     end
   end
 
-  def test_a_leak_is_a_socket_tmux_chose_under_the_sandbox
+  def test_a_leak_is_a_socket_anywhere_in_the_tree_whoever_named_it
     Dir.mktmpdir("libtmux-ruby-sandbox-") do |directory|
       assert_empty Sandbox.leaks(directory)
       FileUtils.mkdir_p(File.join(directory, "tmux-1000"))
+      File.write(File.join(directory, "tmux-1000", "not-a-socket"), "")
       assert_empty Sandbox.leaks(directory)
-      File.write(File.join(directory, "tmux-1000", "default"), "")
-      assert_equal ["tmux-1000/default"], Sandbox.leaks(directory)
+      listen(directory, "tmux-1000", "default")
+      listen(directory, "custom.sock")
+      listen(directory, ".hidden", "deep", "s")
+      assert_equal %w[.hidden/deep/s custom.sock tmux-1000/default], Sandbox.leaks(directory)
+    end
+  end
+
+  def test_a_link_to_a_socket_elsewhere_is_not_a_leak_and_is_not_stopped
+    with_directories do |directory, bin|
+      elsewhere = listen(bin, "outside.sock")
+      File.symlink(elsewhere, File.join(directory, "link.sock"))
+      log = File.join(bin, "calls")
+      released = Sandbox.release(directory, tmux: fake_tmux(bin, "echo called >> '#{log}'"), wait: 1)
+      assert_empty released.leaked
+      refute File.exist?(log)
+      refute File.exist?(directory)
+    end
+  end
+
+  def test_release_stops_each_server_wherever_it_sits_and_removes_the_directory
+    with_directories do |directory, bin|
+      sockets = [%w[tmux-1000 default], %w[custom.sock], %w[a b c.sock]].map { |path| listen(directory, *path) }
+      log = File.join(bin, "calls")
+      kill = fake_tmux(bin, "echo \"$3 $2\" >> '#{log}'; rm -f -- \"${2:?}\"")
+      released = Sandbox.release(directory, tmux: kill, wait: 1)
+      assert_equal %w[a/b/c.sock custom.sock tmux-1000/default], released.leaked
+      assert_empty released.answering
+      assert_equal sockets.sort.map { |socket| "kill-server #{socket}" }, File.read(log).lines.map(&:chomp).sort
+      refute File.exist?(directory)
+    end
+  end
+
+  def test_release_waits_for_a_server_that_takes_a_moment_to_go
+    with_directories do |directory, bin|
+      listen(directory, "custom.sock")
+      slow = fake_tmux(bin, "(sleep 0.4; rm -f -- \"${2:?}\") &")
+      released = Sandbox.release(directory, tmux: slow, wait: 5)
+      assert_empty released.answering
+      refute File.exist?(directory)
+    end
+  end
+
+  def test_release_keeps_the_directory_while_a_server_still_answers
+    with_directories do |directory, bin|
+      listen(directory, "custom.sock")
+      listen(directory, "gone.sock")
+      one = fake_tmux(bin, "case \"$2\" in */gone.sock) rm -f -- \"${2:?}\" ;; esac")
+      released = Sandbox.release(directory, tmux: one, wait: 0.2)
+      assert_equal %w[custom.sock gone.sock], released.leaked
+      assert_equal %w[custom.sock], released.answering
+      assert File.exist?(File.join(directory, "custom.sock")), "removed the directory of a live server"
+      message = released.message(directory)
+      assert_includes message, "custom.sock"
+      assert_includes message, "#{File.basename(directory)} was kept"
+      refute_includes message, File.dirname(directory)
+    end
+  end
+
+  def test_the_stop_hands_tmux_no_selector_and_keeps_tmux_tmpdir
+    with_directories do |directory, bin|
+      listen(directory, "custom.sock")
+      log = File.join(bin, "calls")
+      names = "TMUX|TMUX_PANE|TMUX_TMPDIR|LIBTMUX_SOCKET[A-Z_]*"
+      recorder = fake_tmux(bin, "env | sed -n -E 's/^(#{names})=.*/\\1/p' >> '#{log}'; rm -f -- \"${2:?}\"")
+      saved = DECOYS.keys.to_h { |name| [name, ENV.fetch(name, nil)] }
+      begin
+        DECOYS.each { |name, value| ENV[name] = value }
+        Sandbox.release(directory, tmux: recorder, wait: 1)
+      ensure
+        saved.each { |name, value| ENV[name] = value }
+      end
+      assert_equal ["TMUX_TMPDIR"], File.read(log).lines.map(&:chomp)
+    end
+  end
+
+  def test_release_keeps_the_directory_when_there_is_no_tmux_to_stop_the_server
+    with_directories do |directory, bin|
+      listen(directory, "custom.sock")
+      released = Sandbox.release(directory, tmux: File.join(bin, "missing-tmux"), wait: 0.2)
+      assert_equal %w[custom.sock], released.answering
+      assert File.exist?(directory)
     end
   end
 
@@ -135,16 +216,36 @@ class SandboxTest < Minitest::Test
   end
 
   def test_a_run_that_leaves_a_socket_in_the_sandbox_fails_and_stops_that_server
-    code = 'require "socket"; directory = File.join(ENV.fetch("TMUX_TMPDIR"), "tmux-#{Process.uid}"); ' \
-      'Dir.mkdir(directory); UNIXServer.new(File.join(directory, "default")); puts ENV.fetch("TMUX_TMPDIR")'
-    with_recorder do |recorder, run|
+    code = 'require "socket"; require "fileutils"; socket = File.join(ENV.fetch("TMUX_TMPDIR"), *ARGV); ' \
+      'FileUtils.mkdir_p(File.dirname(socket)); UNIXServer.new(socket); puts ENV.fetch("TMUX_TMPDIR")'
+    [["tmux-#{Process.uid}", "default"], ["custom.sock"]].each do |path|
+      with_recorder("FAKE_TMUX_KILLS" => "1") do |recorder, run|
+        output, error, status = run.call(true, code, *path)
+        sandbox = output.chomp
+        assert_equal 1, status.exitstatus, path.join("/")
+        assert_includes error, path.join("/")
+        refute_includes error, "answers"
+        assert_equal ["ARG -S", "ARG #{sandbox}/#{path.join('/')}", "ARG kill-server"],
+          File.read(recorder).lines.map(&:chomp).grep(/\AARG /)
+        refute File.exist?(sandbox)
+      end
+    end
+  end
+
+  def test_a_run_whose_server_survives_kill_server_keeps_the_sandbox_and_says_so
+    code = 'require "socket"; UNIXServer.new(File.join(ENV.fetch("TMUX_TMPDIR"), "custom.sock")); puts ENV.fetch("TMUX_TMPDIR")'
+    with_recorder do |_recorder, run|
       output, error, status = run.call(true, code)
       sandbox = output.chomp
-      assert_equal 1, status.exitstatus
-      assert_includes error, "tmux-#{Process.uid}/default"
-      assert_equal ["ARG -S", "ARG #{sandbox}/tmux-#{Process.uid}/default", "ARG kill-server"],
-        File.read(recorder).lines.map(&:chomp).grep(/\AARG /)
-      refute File.exist?(sandbox)
+      begin
+        assert_equal 1, status.exitstatus
+        assert_includes error, "a server still answers at custom.sock"
+        assert_includes error, "#{File.basename(sandbox)} was kept"
+        refute_includes error, File.dirname(sandbox)
+        assert File.directory?(sandbox), "removed the directory of a server that was not stopped"
+      ensure
+        FileUtils.rm_rf(sandbox) if sandbox.include?("/lt-rb-")
+      end
     end
   end
 
@@ -181,19 +282,50 @@ class SandboxTest < Minitest::Test
 
   private
 
+  # Yields a directory named like a sandbox and a second one for scripts and
+  # sockets outside it, and removes both.
+  def with_directories
+    Dir.mktmpdir("libtmux-ruby-sandbox-") do |bin|
+      directory = Dir.mktmpdir(Sandbox::PREFIX)
+      begin
+        yield directory, bin
+      ensure
+        FileUtils.rm_rf(directory) if File.basename(directory).start_with?(Sandbox::PREFIX)
+      end
+    end
+  end
+
+  def fake_tmux(directory, body)
+    path = File.join(directory, "tmux")
+    File.write(path, "#!/bin/sh\n#{body}\n", perm: 0o755)
+    path
+  end
+
+  # A socket with a server listening on it until the test ends.
+  def listen(directory, *path)
+    full = File.join(directory, *path)
+    FileUtils.mkdir_p(File.dirname(full))
+    (@servers ||= []) << UNIXServer.new(full)
+    full
+  end
+
+  def teardown
+    @servers&.each(&:close)
+  end
+
   # Yields the recorder's log path and a runner for a child Ruby whose
   # environment holds the decoys and whose PATH finds only the recorder.
-  def with_recorder
+  def with_recorder(extra = {})
     Dir.mktmpdir("libtmux-ruby-sandbox-") do |directory|
       bin = File.join(directory, "bin")
       Dir.mkdir(bin)
       File.write(File.join(bin, "tmux"), RECORDER, perm: 0o755)
       log = File.join(directory, "calls")
       env = DECOYS.merge("TMUX_TMPDIR" => "/decoy/tmpdir", Sandbox::MARKER => nil, "FAKE_TMUX_LOG" => log,
-        "PATH" => "#{bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "LIBTMUX_TEST_TMUX" => "tmux")
-      run = lambda do |preload, code|
+        "PATH" => "#{bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "LIBTMUX_TEST_TMUX" => "tmux").merge(extra)
+      run = lambda do |preload, code, *arguments|
         preloads = preload ? ["-rsupport/sandbox"] : []
-        Open3.capture3(env, Gem.ruby, "-I#{TESTS}", *preloads, "-e", code)
+        Open3.capture3(env, Gem.ruby, "-I#{TESTS}", *preloads, "-e", code, *arguments)
       end
       yield log, run
     end

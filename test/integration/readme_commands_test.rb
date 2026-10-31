@@ -26,8 +26,10 @@ class ReadmeCommandsTest < Minitest::Test
   class Sandbox
     attr_reader :directory, :work
 
-    def initialize
-      @directory = Dir.mktmpdir("libtmux-ruby-readme-", "/tmp")
+    # A directory named like the sandbox's own, so that releasing it may remove it.
+    def initialize(executable: nil)
+      @tmux = executable
+      @directory = Dir.mktmpdir("#{LibTmuxTest::Sandbox::PREFIX}readme-", "/tmp")
       @work = File.join(directory, "work")
       @variables = {}
       home = File.join(directory, "home")
@@ -109,11 +111,14 @@ class ReadmeCommandsTest < Minitest::Test
       end
     end
 
+    # The commands start servers on purpose, so only one that still answers
+    # after kill-server fails the test, and its directory stays.
     def close
-      sockets = Dir.glob(File.join(directory, "**", "*"), File::FNM_DOTMATCH).select { |path| File.socket?(path) }
-      sockets.each { |socket| run(tmux, "-S", socket, "kill-server") }
-    ensure
-      FileUtils.remove_entry(directory)
+      released = LibTmuxTest::Sandbox.release(directory, tmux: tmux)
+      return if released.answering.empty?
+
+      raise Minitest::Assertion,
+        "a server still answers at #{released.answering.join(', ')}, so #{File.basename(directory)} was kept"
     end
   end
 
@@ -165,6 +170,25 @@ class ReadmeCommandsTest < Minitest::Test
       sandbox.mcp(["--socket-name", "agent", *everything], "tool table") { |session| assert_equal table.keys.sort, session.tools.sort }
     ensure
       sandbox.close
+    end
+  end
+
+  def test_the_runner_keeps_its_directory_and_fails_when_kill_server_leaves_a_server
+    real = Sandbox.new
+    Dir.mktmpdir("libtmux-ruby-readme-noop-") do |bin|
+      noop = File.join(bin, "tmux")
+      File.write(noop, "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = kill-server ] && exit 0; done\nexec '#{real.tmux}' \"$@\"\n", perm: 0o755)
+      sandbox = Sandbox.new(executable: noop)
+      begin
+        assert sandbox.run(sandbox.tmux, "-L", "agent", "-f", "/dev/null", "new-session", "-d", "-s", "work").status.success?
+        error = assert_raises(Minitest::Assertion) { sandbox.close }
+        assert_includes error.message, "a server still answers at t/tmux-#{Process.uid}/agent"
+        assert_includes error.message, "#{File.basename(sandbox.directory)} was kept"
+        assert File.directory?(sandbox.directory), "removed the directory of a server that was not stopped"
+      ensure
+        LibTmuxTest::Sandbox.release(sandbox.directory, tmux: real.tmux)
+        real.close
+      end
     end
   end
 

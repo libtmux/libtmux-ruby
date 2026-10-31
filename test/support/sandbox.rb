@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "socket"
 require "tmpdir"
 
 module LibTmuxTest
@@ -20,6 +21,24 @@ module LibTmuxTest
     MAX_BYTES = 60
     # What Dir.mktmpdir appends to PREFIX, with the separator.
     NAME_BYTES = 32
+    # How long kill-server may take before a socket that still accepts a
+    # connection counts as a server that was not stopped.
+    STOP_SECONDS = 3
+
+    # leaked: every socket found under the sandbox, relative to it.
+    # answering: those that still accepted a connection after the stop.
+    Release = Struct.new(:leaked, :answering) do
+      def clean?
+        leaked.empty?
+      end
+
+      def message(directory)
+        text = "libtmux-ruby tests left sockets in the sandbox: #{leaked.join(', ')}"
+        return text if answering.empty?
+
+        "#{text}; a server still answers at #{answering.join(', ')}, so #{File.basename(directory)} was kept"
+      end
+    end
 
     class << self
       def ambient?(name)
@@ -62,24 +81,26 @@ module LibTmuxTest
 
       # The overlay for a child environment built from a saved copy of this
       # one, which would otherwise carry the variables this process removed.
-      def overlay(env = ENV)
-        names = (NAMES + env.keys).select { |name| ambient?(name) }.uniq
-        names.to_h { |name| [name, nil] }.merge("TMUX_TMPDIR" => ENV.fetch("TMUX_TMPDIR"), MARKER => ENV.fetch(MARKER))
+      def overlay(env = ENV, directory: ENV.fetch("TMUX_TMPDIR"))
+        scrub(env).merge("TMUX_TMPDIR" => directory, MARKER => directory)
       end
 
-      # Anything under tmux-<uid> is a socket tmux chose for a command that
-      # named none: every test here addresses its server with -S.
+      # Every socket under the directory, at any depth. Each test here puts its
+      # own server on a socket in a directory of its own, so a socket anywhere
+      # in the sandbox, whether tmux chose it or a test named it with -S, is a
+      # server no test stopped. A link is not followed: its target is a socket
+      # in some other tree.
       def leaks(directory)
-        Dir.glob("tmux-*/*", base: directory).sort
+        Dir.glob("**/*", File::FNM_DOTMATCH, base: directory).select { |path| socket?(File.join(directory, path)) }.sort
       end
 
-      # Stops a server a test started on the sandbox's own sockets, removes the
-      # directory, and returns the relative paths of those sockets.
-      def release(directory)
+      # Stops the server behind each socket with that tmux and removes the
+      # directory unless one still answers. The Release names what it found.
+      def release(directory, tmux: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux"), wait: STOP_SECONDS)
         found = leaks(directory)
-        found.each { |path| stop(File.join(directory, path)) }
-        remove(directory)
-        found
+        answering = found.reject { |path| stop(File.join(directory, path), tmux, wait) }
+        remove(directory) if answering.empty?
+        Release.new(found, answering)
       end
 
       private
@@ -110,13 +131,46 @@ module LibTmuxTest
         FileUtils.rm_rf(directory) if File.basename(directory).start_with?(PREFIX)
       end
 
-      def stop(socket)
-        return unless File.socket?(socket)
+      def scrub(env)
+        (NAMES + env.keys).select { |name| ambient?(name) }.uniq.to_h { |name| [name, nil] }
+      end
 
-        system({"TMUX" => nil, "TMUX_PANE" => nil}, ENV.fetch("LIBTMUX_TEST_TMUX", "tmux"), "-S", socket, "kill-server",
-          out: File::NULL, err: File::NULL)
+      def socket?(path)
+        File.lstat(path).socket?
       rescue SystemCallError
-        nil
+        false
+      end
+
+      # True once nothing answers on the socket. A server leaves a moment
+      # after kill-server returns, so the connection is retried until it fails.
+      def stop(socket, tmux, wait)
+        begin
+          system(scrub(ENV), tmux, "-S", socket, "kill-server", out: File::NULL, err: File::NULL)
+        rescue SystemCallError
+          nil
+        end
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait
+        while answering?(socket)
+          return false if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+          sleep 0.02
+        end
+        true
+      end
+
+      # Only a refusal or a missing path shows that no server is behind the
+      # socket. Any other outcome, a full backlog or a path too long to
+      # connect to, leaves the server unproven gone.
+      def answering?(socket)
+        client = Socket.new(:UNIX, :STREAM)
+        client.connect_nonblock(Socket.pack_sockaddr_un(socket))
+        true
+      rescue Errno::ECONNREFUSED, Errno::ENOENT, Errno::ENOTSOCK
+        false
+      rescue SystemCallError, ArgumentError
+        true
+      ensure
+        client&.close
       end
 
       # Minitest runs its tests inside its own exit handler, so a handler
@@ -126,10 +180,10 @@ module LibTmuxTest
         cleanup = lambda do
           next unless Process.pid == owner
 
-          found = release(directory)
-          next if found.empty?
+          released = release(directory)
+          next if released.clean?
 
-          warn "libtmux-ruby tests started tmux without -S; it chose #{found.join(', ')} in the sandbox"
+          warn released.message(directory)
           exit 1
         end
         if defined?(Minitest) && Minitest.respond_to?(:after_run)
