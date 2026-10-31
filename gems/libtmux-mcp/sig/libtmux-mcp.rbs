@@ -10,7 +10,7 @@ module LibTmux
     class CLI
       private def self.new: (*untyped, **untyped) -> instance
       def run: () -> Integer
-      def self.run: (Array[String], ?input: IO, ?out: untyped, ?err: untyped) -> Integer
+      def self.run: (Array[String], ?input: IO, ?out: untyped, ?err: untyped, ?environment: untyped) -> Integer
     end
     class Application
       attr_reader tools: Array[untyped]

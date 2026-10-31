@@ -814,13 +814,16 @@ SDK transport binding; it does not close caller streams or the scheduler.
 
 ## MCP CLI
 
-`CLI.run` parses an argument array and borrows explicit `--socket` or
-`--socket-name`; it never starts a daemon. It owns protocol tasks/clients,
-uses the caller's stdin/stdout/stderr, and keeps stdout protocol-only.
-Default tools remain read-only; repeated `--enable-tool` opts into supported
-operations. Help/version exit zero, invalid arguments exit two, execution
-failures exit one, and interruption exits 130. The library entry point
-returns the integer status; the installed executable exits with it.
+`CLI.run` parses an argument array and borrows the server that `--socket` or
+`--socket-name` names. With neither flag it borrows the one `Endpoint.new`
+picks from the `environment:` argument, which is the process environment by
+default. The two flags together are invalid, and a flag ignores the socket
+variables. It never starts a daemon. It owns protocol tasks/clients, uses the
+caller's stdin/stdout/stderr, and keeps stdout protocol-only. Default tools
+remain read-only; repeated `--enable-tool` opts into supported operations.
+Help/version exit zero, invalid arguments exit two, execution failures exit
+one, and interruption exits 130. The library entry point returns the integer
+status; the installed executable exits with it.
 
 ## Workspace parsing
 

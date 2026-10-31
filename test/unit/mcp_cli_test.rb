@@ -25,7 +25,7 @@ class McpCLITest < Minitest::Test
   def test_broken_final_diagnostic_preserves_cli_status_after_cleanup
     error = StringIO.new
     error.close
-    assert_equal 2, LibTmux::MCP::CLI.run([], err: error)
+    assert_equal 2, LibTmux::MCP::CLI.run(%w[--socket private-path --socket-name other], err: error)
 
     input, output = IO.pipe
     [[RuntimeError.new("private execution"), 1], [LibTmux::Cancelled.new("private cancellation"), 130]].each do |primary, status|
@@ -48,7 +48,7 @@ class McpCLITest < Minitest::Test
       refute_empty output.string
       assert_empty error.string
     end
-    [[], %w[--socket private-path --socket-name other],
+    [%w[--socket private-path --socket-name other],
       %w[--socket private-path --timeout NaN], %w[--socket private-path --concurrency 0],
       %w[--socket private-path --enable-tool unrecognized],
       %w[--socket private-path --enroll-pane %0=private-setup],
@@ -65,7 +65,61 @@ class McpCLITest < Minitest::Test
     end
   end
 
+  def test_a_flag_names_the_socket_and_the_variables_name_it_otherwise
+    directory = "/private-tmux-tmpdir"
+    inside = "/inside/socket,1,0"
+    cases = [
+      [%w[--socket /flag/path.sock], {"LIBTMUX_SOCKET_PATH" => "/variable/path.sock", "LIBTMUX_SOCKET" => "variable"}, "/flag/path.sock"],
+      [%w[--socket-name flag], {"LIBTMUX_SOCKET_PATH" => "/variable/path.sock"}, "#{directory}/tmux-#{Process.uid}/flag"],
+      [[], {"LIBTMUX_SOCKET_PATH" => "/variable/path.sock"}, "/variable/path.sock"],
+      [[], {"LIBTMUX_SOCKET" => "variable"}, "#{directory}/tmux-#{Process.uid}/variable"],
+      [[], {"LIBTMUX_SOCKET_PATH" => "/variable/path.sock", "LIBTMUX_SOCKET" => "variable"}, "/variable/path.sock"],
+      [[], {"TMUX" => inside}, "/inside/socket"],
+      [[], {"LIBTMUX_SOCKET" => "variable", "TMUX" => inside}, "#{directory}/tmux-#{Process.uid}/variable"],
+      [[], {}, "#{directory}/tmux-#{Process.uid}/default"]
+    ]
+    cases.each do |arguments, variables, socket|
+      status, endpoint, error = serve_stopped(arguments, variables.merge("TMUX_TMPDIR" => directory))
+      assert_equal 1, status, error
+      assert_equal socket, endpoint.socket_path, "#{arguments} #{variables.keys}"
+    end
+  end
+
+  def test_a_bad_variable_is_refused_by_name_before_any_server_opens
+    status, endpoint, error = serve_stopped([], {"LIBTMUX_SOCKET" => "private-a/b", "TMUX_TMPDIR" => "/private-tmux-tmpdir"})
+    assert_equal 2, status
+    assert_nil endpoint
+    assert_includes error, "LIBTMUX_SOCKET"
+    refute_includes error, "private-"
+  end
+
+  def test_both_flags_are_refused_even_when_a_variable_names_a_socket
+    status, endpoint, error = serve_stopped(%w[--socket /flag/path.sock --socket-name flag], {"LIBTMUX_SOCKET" => "variable"})
+    assert_equal 2, status
+    assert_nil endpoint
+    # The CLI refuses the pair itself, in the words of its flags, before the core can.
+    assert_equal "Invalid arguments; use --help for supported options.\n", error
+  end
+
   private
+
+  # Runs the CLI up to the point where it would open a server, and answers the
+  # endpoint it chose. No tmux client starts.
+  def serve_stopped(arguments, environment)
+    chosen = []
+    original = LibTmux::Server.method(:open)
+    LibTmux::Server.define_singleton_method(:open) do |**options, &_block|
+      chosen << options.fetch(:endpoint)
+      raise LibTmux::TargetNotFoundError.new("stopped by the test", phase: :bind)
+    end
+    input, output = IO.pipe
+    error = StringIO.new
+    status = LibTmux::MCP::CLI.run(arguments, input: input, out: output, err: error, environment: environment)
+    [status, chosen.first, error.string]
+  ensure
+    LibTmux::Server.define_singleton_method(:open, original)
+    [input, output].compact.each { |io| io.close unless io.closed? }
+  end
 
   def with_cli_owners(events, primary)
     server = Object.new

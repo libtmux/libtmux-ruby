@@ -125,6 +125,15 @@ $ libtmux-mcp \
     --socket-name agent
 ```
 
+- With neither flag, the server borrows the socket in `LIBTMUX_SOCKET_PATH`,
+  else the name in `LIBTMUX_SOCKET`, else the server `TMUX` names when it runs
+  inside tmux, else tmux's default socket. When both variables are set, the
+  path wins, and an empty variable counts as unset. A flag ignores both
+  variables, and the two flags are refused together.
+- The server never starts a tmux server. When none answers at the socket it
+  chose, it exits with status 1.
+- Started from a tmux pane with no flag or variable, the server drives that
+  pane's server. Pass `--socket-name` to give an agent a server of its own.
 - EOF retires the clients the server owns and leaves the daemon running.
 - `--endpoint` sets the public alias in discovery and resource URIs, and
   defaults to `local`.

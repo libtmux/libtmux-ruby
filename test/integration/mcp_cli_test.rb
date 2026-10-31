@@ -112,6 +112,56 @@ class McpCLIIntegrationTest < Minitest::Test
     end
   end
 
+  def test_cli_without_a_socket_flag_serves_the_server_the_environment_names
+    LibTmuxTest::TmuxFixture.open do |fixture|
+      reader, input = IO.pipe
+      output, writer = IO.pipe
+      errors = StringIO.new
+      # An unnamed socket would land in the fixture's directory, where no server runs.
+      environment = {"LIBTMUX_SOCKET_PATH" => fixture.socket_path, "TMUX_TMPDIR" => File.dirname(fixture.socket_path)}
+      worker = Thread.new do
+        LibTmux::MCP::CLI.run(["--endpoint", "test"], input: reader, out: writer, err: errors, environment: environment)
+      end
+      begin
+        send_frame(input, id: 1, method: "initialize", params: {protocolVersion: "2025-11-25",
+          capabilities: {}, clientInfo: {name: "test", version: "1"}})
+        assert_equal "2025-11-25", frame(output).dig("result", "protocolVersion")
+        send_frame(input, method: "notifications/initialized")
+        send_frame(input, id: 2, method: "tools/call", params: {name: "tmux_capabilities", arguments: {}})
+        result = frame(output).dig("result", "structuredContent")
+        assert result.fetch("ok"), result.inspect
+        assert_equal "test", result.fetch("data").fetch("endpoint")
+        input.close
+        assert worker.join(0.5), "MCP CLI did not retire after EOF"
+        assert_equal 0, worker.value, errors.string
+        assert_empty errors.string
+        assert fixture.tmux("has-session").last.success?
+      ensure
+        input.close unless input.closed?
+        worker.join(0.5)
+        worker.raise(Interrupt) if worker.alive?
+        worker.join(0.5)
+        [reader, output, writer].each { |io| io.close unless io.closed? }
+      end
+    end
+  end
+
+  def test_cli_without_a_socket_flag_or_server_refuses_to_start_one
+    Dir.mktmpdir("libtmux-ruby-cli-") do |directory|
+      reader, input = IO.pipe
+      output, writer = IO.pipe
+      errors = StringIO.new
+      begin
+        status = LibTmux::MCP::CLI.run([], input: reader, out: writer, err: errors, environment: {"TMUX_TMPDIR" => directory})
+        assert_equal 1, status
+        assert_includes errors.string, "MCP execution failed"
+        assert_empty Dir.glob(File.join(directory, "**", "*"), File::FNM_DOTMATCH).select { |path| File.socket?(path) }
+      ensure
+        [reader, input, output, writer].each { |io| io.close unless io.closed? }
+      end
+    end
+  end
+
   def test_existing_setup_file_or_symlink_is_preserved_when_enrollment_startup_fails
     LibTmuxTest::TmuxFixture.open do |fixture|
       LibTmux::Server.open(socket_path: fixture.socket_path, executable: fixture.executable) do |server|

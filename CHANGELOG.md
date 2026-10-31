@@ -18,6 +18,10 @@
   need `--socket`. Without it they use the same choice as `Server.new`, so a
   command that failed with status 2 for a missing socket now acts on the
   server tmux would pick. (#71)
+- **Behavior change:** `libtmux-mcp` no longer needs `--socket` or
+  `--socket-name`, and still refuses both together. Without a flag it serves
+  the same choice as `Server.new`, so start it with `--socket-name` or
+  `LIBTMUX_SOCKET` when an agent needs a server of its own. (#71)
 
 ## 0.1.0 (2026-10-25)
 
