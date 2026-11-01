@@ -30,79 +30,120 @@ module LibTmux
   # The methods fall into the groups below. A {Session}, {Window}, or {Pane}
   # carries the operations on that one thing.
   #
-  # **Connecting.** {#initialize Server.new} and {Server.open} bind an endpoint
-  # that already exists; {Server.open} with a block closes the server when the
-  # block ends. Given no `endpoint:`, `socket_path:` or `socket_name:`, they
-  # bind the socket {Endpoint#initialize Endpoint.new} picks from
-  # `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET`, `TMUX` and tmux's default socket,
-  # in that order. {Server.start} starts a private daemon instead, creates no
-  # session, and owns the daemon's exit. {#endpoint} answers the {Endpoint}
-  # and {#owned?} says whether this server started its daemon. {#diagnostics}
-  # reports the request and control slots in use, and the limits. {#close}
-  # retires the server's clients; on an owned server it also stops the daemon.
-  # {#open_control} opens a {ControlConnection} to a session.
+  # **Connecting.** Binding an endpoint that already exists takes the
+  # constructor or the open class method, and open with a block closes the
+  # server when the block ends. Given no `endpoint:`, `socket_path:` or
+  # `socket_name:`, both bind the socket {Endpoint#initialize Endpoint.new}
+  # picks from `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET`, `TMUX` and tmux's
+  # default socket, in that order. Starting a private daemon instead creates no
+  # session, and the started server owns the daemon's exit. A server answers its
+  # {Endpoint} and whether it started its daemon, and reports the request and
+  # control slots in use, and the limits. Closing retires the server's clients;
+  # on an owned server it also stops the daemon. Open a {ControlConnection} to a
+  # session.
   #
-  # **Finding one thing.** {#session}, {#window}, {#pane}, and {#window_link}
-  # wrap an {EntityRef} in a handle without running a command. Take the ref
-  # from a handle or a snapshot record. A ref of the wrong kind raises
-  # {TargetNotFoundError}; one whose entity has gone fails at its first
-  # command.
+  # - Bind an endpoint: {#initialize Server.new}, {Server.open}
+  # - Start a private daemon: {Server.start}
+  # - Read the endpoint: {#endpoint}
+  # - Ask whether it started the daemon: {#owned?}
+  # - Slots in use and the limits: {#diagnostics}
+  # - Retire the clients: {#close}
+  # - Open a control connection: {#open_control}
   #
-  # **Listing everything.** {#list_sessions}, {#list_windows}, and
-  # {#list_panes} answer frozen arrays of handles in numeric ID order, and
-  # {#list_window_links} answers every {WindowLink}. {#list_clients} answers
-  # one hash per client. {#snapshot} captures the session, window, and pane
-  # tree, and clients with `clients: true`, as one validated {Snapshot}.
+  # **Finding one thing.** Each lookup wraps an {EntityRef} in a handle without
+  # running a command. Take the ref from a handle or a snapshot record. A ref of
+  # the wrong kind raises {TargetNotFoundError}; one whose entity has gone fails
+  # at its first command.
   #
-  # **Querying things and getting around.** {#search_panes} filters the panes
-  # of a snapshot with `where:`, a hash of criteria or a {FilterExpr}, and
-  # answers a {Selection}; {#explain_panes} answers the plan for a query
-  # without running tmux. A {Selection} narrows with {Selection#where},
-  # {Selection#select}, {Selection#filter}, and {Selection#reject}, tests with
-  # {Selection#exists?}, and takes a single match with {Selection#one}, which
-  # raises {NoMatchError} or {MultipleMatchesError} otherwise, or
-  # {Selection#one_or_nil}. Build and compose criteria with
-  # {FilterExpr.build}, {FilterExpr#and}, {FilterExpr#or}, {FilterExpr#not},
-  # and {FilterExpr.from_json}.
+  # - Handles: {#session}, {#window}, {#pane}, {#window_link}
   #
-  # A {Snapshot} answers relational questions without another command:
-  # {Snapshot#sessions}, {Snapshot#windows}, {Snapshot#panes}, and
-  # {Snapshot#clients}. Its records follow relations by name: a
-  # {SessionSnapshot} reaches `windows`, `panes`, and `current_window`, a
-  # {WindowSnapshot} reaches `panes` and `active_pane`, and a {PaneSnapshot}
-  # reaches its `window`. {Entity#snapshot} reads one handle back as a record,
-  # and {CapturedRecord#ref} with {#session}, {#window}, or {#pane} turns a
-  # record into a handle. Live handles go down one command at a time with
-  # {Session#list_windows}, {Session#list_panes}, and {Window#list_panes}, and
-  # back up with {Entity#server}.
+  # **Listing everything.** Listing sessions, windows, or panes answers frozen
+  # arrays of handles in numeric ID order, and listing window links answers
+  # every {WindowLink}. Listing clients answers one hash per client. Taking a
+  # snapshot captures the session, window, and pane tree, and clients with
+  # `clients: true`, as one validated {Snapshot}.
   #
-  # **Changing things.** {#new_session} starts a detached session running
+  # - Handles: {#list_sessions}, {#list_windows}, {#list_panes}
+  # - Window links: {#list_window_links}
+  # - Clients: {#list_clients}
+  # - One snapshot: {#snapshot}
+  #
+  # **Querying things and getting around.** A pane search filters the panes of a
+  # snapshot with `where:`, a hash of criteria or a {FilterExpr}, and answers a
+  # {Selection}; explaining a search answers the plan for a query without
+  # running tmux. A {Selection} narrows, tests whether anything matches, and
+  # takes a single match, raising {NoMatchError} or {MultipleMatchesError}
+  # otherwise, or takes one or nil. Build and compose criteria with
+  # {FilterExpr}. A {Snapshot} answers relational questions without another
+  # command. Its records follow relations by name: a {SessionSnapshot} reaches
+  # `windows`, `panes`, and `current_window`, a {WindowSnapshot} reaches `panes`
+  # and `active_pane`, and a {PaneSnapshot} reaches its `window`. A handle reads
+  # back as a record, and a record turns into a handle through its ref and the
+  # server's lookups. Live handles go down one command at a time and back up
+  # through the server.
+  #
+  # - Search the panes of a snapshot: {#search_panes}
+  # - Explain a search without running tmux: {#explain_panes}
+  # - Narrow: {Selection#where}, {Selection#select}, {Selection#filter},
+  #   {Selection#reject}
+  # - Test: {Selection#exists?}
+  # - Take one: {Selection#one}
+  # - Take one or nil: {Selection#one_or_nil}
+  # - Build criteria: {FilterExpr.build}, {FilterExpr.from_json}
+  # - Compose criteria: {FilterExpr#and}, {FilterExpr#or}, {FilterExpr#not}
+  # - Read a snapshot's records: {Snapshot#sessions}, {Snapshot#windows},
+  #   {Snapshot#panes}, {Snapshot#clients}
+  # - Read a handle back as a record: {Entity#snapshot}
+  # - Turn a record into a handle: {CapturedRecord#ref}, {#session}, {#window},
+  #   {#pane}
+  # - Down: {Session#list_windows}, {Session#list_panes}, {Window#list_panes}
+  # - Up: {Entity#server}
+  #
+  # **Changing things.** Creating a session starts it detached, running
   # `command:`, an argv array rather than a shell string, and answers the
-  # {Session} or, with `receipt: true`, a {CreationReceipt}. {#kill} stops the
-  # tmux server, which {#close} does only for an owned server.
-  # {#switch_client} points the client named by `client:` at a session.
+  # {Session} or, with `receipt: true`, a {CreationReceipt}. Kill stops the tmux
+  # server, which closing does only for an owned server. Switching a client
+  # points the client named by `client:` at a session.
   #
-  # **Options and hooks.** {#options} answers {Options} at server scope, or at
-  # the global session or window scope. {#hooks} answers {Hooks} at the global
-  # session or window scope. {#environment}, {#set_environment}, and
-  # {#unset_environment} read, set, and unset one variable in the server's
-  # global environment.
+  # - Create a session: {#new_session}
+  # - Stop the tmux server: {#kill}
+  # - Point a client at a session: {#switch_client}
   #
-  # **Everything else tmux keeps.** Paste buffers: {#list_buffers},
-  # {#read_buffer}, {#write_buffer}, and {#delete_buffer}. {#source_file}
-  # loads a configuration file. {#display} expands a tmux format; the argument
-  # is a format, not literal text. {#wait_for} waits on, signals, locks, or
-  # unlocks a channel, as `action:` says.
+  # **Options and hooks.** Ask for {Options} at server scope, or at the global
+  # session or window scope, and for {Hooks} at the global session or window
+  # scope. Read, set, and unset one variable in the server's global environment.
   #
-  # **Things that need a terminal.** {#attach} runs an interactive client on a
+  # - Options: {#options}
+  # - Hooks: {#hooks}
+  # - Read a variable: {#environment}
+  # - Set a variable: {#set_environment}
+  # - Unset a variable: {#unset_environment}
+  #
+  # **Everything else tmux keeps.** List, read, write, and delete paste buffers.
+  # Load a configuration file. Display expands a tmux format; the argument is a
+  # format, not literal text. Wait on, signal, lock, or unlock a channel, as
+  # `action:` says.
+  #
+  # - Paste buffers: {#list_buffers}, {#read_buffer}, {#write_buffer},
+  #   {#delete_buffer}
+  # - Load a configuration file: {#source_file}
+  # - Expand a format: {#display}
+  # - Wait on a channel: {#wait_for}
+  #
+  # **Things that need a terminal.** Attaching runs an interactive client on a
   # TTY the caller supplies and keeps, blocks until that client exits, and
-  # answers a {TerminalResult}. Cancelling detaches the client and does not
-  # stop pane commands.
+  # answers a {TerminalResult}. Cancelling detaches the client and does not stop
+  # pane commands.
   #
-  # Anything else tmux can do is reachable through {#run}, which runs one
-  # command from an argv array and keeps tmux's separators and format
-  # semantics, or {#run_group}, which runs several in one tmux invocation. A
-  # {GroupResult} cannot attribute the client's final status to a single step.
+  # - Attach a client: {#attach}
+  #
+  # **Running a command.** Anything else tmux can do is reachable by running one
+  # command, which takes an argv array and keeps tmux's separators and format
+  # semantics, or by running several in one tmux invocation. A {GroupResult}
+  # cannot attribute the client's final status to a single step.
+  #
+  # - Run one command: {#run}
+  # - Run several in one invocation: {#run_group}
   class Server
     attr_reader :endpoint
 
