@@ -145,14 +145,28 @@ module LibTmuxTest
         false
       end
 
+      # kill-server waits for the server to reply, so a server that never does
+      # would hold the run for as long as the client lives. The client is
+      # killed once the wait is over and the socket then counts as answering.
+      def kill_server(socket, tmux, wait)
+        pid = Process.spawn(scrub(ENV), tmux, "-S", socket, "kill-server", out: File::NULL, err: File::NULL)
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait
+        until Process.wait(pid, Process::WNOHANG)
+          if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+            Process.kill("KILL", pid)
+            Process.wait(pid)
+            return
+          end
+          sleep 0.02
+        end
+      rescue SystemCallError
+        nil
+      end
+
       # True once nothing answers on the socket. A server leaves a moment
       # after kill-server returns, so the connection is retried until it fails.
       def stop(socket, tmux, wait)
-        begin
-          system(scrub(ENV), tmux, "-S", socket, "kill-server", out: File::NULL, err: File::NULL)
-        rescue SystemCallError
-          nil
-        end
+        kill_server(socket, tmux, wait)
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait
         while answering?(socket)
           return false if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline

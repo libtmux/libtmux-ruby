@@ -217,6 +217,19 @@ class SandboxTest < Minitest::Test
     end
   end
 
+  def test_release_does_not_wait_on_a_stop_that_never_returns
+    with_directories do |directory, bin|
+      listen(directory, "custom.sock")
+      hung = fake_tmux(bin, "exec sleep 30")
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      released = Sandbox.release(directory, tmux: hung, wait: 0.3)
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+      assert_equal %w[custom.sock], released.answering
+      assert elapsed < 5, "the stop held the run for as long as the hung client"
+      assert File.exist?(File.join(directory, "custom.sock")), "removed the directory of a live server"
+    end
+  end
+
   def test_release_keeps_the_directory_when_there_is_no_tmux_to_stop_the_server
     with_directories do |directory, bin|
       listen(directory, "custom.sock")
