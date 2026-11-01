@@ -79,6 +79,12 @@ module LibTmuxTest
         directory
       end
 
+      # Every variable that selects a server, set to nil, for the child
+      # environment of a command that starts tmux with its own TMUX_TMPDIR.
+      def scrub(env = ENV)
+        (NAMES + env.keys).select { |name| ambient?(name) }.uniq.to_h { |name| [name, nil] }
+      end
+
       # The overlay for a child environment built from a saved copy of this
       # one, which would otherwise carry the variables this process removed.
       def overlay(env = ENV, directory: ENV.fetch("TMUX_TMPDIR"))
@@ -131,10 +137,6 @@ module LibTmuxTest
 
       def remove(directory)
         FileUtils.rm_rf(directory) if File.basename(directory).start_with?(PREFIX)
-      end
-
-      def scrub(env)
-        (NAMES + env.keys).select { |name| ambient?(name) }.uniq.to_h { |name| [name, nil] }
       end
 
       def socket?(path)

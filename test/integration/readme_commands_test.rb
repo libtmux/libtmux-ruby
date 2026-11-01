@@ -41,9 +41,10 @@ class ReadmeCommandsTest < Minitest::Test
         File.write(script, "#!/bin/sh\nexec #{Shellwords.join([Gem.ruby, '-W:no-experimental', Gem.bin_path(name, name)])} \"$@\"\n")
         File.chmod(0o755, script)
       end
-      @env = {"HOME" => home, "TMPDIR" => directory, "TMUX_TMPDIR" => File.join(directory, "t"),
-              "PATH" => "#{bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "TMUX" => nil, "TMUX_PANE" => nil,
-              "LIBTMUX_SOCKET" => nil, "LIBTMUX_SOCKET_PATH" => nil, "XDG_CONFIG_HOME" => File.join(home, ".config")}
+      @env = LibTmuxTest::Sandbox.scrub(ENV).merge(
+        "HOME" => home, "TMPDIR" => directory, "TMUX_TMPDIR" => File.join(directory, "t"),
+        "PATH" => "#{bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "XDG_CONFIG_HOME" => File.join(home, ".config")
+      )
     end
 
     def tmux
@@ -190,6 +191,24 @@ class ReadmeCommandsTest < Minitest::Test
         real.close
       end
     end
+  end
+
+  def test_the_runner_hands_its_commands_no_variable_that_names_a_server
+    decoys = {"TMUX" => "/decoy/server,1,0", "TMUX_PANE" => "%9", "LIBTMUX_SOCKET" => "decoy",
+              "LIBTMUX_SOCKET_PATH" => "/decoy/path", "LIBTMUX_SOCKET_NAME" => "decoy"}
+    saved = decoys.keys.to_h { |name| [name, ENV.fetch(name, nil)] }
+    sandbox = nil
+    begin
+      decoys.each { |name, value| ENV[name] = value }
+      sandbox = Sandbox.new
+      names = sandbox.shell("env | sed -n -E 's/^(TMUX|TMUX_PANE|LIBTMUX_SOCKET[A-Z_]*)=.*/\\1/p'").stdout.lines.map(&:chomp)
+      own = sandbox.shell("test \"$TMUX_TMPDIR\" = #{Shellwords.escape(File.join(sandbox.directory, 't'))}")
+    ensure
+      saved.each { |name, value| ENV[name] = value }
+      sandbox&.close
+    end
+    assert_empty names
+    assert_predicate own.status, :success?, "the runner's TMUX_TMPDIR is not its own directory"
   end
 
   def test_the_runner_rejects_what_the_readmes_must_not_do
