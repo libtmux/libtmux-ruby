@@ -158,6 +158,27 @@ class SandboxTest < Minitest::Test
     end
   end
 
+  def test_the_runner_enters_the_sandbox_before_it_starts_a_suite
+    Dir.mktmpdir("libtmux-ruby-sandbox-") do |directory|
+      probe = File.join(directory, "probe_test.rb")
+      File.write(probe, <<~RUBY)
+        require "minitest/autorun"
+        class ProbeTest < Minitest::Test
+          def test_selectors_are_gone_and_tmux_tmpdir_is_a_sandbox
+            names = ENV.keys.select { |name| %w[TMUX TMUX_PANE].include?(name) || name.start_with?("LIBTMUX_SOCKET") }
+            assert_empty names
+            assert ENV.fetch("TMUX_TMPDIR").include?("/lt-rb-"), "TMUX_TMPDIR is not an lt-rb- directory"
+          end
+        end
+      RUBY
+      env = DECOYS.merge("TMUX_TMPDIR" => "/decoy/tmpdir", Sandbox::MARKER => nil)
+      _, error, status = Open3.capture3(env, Gem.ruby, File.expand_path("../../scripts/check", __dir__), "unit", probe)
+      assert_predicate status, :success?, error
+      _, _, status = Open3.capture3(env, Gem.ruby, probe)
+      refute_predicate status, :success?
+    end
+  end
+
   private
 
   # Yields the recorder's log path and a runner for a child Ruby whose

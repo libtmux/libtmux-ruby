@@ -28,6 +28,21 @@ class MatrixTest < Minitest::Test
     assert_equal "PARTIAL", JSON.parse(output).fetch("status")
   end
 
+  def test_a_cell_runs_in_the_sandbox_not_the_selectors_of_the_saved_environment
+    selectors = {"TMUX" => "/decoy/server,1,0", "TMUX_PANE" => "%9", "LIBTMUX_SOCKET" => "decoy-name",
+                 "LIBTMUX_SOCKET_PATH" => "/decoy/path", "PATH" => "/usr/bin"}
+    ["/decoy/tmpdir", nil].each do |tmpdir|
+      saved = tmpdir ? selectors.merge("TMUX_TMPDIR" => tmpdir) : selectors
+      environment = CompatibilityMatrix.cell_environment(saved, "/opt/ruby/bin/ruby", "/opt/tmux/bin/tmux")
+      %w[TMUX TMUX_PANE LIBTMUX_SOCKET LIBTMUX_SOCKET_PATH].each do |name|
+        assert environment.key?(name) && environment[name].nil?, name
+      end
+      assert_equal ENV.fetch("TMUX_TMPDIR"), environment.fetch("TMUX_TMPDIR")
+      assert_equal ENV.fetch(LibTmuxTest::Sandbox::MARKER), environment.fetch(LibTmuxTest::Sandbox::MARKER)
+      assert_equal "/opt/tmux/bin/tmux", environment.fetch("LIBTMUX_TEST_TMUX")
+    end
+  end
+
   def test_merge_rejects_pass_labels_without_executed_suite_evidence
     Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
       report = {"source_digest" => CompatibilityMatrix.digest,

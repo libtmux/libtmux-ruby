@@ -6,6 +6,7 @@ require "fcntl"
 require "libtmux/child"
 require "libtmux/socket_readiness"
 require "tmpdir"
+require_relative "sandbox"
 
 module LibTmuxTest
   class TmuxFixture

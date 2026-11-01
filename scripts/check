@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "rbconfig"
+require_relative "../test/support/sandbox"
 
 root = File.expand_path("..", __dir__)
 Dir.chdir(root)
@@ -38,7 +39,7 @@ end
 suites.each do |suite|
   files = ARGV.empty? ? Dir["test/#{suite}/**/*_test.rb"].sort : ARGV
   abort "no #{suite} tests found" if files.empty?
-  run.call(Gem.ruby, "-Itest", "-e", "ARGV.each { |file| require File.expand_path(file) }", *files)
+  run.call(Gem.ruby, "-Itest", "-rsupport/sandbox", "-e", "ARGV.each { |file| require File.expand_path(file) }", *files)
 end
 
 if %w[types outer].include?(mode)
