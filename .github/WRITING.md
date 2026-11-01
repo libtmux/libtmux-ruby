@@ -140,6 +140,16 @@ section. State changed defaults and incompatibilities with migration guidance.
 Do not invent versions or release dates. Mention old behavior only when users
 of a published release experienced it.
 
+Each gem keeps its own changelog, `gems/libtmux/CHANGELOG.md` for `libtmux` and
+likewise for `libtmux-async`, `libtmux-mcp` and `libtmux-workspace`, and an
+entry goes in the file of the gem it changes. The root `CHANGELOG.md` holds what
+belongs to no single gem: a change that spans gems, documentation, CI, release
+tooling and the notes that cover a whole release. An entry lives in exactly one
+file. The gems share one version, so every release has a section in each file,
+and a release with nothing for a gem says ``No entries for `libtmux-mcp`.``
+under its heading. A link into the repository is relative to the file that holds
+it, so one in a gem's changelog starts with `../../`.
+
 Release notes explain why an upgrader should care and what action is needed.
 Link the detailed changelog instead of repeating it. Internal refactors and
 branch history belong in commits unless they affect users.
