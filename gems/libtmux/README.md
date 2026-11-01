@@ -730,8 +730,10 @@ server and lists every option.
 
 Releases are numbered `0.1.N`, and each release increments `N`. The API is not
 settled: any release may change or remove exported identifiers, and the
-changelog marks each break. Pin an exact version to avoid one.
-See the [changelog](../../CHANGELOG.md).
+changelogs mark each break. Pin an exact version to avoid one.
+See the [changelog](CHANGELOG.md), and the [main
+changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
+for changes that span gems.
 
 - **Ruby 3.3 or newer.** The gem depends on `json`, `tmpdir`, `securerandom`,
   `fiddle` and `io-console`.

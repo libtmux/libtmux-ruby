@@ -238,7 +238,10 @@ The contract is in [Control connections][behavior-control].
 
 Releases are numbered `0.1.N`, and each release increments `N`. The API is not
 settled: any release may change or remove exported identifiers, and the
-changelog marks each break. Pin an exact version to avoid one.
+changelogs mark each break. Pin an exact version to avoid one.
+See the [changelog](CHANGELOG.md), and the [main
+changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
+for changes that span gems.
 
 - **Ruby 3.3 or newer** and **tmux 3.3a or newer.** The facade dispatches
   through a version-checked core server, so it carries the same daemon release
