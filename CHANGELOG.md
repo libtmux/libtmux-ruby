@@ -2,6 +2,16 @@
 
 ## 0.1.2 (unreleased)
 
+- The test suites, the matrix, the benchmark and the README runner run in a
+  sandbox. Before anything starts, it removes `TMUX`, `TMUX_PANE` and every
+  `LIBTMUX_SOCKET*` variable and makes an owner-only directory under `TMPDIR`
+  or `/tmp` the `TMUX_TMPDIR`, so a test or command that names no socket
+  reaches no server outside the run, now that a bare `Endpoint` picks one.
+  A run that cannot do so stops with status 2. (#80)
+- When a run ends, a tmux server left anywhere in the sandbox is stopped with
+  `tmux -S <socket> kill-server` and the run fails, even if every test passed.
+  The failure names the sockets and never an environment value. (#80)
+
 ## 0.1.1 (2026-10-31)
 
 Applies a JSON layout only on tmux 3.8 or newer, and picks the socket tmux
