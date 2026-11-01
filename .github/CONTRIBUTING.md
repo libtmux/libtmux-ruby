@@ -166,21 +166,21 @@ only repeat implementation details.
 
 Every test or probe must own an isolated socket and temporary directory named
 for this port, using a `libtmux-ruby-` prefix. Address that socket explicitly
-with `-S` or `-L`, clear inherited `TMUX` and `TMUX_PANE` for child commands,
-and clean up only the server and files created by that run. Never use the
-default tmux server or sweep another port's temporary files.
+with `-S` or `-L`, clear inherited `TMUX`, `TMUX_PANE` and `LIBTMUX_SOCKET*`
+for child commands, and clean up only the server and files created by that run.
+Never use the default tmux server or sweep another port's temporary files.
 
 A suite that starts from a tmux pane would otherwise send any command that
 names no socket to that pane's server, because tmux follows `TMUX` ahead of
 `TMUX_TMPDIR`. [test/support/sandbox.rb](../test/support/sandbox.rb) prevents
 that. It removes `TMUX`, `TMUX_PANE` and every `LIBTMUX_SOCKET*` variable, makes
-an `lt-rb-` directory under `TMPDIR` the process's `TMUX_TMPDIR`, and exits with
-status 2 when either did not hold. `scripts/check`, `scripts/matrix`,
-`scripts/bench`, `test/test_helper.rb` and the tmux fixture load it, and a
-child process joins the sandbox its parent entered. `scripts/matrix` gives each
-cell a sandbox of its own and checks it when the cell ends, with the cell's
-tmux. A test file that starts tmux and loads none of those must require
-`test/support/sandbox.rb` first.
+an owner-only `lt-rb-` directory under `TMPDIR` the process's `TMUX_TMPDIR`, and
+exits with status 2 when either did not hold or the directory cannot be made.
+`scripts/check`, `scripts/matrix`, `scripts/bench`, `test/test_helper.rb` and
+the tmux fixture load it, and a child process joins the sandbox its parent
+entered. `scripts/matrix` gives each cell a sandbox of its own and checks it
+when the cell ends, with the cell's tmux. A test file that starts tmux and
+loads none of those must require `test/support/sandbox.rb` first.
 
 At the end of the run, a socket anywhere in the sandbox fails the run, even
 when every test passed. Every test puts its server on a socket in a directory
@@ -193,9 +193,9 @@ never the values of environment variables.
 
 `TMPDIR` must stay short enough for a socket path. The sandbox falls back to
 `/tmp` and refuses to run when neither fits. The README runner keeps its own
-`lt-rb-readme-` directory under `/tmp`. It starts servers on purpose, so it
-fails a test only when one still answers after kill-server, and then keeps
-the directory.
+`lt-rb-readme-` directory under `/tmp` and hands its commands none of the
+variables the sandbox removes. It starts servers on purpose, so it fails a test
+only when one still answers after kill-server, and then keeps the directory.
 
 `test/unit/sandbox_test.rb` shows the sandbox with a recording `tmux` that
 receives decoy selectors with the sandbox absent and none with it loaded.
