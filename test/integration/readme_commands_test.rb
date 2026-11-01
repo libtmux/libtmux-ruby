@@ -113,13 +113,17 @@ class ReadmeCommandsTest < Minitest::Test
     end
 
     # The commands start servers on purpose, so only one that still answers
-    # after kill-server fails the test, and its directory stays.
+    # after kill-server fails the test, and its directory stays. A test that
+    # is already failing keeps its own failure: the tests call this from
+    # ensure, where raising would replace it, so the leftover is only said.
     def close
       released = LibTmuxTest::Sandbox.release(directory, tmux: tmux)
       return if released.answering.empty?
 
-      raise Minitest::Assertion,
-        "a server still answers at #{released.answering.join(', ')}, so #{File.basename(directory)} was kept"
+      message = "a server still answers at #{released.answering.join(', ')}, so #{File.basename(directory)} was kept"
+      raise Minitest::Assertion, message unless $!
+
+      warn message
     end
   end
 
@@ -175,21 +179,24 @@ class ReadmeCommandsTest < Minitest::Test
   end
 
   def test_the_runner_keeps_its_directory_and_fails_when_kill_server_leaves_a_server
-    real = Sandbox.new
-    Dir.mktmpdir("libtmux-ruby-readme-noop-") do |bin|
-      noop = File.join(bin, "tmux")
-      File.write(noop, "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = kill-server ] && exit 0; done\nexec '#{real.tmux}' \"$@\"\n", perm: 0o755)
-      sandbox = Sandbox.new(executable: noop)
-      begin
-        assert sandbox.run(sandbox.tmux, "-L", "agent", "-f", "/dev/null", "new-session", "-d", "-s", "work").status.success?
-        error = assert_raises(Minitest::Assertion) { sandbox.close }
-        assert_includes error.message, "a server still answers at t/tmux-#{Process.uid}/agent"
-        assert_includes error.message, "#{File.basename(sandbox.directory)} was kept"
-        assert File.directory?(sandbox.directory), "removed the directory of a server that was not stopped"
+    with_a_server_kill_server_leaves do |sandbox|
+      error = assert_raises(Minitest::Assertion) { sandbox.close }
+      assert_includes error.message, "a server still answers at t/tmux-#{Process.uid}/agent"
+      assert_includes error.message, "#{File.basename(sandbox.directory)} was kept"
+      assert File.directory?(sandbox.directory), "removed the directory of a server that was not stopped"
+    end
+  end
+
+  def test_a_server_the_runner_cannot_stop_does_not_replace_the_failure_that_ended_the_test
+    with_a_server_kill_server_leaves do |sandbox|
+      error = assert_raises(RuntimeError) do
+        raise "the failure the test ended with"
       ensure
-        LibTmuxTest::Sandbox.release(sandbox.directory, tmux: real.tmux)
-        real.close
+        _, warned = capture_io { sandbox.close }
+        assert_includes warned, "#{File.basename(sandbox.directory)} was kept"
       end
+      assert_equal "the failure the test ended with", error.message
+      assert File.directory?(sandbox.directory), "removed the directory of a server that was not stopped"
     end
   end
 
@@ -234,6 +241,23 @@ class ReadmeCommandsTest < Minitest::Test
   end
 
   private
+
+  # A runner whose tmux ignores kill-server, with one server it cannot stop.
+  def with_a_server_kill_server_leaves
+    real = Sandbox.new
+    Dir.mktmpdir("libtmux-ruby-readme-noop-") do |bin|
+      noop = File.join(bin, "tmux")
+      File.write(noop, "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = kill-server ] && exit 0; done\nexec '#{real.tmux}' \"$@\"\n", perm: 0o755)
+      sandbox = Sandbox.new(executable: noop)
+      begin
+        assert sandbox.run(sandbox.tmux, "-L", "agent", "-f", "/dev/null", "new-session", "-d", "-s", "work").status.success?
+        yield sandbox
+      ensure
+        LibTmuxTest::Sandbox.release(sandbox.directory, tmux: real.tmux)
+        real.close
+      end
+    end
+  end
 
   def refusal(markdown)
     assert_raises(Minitest::Assertion) { run_markdown(markdown, "control.md") }.message
