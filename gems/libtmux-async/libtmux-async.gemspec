@@ -13,11 +13,12 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.3"
   spec.metadata = {
     "source_code_uri" => spec.homepage,
+    "changelog_uri" => "#{spec.homepage}/blob/master/gems/libtmux-async/CHANGELOG.md",
     "documentation_uri" => "https://libtmux.org/en/ruby/v#{spec.version}/reference/"
   }
   spec.require_paths = ["lib"]
   spec.files = %w[
-    LICENSE README.md
+    LICENSE README.md CHANGELOG.md
     assets/logo.svg assets/logo.png
     lib/libtmux/async.rb
     lib/libtmux/async/version.rb

@@ -100,6 +100,7 @@ class ReleaseTest < Minitest::Test
       directory = File.join(@root, "gems", name)
       FileUtils.mkdir_p(File.join(directory, "lib"))
       File.write(File.join(directory, "lib", "version.rb"), "module #{constant(name)}; VERSION = '#{VERSION}'; end\n")
+      File.write(File.join(directory, "CHANGELOG.md"), "# Changelog\n\nNotable changes to `#{name}`.\n")
       siblings = name == "libtmux" ? [] : ["libtmux"]
       siblings << "libtmux-async" if name == "libtmux-mcp"
       File.write(File.join(directory, "#{name}.gemspec"), <<~RUBY)
@@ -113,7 +114,7 @@ class ReleaseTest < Minitest::Test
           s.required_ruby_version = ">= 3.3"
           s.license = "MIT"
           s.homepage = "https://example.org"
-          s.files = ["lib/version.rb"]
+          s.files = ["CHANGELOG.md", "lib/version.rb"]
           #{siblings.map { |sibling| "s.add_dependency #{sibling.inspect}, '= #{VERSION}'" }.join("\n")}
         end
       RUBY
@@ -178,6 +179,21 @@ class ReleaseTest < Minitest::Test
     commit_changes
     error = assert_raises(GemRelease::Error) { prepare }
     assert_match(/dependenc/i, error.message)
+  end
+
+  def test_source_binding_rejects_a_gem_that_does_not_ship_its_changelog
+    path = File.join(@root, "gems/libtmux-mcp/libtmux-mcp.gemspec")
+    File.write(path, File.read(path).sub('["CHANGELOG.md", "lib/version.rb"]', '["lib/version.rb"]'))
+    commit_changes
+    error = assert_raises(GemRelease::Error) { prepare }
+    assert_match(/must ship its CHANGELOG\.md/, error.message)
+  end
+
+  def test_source_binding_rejects_a_changelog_that_is_not_in_the_commit
+    File.delete(File.join(@root, "gems/libtmux-mcp/CHANGELOG.md"))
+    commit_changes
+    error = assert_raises(GemRelease::Error) { prepare }
+    assert_match(/missing or untracked/, error.message)
   end
 
   def test_verify_rejects_partial_extra_corrupt_and_manifest_traversal_without_rebuilding

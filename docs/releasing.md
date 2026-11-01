@@ -54,8 +54,9 @@ inconsistent input files and backward bumps. Repeating the same version is
 safe.
 
 For each release, pass the next number in the `0.1.N` series. Review and update
-[CHANGELOG.md](../CHANGELOG.md) for every release; the version task does not
-write release notes, commit, tag, push or upload.
+[CHANGELOG.md](../CHANGELOG.md) and the `CHANGELOG.md` of each gem for every
+release; the version task does not write release notes, commit, tag, push or
+upload.
 
 ```console
 $ /usr/bin/time -p mise exec -- bundle exec scripts/check outer
@@ -84,8 +85,10 @@ do not discard files from a partially published release.
 ## Publish an approved release
 
 These commands publish after account setup, review and merge. Finalize the
-changelog before tagging: remove the unreleased heading for this version and
-record the release date. The GitHub release uses that file as its notes.
+changelogs before tagging: in the root `CHANGELOG.md` and in each gem's
+`CHANGELOG.md`, remove the unreleased heading for this version and record the
+release date, then open the next unreleased heading above it. The GitHub release
+uses the root file as its notes, and that file links each gem's own.
 
 On `master`, update to the approved commit:
 
