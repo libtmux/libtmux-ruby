@@ -7,6 +7,7 @@ require "digest"
 require "fileutils"
 require "open3"
 require_relative "ci_manifest"
+require_relative "../test/support/sandbox"
 
 module CompatibilityMatrix
   MANIFEST = CIManifest.load
@@ -35,6 +36,16 @@ module CompatibilityMatrix
     digest.hexdigest
   end
 
+  # Bundler's unbundled environment is the one saved before this process
+  # entered the sandbox, so it still carries what the sandbox removed. The
+  # cell gets the sandbox of its own, not this process's.
+  def self.cell_environment(base, ruby, tmux, sandbox)
+    environment = (ENV.keys - base.keys).to_h { |key| [key, nil] }.merge(base)
+    environment.merge!("PATH" => [File.dirname(ruby), File.dirname(tmux), base.fetch("PATH", "")].join(File::PATH_SEPARATOR),
+      "LIBTMUX_TEST_TMUX" => tmux, "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile"), "BUNDLE_FROZEN" => "true")
+    environment.merge!(LibTmuxTest::Sandbox.overlay(environment, directory: sandbox))
+  end
+
   def self.execute(cell, rubies, tmuxes, directory)
     host = RUBY_PLATFORM.include?("linux") ? "linux" : "unsupported"
     return cell.merge("status" => "MISSING_RUNNER") unless host == cell.fetch("os")
@@ -45,10 +56,25 @@ module CompatibilityMatrix
     end
     $LOAD_PATH.unshift(File.join(ROOT, "gems/libtmux/lib"))
     require "libtmux/process"
+    # The cell's own sandbox is checked when the cell ends, with the cell's
+    # tmux, so a server its suites leave behind fails that cell and not the
+    # whole matrix after every cell was marked.
+    sandbox, = LibTmuxTest::Sandbox.prepare({})
+    begin
+      result = run_cell(cell, ruby, tmux, directory, sandbox)
+    ensure
+      released = LibTmuxTest::Sandbox.release(sandbox, tmux: tmux)
+    end
+    return result if released.clean?
+
+    result.merge("status" => "FAIL", "leaked_sockets" => released.leaked, "answering_sockets" => released.answering)
+  rescue StandardError => error
+    cell.merge("status" => "FAIL", "error_class" => error.class.name)
+  end
+
+  def self.run_cell(cell, ruby, tmux, directory, sandbox)
     base = defined?(Bundler) ? Bundler.unbundled_env : ENV.to_h
-    environment = (ENV.keys - base.keys).to_h { |key| [key, nil] }.merge(base)
-    environment.merge!("PATH" => [File.dirname(ruby), File.dirname(tmux), base.fetch("PATH", "")].join(File::PATH_SEPARATOR),
-      "LIBTMUX_TEST_TMUX" => tmux, "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile"), "BUNDLE_FROZEN" => "true")
+    environment = cell_environment(base, ruby, tmux, sandbox)
     executor = LibTmux::Internal::ProcessExecutor.new(stdout_limit: 16 << 20, stderr_limit: 4 << 20)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     ruby_probe = executor.run([ruby, "--disable=gems", "-e", "print RUBY_VERSION"], env: environment)

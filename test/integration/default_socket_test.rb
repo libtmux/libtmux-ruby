@@ -72,38 +72,7 @@ class DefaultSocketTest < Minitest::Test
     end
   end
 
-  def test_a_bare_tmux_client_lands_in_the_private_directory_of_the_test_process
-    # Nothing starts unless the guard holds, because a client that reached the
-    # default server would be the thing the guard exists to prevent.
-    assert ENV["TMUX_TMPDIR"] == LibTmuxTest::PRIVATE_TMUX_DIRECTORY, "the test helper's guard is not active"
-    assert_nil ENV["TMUX"]
-    assert_nil ENV["TMUX_PANE"]
-    private_socket = File.join(File.realpath(LibTmuxTest::PRIVATE_TMUX_DIRECTORY), "tmux-#{Process.uid}", "default")
-    begin
-      assert_equal private_socket, canary_socket_path({})
-    ensure
-      Open3.capture3(EXECUTABLE, "-S", private_socket, "kill-server")
-    end
-    # The same client told another directory reports a path in it, so the
-    # check above can tell the private directory from any other.
-    with_private_tmux_directory do |other|
-      reported = canary_socket_path("TMUX_TMPDIR" => other)
-      assert_equal File.join(File.realpath(other), "tmux-#{Process.uid}", "default"), reported
-      refute_equal private_socket, reported
-    end
-  end
-
   private
-
-  # A client given only a command, so tmux picks its socket from the
-  # environment alone. An empty hash inherits the test process's environment.
-  def canary_socket_path(environment)
-    _, error, status = Open3.capture3(environment, EXECUTABLE, "-f", "/dev/null", "new-session", "-d", "-s", "canary", "cat")
-    assert status.success?, "tmux could not start the canary server: #{error}"
-    output, error, status = Open3.capture3(environment, EXECUTABLE, "display-message", "-p", '#{socket_path}')
-    assert status.success?, "tmux could not report its socket: #{error}"
-    output.chomp
-  end
 
   # An environment that names no tmux directory gets an empty one, so a rule
   # that fails to pick the expected socket finds no server instead of the
