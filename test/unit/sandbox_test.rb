@@ -100,6 +100,14 @@ class SandboxTest < Minitest::Test
     refute env.key?("TMUX")
   end
 
+  def test_prepare_makes_a_fresh_empty_directory_each_time
+    made = Array.new(2) { Sandbox.prepare({}).first }
+    assert_equal 2, made.uniq.length
+    made.each { |directory| assert_empty Dir.children(directory) }
+  ensure
+    made&.each { |directory| Sandbox.release(directory) }
+  end
+
   def test_prepare_refuses_without_a_directory_short_enough_for_a_socket
     [["/" + "x" * Sandbox::MAX_BYTES], ["/libtmux-ruby-missing"]].each do |roots|
       env = {}
