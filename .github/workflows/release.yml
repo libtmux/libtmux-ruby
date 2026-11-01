@@ -69,8 +69,8 @@ jobs:
           fi
       - name: Install consumer test prerequisites
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes tmux zsh
+          ./scripts/apt-get.sh update
+          ./scripts/apt-get.sh install --yes tmux zsh
       - name: Validate the complete installed artifact set
         run: bundle exec rake release:dry_run
       - name: Retain the exact files before any upload
