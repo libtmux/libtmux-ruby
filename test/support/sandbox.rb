@@ -113,9 +113,9 @@ module LibTmuxTest
         unless env[MARKER] == directory && File.basename(directory).start_with?(PREFIX)
           return "TMUX_TMPDIR is not the sandbox directory of this run"
         end
-        return if File.directory?(directory) && File.stat(directory).uid == Process.euid
-
-        "the sandbox directory is missing or belongs to another user"
+        stat = File.stat(directory) if File.directory?(directory)
+        return "the sandbox directory is missing or belongs to another user" unless stat&.owned?
+        return "the sandbox directory is open to group or others" unless (stat.mode & 0o077).zero?
       end
 
       def create(roots)
@@ -125,6 +125,8 @@ module LibTmuxTest
         raise Refused, "no temporary directory is short enough for a tmux socket path; set TMPDIR to a shorter one" unless root
 
         Dir.mktmpdir(PREFIX, root)
+      rescue SystemCallError
+        raise Refused, "cannot make a private directory for TMUX_TMPDIR"
       end
 
       def remove(directory)

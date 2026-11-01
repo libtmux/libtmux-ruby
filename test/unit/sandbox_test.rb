@@ -67,6 +67,17 @@ class SandboxTest < Minitest::Test
     end
   end
 
+  def test_tmux_tmpdir_must_be_owner_only
+    Dir.mktmpdir(Sandbox::PREFIX, "/tmp") do |directory|
+      env = {"TMUX_TMPDIR" => directory, Sandbox::MARKER => directory}
+      assert_empty Sandbox.violations(env)
+      [0o750, 0o705, 0o755].each do |mode|
+        File.chmod(mode, directory)
+        assert_equal ["the sandbox directory is open to group or others"], Sandbox.violations(env), mode.to_s(8)
+      end
+    end
+  end
+
   def test_prepare_clears_selectors_and_makes_a_short_private_directory
     env = DECOYS.merge("TMUX_TMPDIR" => "/decoy/tmpdir", "LIBTMUX_RELEASE_DIR" => "kept")
     directory, created = Sandbox.prepare(env)
@@ -95,6 +106,15 @@ class SandboxTest < Minitest::Test
       assert_raises(Sandbox::Refused) { Sandbox.prepare(env, roots: roots) }
       assert_empty env
     end
+  end
+
+  def test_a_run_that_cannot_make_its_directory_exits_2_and_says_it_refused
+    code = 'require "tmpdir"; Dir.define_singleton_method(:mktmpdir) { |*| raise Errno::EACCES }; load ARGV.fetch(0)'
+    env = DECOYS.merge("TMUX_TMPDIR" => "/decoy/tmpdir", Sandbox::MARKER => nil)
+    _, error, status = Open3.capture3(env, Gem.ruby, "-e", code, File.join(TESTS, "support", "sandbox.rb"))
+    assert_equal 2, status.exitstatus
+    assert_includes error, "libtmux-ruby tests refused to run"
+    refute_match(/decoy/, error)
   end
 
   def test_a_leak_is_a_socket_anywhere_in_the_tree_whoever_named_it
