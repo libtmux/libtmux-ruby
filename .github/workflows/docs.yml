@@ -250,8 +250,8 @@ jobs:
 
       - name: Install tmux for native MCP discovery
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install --no-install-recommends -y -qq tmux
+          "$GITHUB_WORKSPACE/docs-generator/scripts/apt-get.sh" update -qq
+          "$GITHUB_WORKSPACE/docs-generator/scripts/apt-get.sh" install --no-install-recommends -y -qq tmux
 
       - name: Export the selected Ruby source
         working-directory: port

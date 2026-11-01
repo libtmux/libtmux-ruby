@@ -119,8 +119,8 @@ jobs:
           bundler-cache: true
       - name: Install consumer test prerequisites
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes tmux zsh
+          ./scripts/apt-get.sh update
+          ./scripts/apt-get.sh install --yes tmux zsh
       - name: Build and test the prospective release without credentials
         shell: bash
         run: |
@@ -157,8 +157,8 @@ jobs:
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config zsh
+          ./scripts/apt-get.sh update
+          ./scripts/apt-get.sh install --yes libevent-dev libncurses-dev bison pkg-config zsh
       - name: Build the exact tmux release
         shell: bash
         run: |
@@ -227,8 +227,8 @@ jobs:
           bundler-cache: true
       - name: Install native build dependencies and supported client
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes tmux libevent-dev libncurses-dev bison pkg-config
+          ./scripts/apt-get.sh update
+          ./scripts/apt-get.sh install --yes tmux libevent-dev libncurses-dev bison pkg-config
       - name: Build the unsupported daemon
         shell: bash
         run: |
@@ -299,8 +299,8 @@ jobs:
           bundler-cache: true
       - name: Install native build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes libevent-dev libncurses-dev bison pkg-config autoconf automake zsh
+          ./scripts/apt-get.sh update
+          ./scripts/apt-get.sh install --yes libevent-dev libncurses-dev bison pkg-config autoconf automake zsh
       - name: Build tmux at the commit the ref names
         shell: bash
         run: |
