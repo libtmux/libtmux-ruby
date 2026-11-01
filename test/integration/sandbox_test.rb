@@ -41,15 +41,17 @@ class SandboxCanaryTest < Minitest::Test
 
   def test_the_resolver_looks_where_a_client_looks
     require_sandbox
-    assert_equal default_socket, LibTmux::Endpoint.new(socket_name: "default", executable: EXECUTABLE).socket_path
-    assert_equal default_socket, LibTmux::Endpoint.from_env(ENV, executable: EXECUTABLE).socket_path
+    named = LibTmux::Endpoint.new(socket_name: "default", executable: EXECUTABLE).socket_path
+    assert named == default_socket, "Endpoint.new resolved the default outside the sandbox"
+    inherited = LibTmux::Endpoint.from_env(ENV, executable: EXECUTABLE).socket_path
+    assert inherited == default_socket, "Endpoint.from_env resolved the default outside the sandbox"
   end
 
   def test_the_resolver_check_can_fail_because_the_default_moves_with_tmux_tmpdir
     require_sandbox
     path = without_tmux_tmpdir { LibTmux::Endpoint.new(socket_name: "default", executable: EXECUTABLE).socket_path }
-    assert_equal "/tmp/tmux-#{Process.uid}/default", path
-    refute_equal default_socket, path
+    assert path == "/tmp/tmux-#{Process.uid}/default", "the resolver did not fall back to /tmp without TMUX_TMPDIR"
+    refute path == default_socket, "the resolver ignored the missing TMUX_TMPDIR"
   end
 
   def test_a_server_opened_on_the_default_name_finds_nothing
