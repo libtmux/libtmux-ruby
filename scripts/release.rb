@@ -142,6 +142,7 @@ class GemRelease
         dependency.type == :runtime && dependency.requirement.to_s == "= #{version}"
       end
       fail_release("release sibling dependencies must match the exact suite version") unless valid
+      fail_release("release gemspec must ship its CHANGELOG.md") unless spec.files.include?("CHANGELOG.md")
       spec.files.each do |file|
         fail_release("release source file is unsafe, missing or untracked") unless safe_path?(file) &&
           tracked.include?("gems/#{spec.name}/#{file}") && regular_source?(spec.name, file)
