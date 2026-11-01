@@ -165,10 +165,12 @@ a regression test shown to fail for the original defect. Avoid tests that
 only repeat implementation details.
 
 Every test or probe must own an isolated socket and temporary directory named
-for this port, using a `libtmux-ruby-` prefix. Address that socket explicitly
-with `-S` or `-L`, clear inherited `TMUX`, `TMUX_PANE` and `LIBTMUX_SOCKET*`
-for child commands, and clean up only the server and files created by that run.
-Never use the default tmux server or sweep another port's temporary files.
+for this port, using a `libtmux-ruby-` prefix, except the sandbox's own `lt-rb-`
+directories, which are short to fit a socket path. Address that socket
+explicitly with `-S` or `-L`, clear inherited `TMUX`, `TMUX_PANE` and
+`LIBTMUX_SOCKET*` for child commands, and clean up only the server and files
+created by that run. Never use the default tmux server or sweep another port's
+temporary files.
 
 A suite that starts from a tmux pane would otherwise send any command that
 names no socket to that pane's server, because tmux follows `TMUX` ahead of
@@ -187,9 +189,10 @@ when every test passed. Every test puts its server on a socket in a directory
 of its own, so a socket in the sandbox, whether tmux chose it for a command
 that named none or a test named it with `-S`, is a server nothing stopped.
 The sandbox stops each one with `tmux -S <socket> kill-server`, then connects
-to confirm nothing answers. If one still answers, it keeps the directory and
-names the sockets and the directory in the failure. Messages carry names,
-never the values of environment variables.
+to confirm nothing answers. A stop that does not return in time is cut off, and
+that connection decides whether the server still answers. If one does, it keeps
+the directory and names the sockets and the directory in the failure. Messages
+carry names, never the values of environment variables.
 
 `TMPDIR` must stay short enough for a socket path. The sandbox falls back to
 `/tmp` and refuses to run when neither fits. The README runner keeps its own
