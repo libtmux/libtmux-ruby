@@ -100,6 +100,17 @@ class SandboxTest < Minitest::Test
     refute env.key?("TMUX")
   end
 
+  # tmux binds <TMUX_TMPDIR>/tmux-<uid>/<name>. A bound path must fit sun_path,
+  # 104 bytes on macOS, and the guard's limit is 100.
+  def test_the_longest_socket_path_the_sandbox_allows_fits_in_a_hundred_bytes
+    worst_uid = "tmux-4294967295"
+    longest_name = "n" * 20
+    largest = File.join("/" + "x" * (Sandbox::MAX_BYTES - 1), worst_uid, longest_name)
+    assert largest.bytesize <= 100, "a socket path in the largest sandbox directory is over 100 bytes"
+    actual = File.join(ENV.fetch("TMUX_TMPDIR"), worst_uid, longest_name)
+    assert actual.bytesize <= 100, "a socket path in this run's sandbox is over 100 bytes"
+  end
+
   def test_prepare_makes_a_fresh_empty_directory_each_time
     made = Array.new(2) { Sandbox.prepare({}).first }
     assert_equal 2, made.uniq.length
