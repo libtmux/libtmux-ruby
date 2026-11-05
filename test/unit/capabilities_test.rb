@@ -2,6 +2,7 @@
 
 require_relative "../test_helper"
 require "libtmux"
+require "libtmux/async"
 
 class CapabilitiesTest < Minitest::Test
   REGISTRY = LibTmux::Internal::Capabilities
@@ -48,6 +49,27 @@ class CapabilitiesTest < Minitest::Test
       else assert_kind_of Module, constant, name
       end
     end
+  end
+
+  def test_control_mode_lists_its_routes_to_the_refusal
+    # The refusal is raised in ControlConnection#initialize and in
+    # Async::Scope#open_control, which Async::Server#open_control calls.
+    expected = %w[LibTmux::Server#open_control LibTmux::Async::Server#open_control
+      LibTmux::ControlConnection.open LibTmux::ControlConnection.new]
+    assert_equal expected.sort, REGISTRY.capability("control-mode").apis.sort
+  end
+
+  def test_a_record_that_names_one_command_channel_names_its_twins
+    # Every caller-written command line passes the same guard, so a record that
+    # can refuse through one run channel can refuse through each, and likewise
+    # for the control channels.
+    records = CAPABILITIES + REGISTRY::WORKAROUNDS
+    [REGISTRY::RUN_CHANNELS, REGISTRY::CONTROL_CHANNELS].each do |channels|
+      records.select { |entry| (entry.apis & channels).any? }.each do |entry|
+        assert_empty channels - entry.apis, entry.id
+      end
+    end
+    assert records.any? { |entry| (entry.apis & REGISTRY::RUN_CHANNELS).any? }
   end
 
   def test_availability_follows_the_release_order

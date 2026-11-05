@@ -65,6 +65,38 @@ class TmuxFeaturesTest < Minitest::Test
     end
   end
 
+  # The capability registry names the public routes to each refusal; every one
+  # it names for named buffer deletion must refuse below tmux 3.4, so a listed
+  # route that does not reach the command guard fails here.
+  def test_every_route_the_registry_names_refuses_named_buffer_deletion_before_tmux_3_4
+    routes = {
+      "LibTmux::Server#delete_buffer" => ->(target) { target.delete_buffer("target") },
+      "LibTmux::Server#run" => ->(target) { target.run(%w[delete-buffer -b target]) },
+      "LibTmux::Server#run_group" => ->(target) { target.run_group([%w[display-message -p x], %w[delete-buffer -b target]]) }
+    }
+    named = LibTmux::Internal::Capabilities.capability("buffer-delete-named").apis
+    assert_equal named.map { |name| name.sub("LibTmux::Async::", "LibTmux::") }.uniq.sort, routes.keys.sort
+    with_server do |server, _fixture|
+      server.write_buffer(name: "target", data: "target")
+      Async do |parent|
+        LibTmux::Async.open(parent: parent, server: server) do |scope|
+          named.each do |name|
+            target = name.start_with?("LibTmux::Async::") ? scope.server : server
+            attempt = routes.fetch(name.sub("LibTmux::Async::", "LibTmux::"))
+            if release_before?(server, 3, 4)
+              error = assert_raises(LibTmux::UnsupportedFeatureError, name) { attempt.call(target) }
+              assert_equal [:not_sent, :admission], [error.delivery, error.phase], name
+            else
+              attempt.call(target)
+              server.write_buffer(name: "target", data: "target")
+            end
+          end
+        end
+      end.wait
+      assert_includes server.list_buffers.map { |buffer| buffer.fetch(:name) }, "target"
+    end
+  end
+
   def test_break_out_names_the_window_and_reads_back_a_sole_pane
     with_server do |server, fixture|
       home = server.list_sessions.first

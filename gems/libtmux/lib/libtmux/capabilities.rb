@@ -68,23 +68,34 @@ module LibTmux
         end
       end
 
+      # Public methods that send a tmux command line the caller wrote. The
+      # command guard reads each line, so a capability it consults can refuse
+      # a command through any of them, and only for the command it gates.
+      RUN_CHANNELS = %w[
+        LibTmux::Server#run LibTmux::Server#run_group LibTmux::Async::Server#run LibTmux::Async::Server#run_group
+      ].freeze
+      # The control-client channels, which reach a capability only on a tmux
+      # that accepts control clients.
+      CONTROL_CHANNELS = %w[LibTmux::ControlConnection#exchange LibTmux::Async::ControlConnection#exchange].freeze
+
       CAPABILITIES = [
         Capability.new(id: "control-mode", name: "Control mode", since: "3.7", handling: :refuse, error: ERROR,
           summary: "Attach a library-managed control client and stream events.",
-          apis: ["LibTmux::Server#open_control", "LibTmux::ControlConnection.open"],
+          apis: ["LibTmux::Server#open_control", "LibTmux::Async::Server#open_control",
+                 "LibTmux::ControlConnection.open", "LibTmux::ControlConnection.new"],
           commands: [Command.new(command: "attach-session")]),
         Capability.new(id: "buffer-delete-named", name: "Named buffer deletion", since: "3.4", handling: :refuse, error: ERROR,
           summary: "Delete one paste buffer by name without risking another buffer.",
-          apis: ["LibTmux::Server#delete_buffer", "LibTmux::Server#run"],
+          apis: ["LibTmux::Server#delete_buffer", "LibTmux::Async::Server#delete_buffer", *RUN_CHANNELS],
           commands: [Command.new(command: "delete-buffer", flags: ["-b"])]),
         Capability.new(id: "buffer-rename", name: "Buffer rename", since: "3.4", handling: :refuse, error: ERROR,
           summary: "Rename a paste buffer without risking another buffer.",
-          apis: ["LibTmux::Server#run"],
+          apis: RUN_CHANNELS,
           commands: [Command.new(command: "set-buffer", flags: ["-b", "-n"])]),
         Capability.new(id: "layout-without-checksum", name: "Layouts without a checksum", since: "3.4",
           handling: :refuse, error: ERROR,
           summary: "Apply a layout string or a named layout that tmux validates before use.",
-          apis: ["LibTmux::Window#select_layout", "LibTmux::Server#run"],
+          apis: ["LibTmux::Window#select_layout", *RUN_CHANNELS],
           commands: [Command.new(command: "select-layout")]),
         Capability.new(id: "layout-mirrored-main", name: "Mirrored main layouts", since: "3.5",
           handling: :refuse, error: ERROR,
@@ -94,11 +105,11 @@ module LibTmux
         Capability.new(id: "layout-json", name: "JSON layout strings", since: "3.8",
           handling: :refuse, error: ERROR,
           summary: "Apply a layout saved in the JSON form tmux reports.",
-          apis: ["LibTmux::Window#select_layout", "LibTmux::Server#run", "LibTmux::ControlConnection#exchange"],
+          apis: ["LibTmux::Window#select_layout", *RUN_CHANNELS, *CONTROL_CHANNELS],
           commands: [Command.new(command: "select-layout")]),
         Capability.new(id: "clipboard-query", name: "Clipboard query", since: "3.6a", handling: :refuse, error: ERROR,
           summary: "Ask an attached client's terminal for its clipboard with refresh-client -l.",
-          apis: ["LibTmux::Server#run", "LibTmux::ControlConnection#exchange"],
+          apis: [*RUN_CHANNELS, *CONTROL_CHANNELS],
           commands: [Command.new(command: "refresh-client", flags: ["-l"])])
       ].freeze
 
@@ -106,18 +117,18 @@ module LibTmux
         Workaround.new(id: "break-pane-misnames-windows", name: "break-pane window naming", releases: ["3.7"],
           handling: :repair,
           summary: "break-pane gets the new window wrong on exactly tmux 3.7; Pane#break_out names it again, and raw break-pane is refused. A nested break-pane is not checked and stops an exact 3.7 daemon: name every one with -n, which avoids the crash while 3.7 still ignores the name, or upgrade to 3.7a.",
-          apis: ["LibTmux::Pane#break_out", "LibTmux::Server#run", "LibTmux::ControlConnection#exchange"],
+          apis: ["LibTmux::Pane#break_out", *RUN_CHANNELS, *CONTROL_CHANNELS],
           commands: [Command.new(command: "break-pane")]),
         Workaround.new(id: "split-window-percent-size", name: "split-window -p", releases: ["3.4"],
           handling: :refuse,
           summary: "split-window -p is broken on tmux 3.4; use -l N%.",
-          apis: ["LibTmux::Server#run"],
+          apis: RUN_CHANNELS,
           commands: [Command.new(command: "split-window", flags: ["-p"])]),
         Workaround.new(id: "name-separators-rejected", name: "Colon and dot in names", releases: ["3.7"],
           handling: :refuse,
           summary: "tmux 3.7 rejects ':' and '.' in session and window names; the library refuses them before dispatch, typed or raw.",
-          apis: ["LibTmux::Server#new_session", "LibTmux::Session#new_window", "LibTmux::Session#rename",
-                 "LibTmux::Window#rename", "LibTmux::Server#run"],
+          apis: ["LibTmux::Server#new_session", "LibTmux::Async::Server#new_session", "LibTmux::Session#new_window", "LibTmux::Session#rename",
+                 "LibTmux::Window#rename", *RUN_CHANNELS],
           commands: [Command.new(command: "new-session", flags: ["-s"]), Command.new(command: "new-window", flags: ["-n"]),
                      Command.new(command: "rename-session"), Command.new(command: "rename-window")])
       ].freeze
