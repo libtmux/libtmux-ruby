@@ -24,6 +24,17 @@ at one version, so a release has a section in each changelog.
 - When a run ends, a tmux server left anywhere in the sandbox is stopped with
   `tmux -S <socket> kill-server` and the run fails, even if every test passed.
   The failure names the sockets and never an environment value. (#80)
+- The API example `examples/api/workspace_apply.rb` writes the workspace file it
+  loads, so it runs when saved alone. (#93)
+- An API example lists the tmux capabilities it needs in `api.capabilities`, in
+  version 2 of `examples/manifest.json`, checked against the capability
+  registry. The docs export gives each API example the tmux release its page
+  states; the control examples need tmux 3.7. A version 1 manifest from an
+  earlier release is read and exported as before. (#93)
+- `capabilities.json` lists more of the methods each capability and workaround
+  can refuse: the Async server's `open_control`, `delete_buffer`,
+  `new_session`, `run` and `run_group`, `Server#run_group`,
+  `ControlConnection.new` and `Async::ControlConnection#exchange`. (#93)
 
 ## 0.1.1 (2026-10-31)
 
