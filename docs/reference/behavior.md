@@ -628,10 +628,10 @@ preserves the daemon. Output remains on the terminal and the return value is
 
 Control connections require tmux 3.7 or newer and are refused earlier on the
 checked release (see [Optional tmux features](#optional-tmux-features)).
-Prefer `Server#open_control(session: ref)` so the binding accounts for the
-connection. Blocks close it on exit; without a block the caller must close
-it. Low-level constructors require an internal binding and exact session ID.
-The connection retains its own socket route, client and pipes. Core uses an
+Open one with `Server#open_control(session: ref)`, which accounts for the
+connection in its binding; `ControlConnection.new` and `.open` are private.
+Blocks close it on exit; without a block the caller must close it. The
+connection retains its own socket route, client and pipes. Core uses an owned
 owned reader thread; Async uses tasks on its scope scheduler.
 
 `exchange` accepts one bounded authored command line and returns

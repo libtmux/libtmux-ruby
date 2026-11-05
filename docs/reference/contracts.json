@@ -208,7 +208,6 @@
       "methods": [
         "LibTmux::Async::ControlConnection#close",
         "LibTmux::Async::ControlConnection#closed?",
-        "LibTmux::Async::ControlConnection.new",
         "LibTmux::Async::Server#open_control",
         "LibTmux::ControlConnection#cleanup_errors",
         "LibTmux::ControlConnection#close",
@@ -220,8 +219,6 @@
         "LibTmux::ControlConnection#pid",
         "LibTmux::ControlConnection#previous_generation",
         "LibTmux::ControlConnection#subscribe",
-        "LibTmux::ControlConnection.new",
-        "LibTmux::ControlConnection.open",
         "LibTmux::Server#open_control"
       ]
     },

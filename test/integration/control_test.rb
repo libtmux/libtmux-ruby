@@ -17,7 +17,7 @@ class ControlIntegrationTest < Minitest::Test
       begin
         next unless require_control_binding(pin)
 
-        LibTmux::ControlConnection.open(binding: pin, session_id: "$0", **options) do |connection|
+        LibTmux::ControlConnection.__send__(:open, binding: pin, session_id: "$0", **options) do |connection|
           yield fixture, pin, connection
         end
       ensure
@@ -46,7 +46,7 @@ class ControlIntegrationTest < Minitest::Test
 
   def test_native_pause_and_resume_preserve_prefix_and_report_unknown_loss
     with_control do |fixture, pin, control|
-      LibTmux::ControlConnection.open(binding: pin, session_id: "$0") do |observer|
+      LibTmux::ControlConnection.__send__(:open, binding: pin, session_id: "$0") do |observer|
         stream = control.subscribe(pane_id: "%0")
         witness = observer.subscribe(pane_id: "%0")
         observer.exchange("display-message -p observer-ready", timeout: 0.5)
@@ -93,13 +93,13 @@ class ControlIntegrationTest < Minitest::Test
   def test_explicit_reconnect_has_a_new_generation_and_gap_without_replay
     with_control do |fixture, pin, control|
       assert_raises(ArgumentError) do
-        LibTmux::ControlConnection.new(binding: pin, session_id: "$0", reconnect: control)
+        LibTmux::ControlConnection.__send__(:new, binding: pin, session_id: "$0", reconnect: control)
       end
       control.exchange("new-window -d -n once", timeout: 0.5)
       old_generation, old_pid = control.generation, control.pid
       control.close
       assert_raises(Errno::ECHILD) { Process.waitpid(old_pid, Process::WNOHANG) }
-      LibTmux::ControlConnection.open(binding: pin, session_id: "$0", reconnect: control) do |fresh|
+      LibTmux::ControlConnection.__send__(:open, binding: pin, session_id: "$0", reconnect: control) do |fresh|
         refute_equal old_generation, fresh.generation
         assert_equal old_generation, fresh.previous_generation
         [fresh.events, fresh.subscribe(pane_id: "%0")].each do |stream|
@@ -117,7 +117,7 @@ class ControlIntegrationTest < Minitest::Test
       end
       other = LibTmux::Internal::SocketIdentity.new(LibTmux::Endpoint.new(socket_path: fixture.socket_path))
       assert_raises(ArgumentError) do
-        LibTmux::ControlConnection.new(binding: other, session_id: "$0", reconnect: control)
+        LibTmux::ControlConnection.__send__(:new, binding: other, session_id: "$0", reconnect: control)
       end
     ensure
       other&.close
@@ -433,7 +433,7 @@ class ControlIntegrationTest < Minitest::Test
           observer.define_singleton_method(:observe) { |_| gate.pop; raise IOError, "observer injection" }
         end
       end
-      control = LibTmux::ControlConnection.open(binding: pin, session_id: "$0")
+      control = LibTmux::ControlConnection.__send__(:open, binding: pin, session_id: "$0")
       wait_class.define_singleton_method(:new, original_new)
       assert_equal "ready\n", control.events.next(timeout: 0.5).raw
       ENV["RUBYOPT"] = original_rubyopt
