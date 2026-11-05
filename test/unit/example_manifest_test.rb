@@ -78,4 +78,13 @@ class ExampleManifestTest < Minitest::Test
       assert_match(/excerpt differs/, failure.message)
     end
   end
+
+  def test_the_workspace_example_writes_the_example_workspace_file
+    root = File.expand_path("../..", __dir__)
+    program = File.read(File.join(root, "examples/api/workspace_apply.rb"))
+    document = program[/<<~'YAML'\n(.*?)^\s*YAML\n/m, 1]
+    refute_nil document
+    indentation = document.lines.map { |line| line[/\A */].size }.min
+    assert_equal File.read(File.join(root, "examples/workspace.yaml")), document.lines.map { |line| line[indentation..] }.join
+  end
 end
