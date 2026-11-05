@@ -14,7 +14,9 @@
       "error": "LibTmux::UnsupportedFeatureError",
       "apis": [
         "LibTmux::Server#open_control",
-        "LibTmux::ControlConnection.open"
+        "LibTmux::Async::Server#open_control",
+        "LibTmux::ControlConnection.open",
+        "LibTmux::ControlConnection.new"
       ],
       "commands": [
         {
@@ -31,7 +33,11 @@
       "error": "LibTmux::UnsupportedFeatureError",
       "apis": [
         "LibTmux::Server#delete_buffer",
-        "LibTmux::Server#run"
+        "LibTmux::Async::Server#delete_buffer",
+        "LibTmux::Server#run",
+        "LibTmux::Server#run_group",
+        "LibTmux::Async::Server#run",
+        "LibTmux::Async::Server#run_group"
       ],
       "commands": [
         {
@@ -50,7 +56,10 @@
       "handling": "refuse",
       "error": "LibTmux::UnsupportedFeatureError",
       "apis": [
-        "LibTmux::Server#run"
+        "LibTmux::Server#run",
+        "LibTmux::Server#run_group",
+        "LibTmux::Async::Server#run",
+        "LibTmux::Async::Server#run_group"
       ],
       "commands": [
         {
@@ -71,7 +80,10 @@
       "error": "LibTmux::UnsupportedFeatureError",
       "apis": [
         "LibTmux::Window#select_layout",
-        "LibTmux::Server#run"
+        "LibTmux::Server#run",
+        "LibTmux::Server#run_group",
+        "LibTmux::Async::Server#run",
+        "LibTmux::Async::Server#run_group"
       ],
       "commands": [
         {
@@ -105,7 +117,11 @@
       "apis": [
         "LibTmux::Window#select_layout",
         "LibTmux::Server#run",
-        "LibTmux::ControlConnection#exchange"
+        "LibTmux::Server#run_group",
+        "LibTmux::Async::Server#run",
+        "LibTmux::Async::Server#run_group",
+        "LibTmux::ControlConnection#exchange",
+        "LibTmux::Async::ControlConnection#exchange"
       ],
       "commands": [
         {
@@ -122,7 +138,11 @@
       "error": "LibTmux::UnsupportedFeatureError",
       "apis": [
         "LibTmux::Server#run",
-        "LibTmux::ControlConnection#exchange"
+        "LibTmux::Server#run_group",
+        "LibTmux::Async::Server#run",
+        "LibTmux::Async::Server#run_group",
+        "LibTmux::ControlConnection#exchange",
+        "LibTmux::Async::ControlConnection#exchange"
       ],
       "commands": [
         {
@@ -146,7 +166,11 @@
       "apis": [
         "LibTmux::Pane#break_out",
         "LibTmux::Server#run",
-        "LibTmux::ControlConnection#exchange"
+        "LibTmux::Server#run_group",
+        "LibTmux::Async::Server#run",
+        "LibTmux::Async::Server#run_group",
+        "LibTmux::ControlConnection#exchange",
+        "LibTmux::Async::ControlConnection#exchange"
       ],
       "commands": [
         {
@@ -163,7 +187,10 @@
       ],
       "handling": "refuse",
       "apis": [
-        "LibTmux::Server#run"
+        "LibTmux::Server#run",
+        "LibTmux::Server#run_group",
+        "LibTmux::Async::Server#run",
+        "LibTmux::Async::Server#run_group"
       ],
       "commands": [
         {
@@ -184,10 +211,14 @@
       "handling": "refuse",
       "apis": [
         "LibTmux::Server#new_session",
+        "LibTmux::Async::Server#new_session",
         "LibTmux::Session#new_window",
         "LibTmux::Session#rename",
         "LibTmux::Window#rename",
-        "LibTmux::Server#run"
+        "LibTmux::Server#run",
+        "LibTmux::Server#run_group",
+        "LibTmux::Async::Server#run",
+        "LibTmux::Async::Server#run_group"
       ],
       "commands": [
         {

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "programs": [
     {
       "id": "quickstart",
@@ -217,6 +217,7 @@
           "LibTmux::ControlConnection#subscribe",
           "LibTmux::ControlSubscription#next"
         ],
+        "capabilities": ["control-mode"],
         "description": "Open a control connection, run one command through it, and read the notification tmux sends when a window is renamed.",
         "output": "reply: ready\nevent: %window-renamed @0 renamed\n"
       }
@@ -269,6 +270,7 @@
           "LibTmux::Async::ControlConnection#events",
           "LibTmux::Async::ControlSubscription#next"
         ],
+        "capabilities": ["control-mode"],
         "description": "Open a control connection inside an Async scope and read the notification tmux sends when a window is renamed.",
         "output": "reply: ready\nevent: %window-renamed @0 renamed\n"
       }
@@ -284,7 +286,7 @@
           "LibTmux::Workspace::Plan#steps",
           "LibTmux::Workspace::Plan#apply"
         ],
-        "description": "Load the example workspace file, plan it against a snapshot, and apply the plan to an empty server.",
+        "description": "Write a workspace file, load it, plan it against a snapshot, and apply the plan to an empty server.",
         "output": "planned steps: 11\napplied: true\nsessions: work\n"
       }
     },

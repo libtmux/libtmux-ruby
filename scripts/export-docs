@@ -203,8 +203,21 @@ class DocumentationExport
     paths = manifest.data.fetch("programs").map { |entry| entry.fetch("path") } + manifest.data.fetch("support")
     {
       "manifest" => manifest.data,
+      # The tmux release each API page states, by program path. The checker
+      # resolves it with the library's own release order and port floor, so the
+      # docs generator reads a release instead of ranking capabilities itself.
+      # A version 1 manifest cannot say which programs need a newer tmux, so
+      # its export states no release rather than the floor for every page.
+      **tmux_releases(manifest),
       "files" => paths.sort.map { |path| {"path" => path, "content" => File.read(File.join(root, path))} }
     }
+  end
+
+  def tmux_releases(manifest)
+    return {} unless manifest.data.fetch("version") == 2
+
+    {"tmux_releases" => manifest.data.fetch("programs").select { |entry| entry.key?("api") }
+      .to_h { |entry| [entry.fetch("path"), manifest.tmux_release(entry)] }}
   end
 
   def validate_api_examples!(manifest, declarations)

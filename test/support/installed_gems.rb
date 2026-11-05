@@ -39,10 +39,11 @@ module LibTmuxTest
       manifest.fetch("programs").select { |entry| entry.fetch("gem") == package }.each do |entry|
         output, status = Open3.capture2e(environment.merge("LIBTMUX_EXAMPLE_INSTALLED" => "1"),
           Gem.ruby, "-W:no-experimental", File.join(directory, entry.fetch("path")), chdir: directory)
-        if needs_control?(entry) && !control_daemon?(environment)
-          # Below tmux 3.7 the example's own program is refused before a client attaches.
-          refute status.success?, "installed example #{entry.fetch('id')} attached a control client"
-          assert_match(/UnsupportedFeatureError: control connections require tmux 3\.7 or newer/, output)
+        unavailable = unavailable_capabilities(entry, environment)
+        unless unavailable.empty?
+          # Below a declared capability's release the program is refused before it sends anything.
+          refute status.success?, "installed example #{entry.fetch('id')} ran without #{unavailable.map(&:id).join(', ')}"
+          assert_match(/LibTmux::UnsupportedFeatureError: /, output)
           next
         end
         assert status.success?, "installed example #{entry.fetch('id')} failed: #{output}"
@@ -50,14 +51,15 @@ module LibTmuxTest
       end
     end
 
-    def needs_control?(entry)
-      entry.dig("api", "symbols").to_a.any? { |symbol| symbol.end_with?("#open_control") }
-    end
+    # The capabilities the program declares that the daemon on +environment+ lacks,
+    # by the library's own check.
+    def unavailable_capabilities(entry, environment)
+      declared = entry.dig("api", "capabilities").to_a
+      return [] if declared.empty?
 
-    def control_daemon?(environment)
       banner, = Open3.capture2e(environment, "tmux", "-V")
-      version = LibTmux::Internal::TmuxVersion
-      version.parse(banner.strip.delete_prefix("tmux ")) >= version.parse("3.7")
+      release = LibTmux::Internal::TmuxVersion.parse(banner.strip.delete_prefix("tmux "))
+      declared.map { |id| LibTmux::Internal::Capabilities.capability(id) }.reject { |capability| capability.available?(release) }
     end
 
     def run_installed_type_consumer(package, environment, directory)
