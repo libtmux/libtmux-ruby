@@ -13,7 +13,14 @@ Releases are numbered `0.1.N`, and each release increments `N`. The API is not
 settled: pin an exact version to avoid a break. The gems are released together
 at one version, so a release has a section in each changelog.
 
-## 0.1.2 (unreleased)
+## 0.1.3 (unreleased)
+
+## 0.1.2 (2026-11-04)
+
+Keeps every test run off the developer's tmux server, and lets an API example
+name the tmux capabilities it needs, so the docs site can show the workspace
+and control examples with the tmux release each one needs. The gem changelogs
+have no entries for this release.
 
 - The test suites, the matrix, the benchmark and the README runner run in a
   sandbox. Before anything starts, it removes `TMUX`, `TMUX_PANE` and every

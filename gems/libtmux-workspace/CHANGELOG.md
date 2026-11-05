@@ -9,7 +9,11 @@ The gems are released together at one version, so every release has a section
 here. Changes that span gems, such as documentation, CI and release tooling, are
 in the [main changelog](../../CHANGELOG.md).
 
-## 0.1.2 (unreleased)
+## 0.1.3 (unreleased)
+
+## 0.1.2 (2026-11-04)
+
+No entries for `libtmux-workspace`.
 
 ## 0.1.1 (2026-10-31)
 
