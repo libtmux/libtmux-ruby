@@ -11,6 +11,11 @@ in the [main changelog](../../CHANGELOG.md).
 
 ## 0.1.3 (unreleased)
 
+- **Behavior change:** `ControlConnection.new` and `ControlConnection.open` are
+  private, and the `control-mode` capability no longer lists them. Both needed
+  the server's internal socket binding, which callers cannot obtain. Open a
+  control connection with `Server#open_control(session:)`.
+
 ## 0.1.2 (2026-11-04)
 
 No entries for `libtmux`.
