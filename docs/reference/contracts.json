@@ -17,8 +17,7 @@
         "LibTmux::Async::Scope#closed?",
         "LibTmux::Async::Scope#server",
         "LibTmux::Async::Scope.new",
-        "LibTmux::Async::Server#close",
-        "LibTmux::Async::Server.new"
+        "LibTmux::Async::Server#close"
       ]
     },
     {
@@ -26,6 +25,7 @@
       "title": "Async unsupported operations",
       "methods": [
         "LibTmux::Async::Server#attach",
+        "LibTmux::Async::Server.open",
         "LibTmux::Async::Server.start"
       ]
     },
@@ -269,7 +269,6 @@
       "title": "Control subscriptions",
       "methods": [
         "LibTmux::Async::ControlSubscription#next",
-        "LibTmux::Async::ControlSubscription.new",
         "LibTmux::ControlSubscription#close",
         "LibTmux::ControlSubscription#closed?",
         "LibTmux::ControlSubscription#each",
