@@ -8,8 +8,31 @@ require "pathname"
 class ExampleManifest
   Error = Class.new(StandardError)
   PACKAGES = %w[libtmux libtmux-async libtmux-mcp libtmux-workspace].freeze
+  API_KEYS = %w[description output symbols].freeze
+  # Methods that pass the caller's own command line or layout on to tmux. Written
+  # out, since an earlier release's library has no channel constants.
+  CONDITIONAL_APIS = %w[
+    LibTmux::Server#run LibTmux::Server#run_group LibTmux::Async::Server#run LibTmux::Async::Server#run_group
+    LibTmux::ControlConnection#exchange LibTmux::Async::ControlConnection#exchange LibTmux::Window#select_layout
+  ].freeze
   MARKER = /<!-- example: ([a-z0-9_\/-]+) -->\n(.*?)<!-- \/example -->/m
   attr_reader :root, :data
+
+  # The library's capability registry and release order, loaded when a version 2
+  # manifest is checked. A docs rebuild of an earlier release has already loaded
+  # that release's library, which may have neither.
+  def self.registry
+    unless defined?(LibTmux::Internal::Capabilities)
+      $LOAD_PATH.unshift(File.expand_path("../gems/libtmux/lib", __dir__))
+      require "libtmux/tmux_version"
+    end
+    LibTmux::Internal::Capabilities
+  end
+
+  def self.releases
+    registry
+    LibTmux::Internal::TmuxVersion
+  end
 
   def initialize(root)
     @root = File.expand_path(root)
@@ -17,7 +40,7 @@ class ExampleManifest
   end
 
   def check(write: false)
-    raise Error, "unsupported example manifest" unless data.fetch("version") == 1
+    raise Error, "unsupported example manifest" unless [1, 2].include?(data.fetch("version"))
     programs = data.fetch("programs")
     duplicates!(programs.map { |entry| entry.fetch("id") }, "program IDs")
     api_targets = []
@@ -28,13 +51,14 @@ class ExampleManifest
       end
       next unless entry.key?("api")
       api = entry.fetch("api")
-      unless api.is_a?(Hash) && api.keys.sort == %w[description output symbols] &&
+      unless api.is_a?(Hash) && [API_KEYS, (API_KEYS + ["capabilities"]).sort].include?(api.keys.sort) &&
           api["symbols"].is_a?(Array) && !api["symbols"].empty? &&
           api["symbols"].all? { |id| id.is_a?(String) && !id.empty? && !id.match?(/\s/) } &&
           api["description"].is_a?(String) && !api["description"].strip.empty? &&
           api["output"].is_a?(String) && !api["output"].strip.empty? && api["output"].end_with?("\n")
         raise Error, "invalid API example metadata: #{entry.fetch('id')}"
       end
+      check_capabilities(entry.fetch("id"), api)
       api_targets.concat(api.fetch("symbols"))
     end
     duplicates!(api_targets, "API targets")
@@ -86,7 +110,39 @@ class ExampleManifest
     raise Error, "malformed example manifest (#{error.class})"
   end
 
+  # The tmux release a page for +entry+ states: the highest release at which
+  # one of its declared capabilities opens, never below the port's floor.
+  # Ranking uses the library's own release order, so 3.6a < 3.7 < 3.10.
+  def tmux_release(entry)
+    opens = entry.dig("api", "capabilities").to_a.map { |id| self.class.registry.capability(id).since }
+    releases = self.class.releases
+    ([releases::MINIMUM] + opens).max_by { |text| releases.parse(text) }
+  end
+
   private
+
+  # From manifest version 2, an API example lists the capabilities it needs. A
+  # documented symbol refused on every call below a capability's release makes
+  # that capability required; any known capability may be listed.
+  def check_capabilities(id, api)
+    declared = api.fetch("capabilities", [])
+    if api.key?("capabilities")
+      raise Error, "API example capabilities need manifest version 2: #{id}" unless data.fetch("version") == 2
+      unless declared.is_a?(Array) && !declared.empty? && declared.all? { |name| name.is_a?(String) } &&
+          declared.uniq.length == declared.length
+        raise Error, "invalid API example capabilities: #{id}"
+      end
+    end
+    return if data.fetch("version") == 1
+
+    registry = self.class.registry::CAPABILITIES
+    unknown = declared - registry.map(&:id)
+    raise Error, "unknown capability in API example #{id}: #{unknown.join(', ')}" unless unknown.empty?
+    symbols = api.fetch("symbols")
+    required = registry.select { |entry| ((entry.apis - CONDITIONAL_APIS) & symbols).any? }.map(&:id)
+    missing = required - declared
+    raise Error, "API example #{id} uses a capability it does not declare: #{missing.join(', ')}" unless missing.empty?
+  end
 
   def safe_path(path)
     raise Error, "invalid manifest path" unless path.is_a?(String) && !Pathname.new(path).absolute?

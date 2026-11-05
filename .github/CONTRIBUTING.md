@@ -114,6 +114,16 @@ Ruby, YAML and JSON blocks in a README are excerpts of programs under
 prints, and the packaging test runs it from the installed gems and compares
 that output.
 
+An API example lists the tmux capabilities it needs in `api.capabilities`,
+using the ids in `capabilities.json`. The check reads the example's documented
+symbols: when one is a method the library refuses on every call below a
+capability's release, such as `Server#open_control`, the example must list
+that capability. A program that sends a gated command through `run`, or
+needs a capability through a method it does not document, may list it too.
+The packaging test expects the program to be refused on a tmux that lacks a
+listed capability and to succeed on one that has them all, and the docs export
+gives each page the release it needs in `tmux_releases`.
+
 Check unstaged changes for whitespace errors:
 
 ```console

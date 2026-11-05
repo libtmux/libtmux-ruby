@@ -53,6 +53,10 @@ class DocsExportTest < Minitest::Test
     public = (payload.fetch("namespaces") + payload.fetch("symbols"))
       .to_h { |entry| [entry.fetch("id"), entry.fetch("package")] }
     assert_equal Dir.glob("examples/api/*.rb", base: ROOT).length, programs.length
+    # The export carries the release the manifest check resolves for each API program.
+    checker = ExampleManifest.new(ROOT)
+    assert_equal programs.to_h { |program| [program.fetch("path"), checker.tmux_release(program)] },
+      examples.fetch("tmux_releases")
     programs.each do |program|
       code = files.fetch(program.fetch("path"))
       assert_equal File.read(File.join(ROOT, program.fetch("path"))), code
@@ -86,6 +90,12 @@ class DocsExportTest < Minitest::Test
       File.write(File.join(directory, "examples", "manifest.json"), JSON.generate(invalid))
       failure = assert_raises(DocumentationExport::Error) { export.payload }
       assert_match(/API example package differs/, failure.message)
+      # A version 1 manifest, as in releases before api.capabilities, cannot say
+      # which programs need a newer tmux: its export states no release.
+      legacy = Marshal.load(Marshal.dump(manifest.data)).merge("version" => 1)
+      legacy.fetch("programs").each { |entry| entry["api"]&.delete("capabilities") }
+      File.write(File.join(directory, "examples", "manifest.json"), JSON.generate(legacy))
+      refute_includes export.payload.fetch("examples").keys, "tmux_releases"
     end
   end
 end
