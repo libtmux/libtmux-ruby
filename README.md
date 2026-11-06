@@ -126,6 +126,32 @@ The [field catalog][doc-fields] lists query fields and wire names, and the
 [list/filter recipe](examples/list_filter.rb) covers exact matches and queries
 after close.
 
+### [`Window#snapshot`][window-snapshot]: read one object again
+
+A record from a snapshot is what tmux said when it was read, and a change to
+tmux does not reach it. Ruby has no `refresh` that updates a record in place,
+as Python libtmux's `.refresh()` does. Read the object again instead:
+[`Window#snapshot`][window-snapshot] returns a new record for that window and
+leaves the one you hold as it was. [`Session#snapshot`][session-snapshot] and
+[`Pane#snapshot`][pane-snapshot] do the same:
+
+<!-- example: refresh/main -->
+```ruby
+session = server.new_session(name: "work", window_name: "editor", command: ["/bin/cat"])
+window = session.list_windows.fetch(0)
+
+held = window.snapshot
+window.rename("build")
+
+puts held.name
+puts window.snapshot.name
+```
+<!-- /example -->
+
+It prints `editor`, then `build`. Each call reads the whole server, as
+[`server.snapshot`][server-snapshot] does, and returns the one record you asked
+for.
+
 ## Use the tmux server you already run
 
 ### [`Server.new`][server-new]: borrow a daemon
@@ -437,6 +463,7 @@ MIT. See [LICENSE](LICENSE).
 [multiplematcheserror]: https://libtmux.org/en/ruby/latest/reference/libtmux-multiplematcheserror/
 [nomatcherror]: https://libtmux.org/en/ruby/latest/reference/libtmux-nomatcherror/
 [pane]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-14z6/
+[pane-snapshot]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-snapshot/
 [pane-capture]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-capture/
 [rc-policy]: https://libtmux.org/en/tmux/guides/tmux-support/#release-candidates
 [selection-one]: https://libtmux.org/en/ruby/latest/reference/libtmux-selection-one/
@@ -449,8 +476,10 @@ MIT. See [LICENSE](LICENSE).
 [server-snapshot]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-snapshot/
 [server-start]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-start/
 [session]: https://libtmux.org/en/ruby/latest/reference/libtmux-session-nvps/
+[session-snapshot]: https://libtmux.org/en/ruby/latest/reference/libtmux-session-snapshot/
 [snapshot]: https://libtmux.org/en/ruby/latest/reference/libtmux-snapshot/
 [tool-tmux_capabilities]: https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capabilities/
 [tool-tmux_snapshot]: https://libtmux.org/en/ruby/latest/mcp/tools/tmux_snapshot/
 [window]: https://libtmux.org/en/ruby/latest/reference/libtmux-window-1vfx/
+[window-snapshot]: https://libtmux.org/en/ruby/latest/reference/libtmux-window-snapshot/
 [workspace]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace/
