@@ -31,6 +31,7 @@ module LibTmux
     end
 
     class Server < LibTmux::Server
+      private def self.new: (*untyped, **untyped) -> instance
       def initialize: (Scope, LibTmux::Server) -> void
       def run: (Array[String], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
       def close: () -> nil
@@ -39,9 +40,11 @@ module LibTmux
                       | (session: EntityRef, ?reconnect: LibTmux::ControlConnection?, **Integer) -> ControlConnection
       def attach: (**untyped) -> bot
       def self.start: (**untyped) -> bot
+      def self.open: (**untyped) -> bot
     end
 
     class ControlConnection < LibTmux::ControlConnection
+      private def self.new: (*untyped, **untyped) -> instance
       def initialize: (scope: Scope, binding: untyped, session_id: String, ?reconnect: LibTmux::ControlConnection?, **Integer) -> void
       attr_reader events: ControlSubscription
       def exchange: (String, ?timeout: Numeric, ?cancel: untyped) -> GuardedReply
@@ -51,6 +54,7 @@ module LibTmux
     end
 
     class ControlSubscription < LibTmux::ControlSubscription
+      private def self.new: (*untyped, **untyped) -> instance
       def initialize: (scope: Scope, **untyped) -> void
       def next: (?timeout: Numeric?) -> ControlEvent
     end

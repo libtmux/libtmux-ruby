@@ -81,8 +81,7 @@ module LibTmux
       CAPABILITIES = [
         Capability.new(id: "control-mode", name: "Control mode", since: "3.7", handling: :refuse, error: ERROR,
           summary: "Attach a library-managed control client and stream events.",
-          apis: ["LibTmux::Server#open_control", "LibTmux::Async::Server#open_control",
-                 "LibTmux::ControlConnection.open", "LibTmux::ControlConnection.new"],
+          apis: ["LibTmux::Server#open_control", "LibTmux::Async::Server#open_control"],
           commands: [Command.new(command: "attach-session")]),
         Capability.new(id: "buffer-delete-named", name: "Named buffer deletion", since: "3.4", handling: :refuse, error: ERROR,
           summary: "Delete one paste buffer by name without risking another buffer.",

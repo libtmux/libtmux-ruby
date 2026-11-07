@@ -227,6 +227,9 @@ The contract is in [Control connections][behavior-control].
 
 - **Terminal attachment.** `attach` stays on the blocking core and raises
   [`UnsupportedFeatureError`][unsupportedfeatureerror] on this facade.
+- **Server factories.** `Async::Server.start` and `Async::Server.open` raise
+  [`UnsupportedFeatureError`][unsupportedfeatureerror]. Start or open the core
+  server, then pass it to `LibTmux::Async.open(server:)`.
 - **Replay.** Reconnect and resume never replay requests or missed output. See
   [Control connections][behavior-control].
 - **A scheduler.** Imports start no scheduler or background task, and your
