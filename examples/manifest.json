@@ -12,6 +12,11 @@
       "gem": "libtmux"
     },
     {
+      "id": "refresh",
+      "path": "examples/refresh.rb",
+      "gem": "libtmux"
+    },
+    {
       "id": "layout_io",
       "path": "examples/layout_io.rb",
       "gem": "libtmux"
@@ -349,6 +354,12 @@
     {
       "id": "list_filter/main",
       "source": "examples/list_filter.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "refresh/main",
+      "source": "examples/refresh.rb",
       "region": "main",
       "language": "ruby"
     },
