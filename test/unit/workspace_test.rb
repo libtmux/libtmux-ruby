@@ -156,4 +156,51 @@ class WorkspaceTest < Minitest::Test
     assert_raises(LibTmux::Workspace::ConflictError) { workspace.plan(snapshot: conflict) }
     assert_equal offline.to_h, workspace.plan.to_h
   end
+
+  TMUXP_EXAMPLES = File.expand_path("../fixtures/tmuxp", __dir__)
+
+  # tmuxp's examples this loader reads.
+  TMUXP_LOADED = %w[
+    2-pane-vertical.yaml 3-pane.yaml 4-pane.yaml focus-window-and-panes.yaml main-pane-height.yaml
+    session-environment.yaml shorthands.yaml start-directory.yaml window-index.yaml
+  ].freeze
+
+  # tmuxp's examples this loader refuses, with the message each one raises. A
+  # change in the loader fails the case until the entry is updated or removed.
+  TMUXP_REFUSED = {
+    "2-pane-synchronized.yaml" => "invalid workspace configuration at $.windows[0]; expected supported data-only fields; move callbacks or hooks into explicit application code",
+    "blank-panes.yaml" => "invalid workspace configuration at $.windows[0].panes[0]; expected configuration object",
+    "env-variables.yaml" => "invalid workspace configuration at $.before_script; expected supported data-only fields; move callbacks or hooks into explicit application code",
+    "main-pane-height-percentage.yaml" => "invalid workspace configuration at $.windows[0].options.main-pane-height; expected integer index from zero through 2147483647",
+    "minimal.yaml" => "invalid workspace configuration at $.windows[0].window_name; expected window name",
+    "options.yaml" => "invalid workspace configuration at $; expected supported data-only fields; move callbacks or hooks into explicit application code",
+    "pane-shell.yaml" => "invalid workspace configuration at $.windows[0]; expected supported data-only fields; move callbacks or hooks into explicit application code",
+    "plugin-system.yaml" => "invalid workspace configuration at $.plugins; expected supported data-only fields; move callbacks or hooks into explicit application code",
+    "skip-send-pane-level.yaml" => "invalid workspace configuration at $.windows[0].window_name; expected window name",
+    "skip-send.yaml" => "invalid workspace configuration at $.windows[0].window_name; expected window name",
+    "sleep-pane-level.yaml" => "invalid workspace configuration at $.windows[0].window_name; expected window name",
+    "sleep-virtualenv.yaml" => "invalid workspace configuration at $.shell_command_before; expected UTF-8 text",
+    "sleep.yaml" => "invalid workspace configuration at $.windows[0].window_name; expected window name",
+    "suppress-history.yaml" => "invalid workspace configuration at $; expected supported data-only fields; move callbacks or hooks into explicit application code"
+  }.freeze
+
+  def test_every_tmuxp_example_is_classified
+    found = Dir.children(TMUXP_EXAMPLES).grep(/\.yaml\z/).sort
+    assert_equal found, (TMUXP_LOADED + TMUXP_REFUSED.keys).sort
+    assert_operator found.size, :>=, 20
+  end
+
+  def test_tmuxp_examples_load_through_workspace_load
+    TMUXP_LOADED.each do |name|
+      workspace = LibTmux::Workspace.load(File.join(TMUXP_EXAMPLES, name))
+      assert_equal "libtmux-ruby.workspace", workspace.to_h.fetch("profile"), name
+    end
+  end
+
+  def test_tmuxp_examples_the_loader_refuses_fail_as_recorded
+    TMUXP_REFUSED.each do |name, message|
+      error = assert_raises(LibTmux::Workspace::ConfigError, name) { LibTmux::Workspace.load(File.join(TMUXP_EXAMPLES, name)) }
+      assert_equal message, error.message, name
+    end
+  end
 end
