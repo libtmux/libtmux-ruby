@@ -15,6 +15,11 @@ at one version, so a release has a section in each changelog.
 
 ## 0.1.3 (unreleased)
 
+- The unit tests load tmuxp's example catalog, with its license, through
+  `LibTmux::Workspace.load`. The files the loader reads show on the docs site as
+  workspace presets; each file it refuses fails with the message the test
+  records.
+
 ## 0.1.2 (2026-11-04)
 
 Keeps every test run off the developer's tmux server, and lets an API example
