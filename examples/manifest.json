@@ -150,6 +150,18 @@
       }
     },
     {
+      "id": "api_explain_panes",
+      "path": "examples/api/explain_panes.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server#explain_panes"
+        ],
+        "description": "Read what a pane query asks of tmux and what Ruby filters afterward, then run it. explain_panes performs no tmux I/O. The current plan captures the whole server and filters every criterion in Ruby.",
+        "output": "tmux reads: full_graph\ntmux filters: nothing\nRuby filters: active\nmatching panes: 1\n"
+      }
+    },
+    {
       "id": "api_capture",
       "path": "examples/api/capture.rb",
       "gem": "libtmux",
@@ -388,12 +400,6 @@
       "language": "ruby"
     },
     {
-      "id": "async_cancel/map",
-      "source": "examples/async_cancel.rb",
-      "region": "map",
-      "language": "ruby"
-    },
-    {
       "id": "control_overflow/main",
       "source": "examples/control_overflow.rb",
       "region": "main",
@@ -460,6 +466,12 @@
     {
       "id": "api_query/main",
       "source": "examples/api/query.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_explain_panes/main",
+      "source": "examples/api/explain_panes.rb",
       "region": "main",
       "language": "ruby"
     },

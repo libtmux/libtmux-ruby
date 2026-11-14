@@ -127,10 +127,20 @@ raises [`CommandError`][commanderror].
 Read the server once, then filter that read with
 [`where`][selection-where], [`select`][selection-select],
 [`one`][selection-one] and [`one_or_nil`][selection-one_or_nil]. These queries
-make no tmux calls. Continue with the snapshot from the quick start:
+make no tmux calls:
 
 <!-- example: quickstart/queries -->
 ```ruby
+require "libtmux"
+
+snapshot = LibTmux::Server.start do |server|
+  session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
+  window = session.new_window(name: "logs", command: ["/bin/cat"])
+  window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
+
+  server.snapshot
+end
+
 panes = snapshot.panes
 active_ids = panes.where(active: true).map(&:id)
 wide_panes = panes.select { |pane| pane.width >= 40 }
@@ -138,8 +148,22 @@ panes_by_window = panes.group_by { |pane| pane.window.name }
 
 logs = snapshot.windows.one(name: "logs")
 missing = snapshot.windows.one_or_nil(name: "missing")
+
+puts "active: #{active_ids.join(', ')}"
+puts "wide: #{wide_panes.map(&:id).join(', ')}"
+puts "logs panes: #{logs.panes.length}"
+puts "missing: #{missing.inspect}"
 ```
 <!-- /example -->
+
+It prints:
+
+```text
+active: %0, %1
+wide: %0, %1
+logs panes: 2
+missing: nil
+```
 
 `one` raises [`NoMatchError`][nomatcherror] or
 [`MultipleMatchesError`][multiplematcheserror] unless exactly one record
@@ -152,8 +176,7 @@ lists every query field and wire name.
 ### [`Server#search_panes`][server-search_panes]: the matching panes in one call
 
 `search_panes` captures the server and answers a selection of the panes whose
-fields match `where:`. [`explain_panes`][server-explain_panes] shows the plan
-without running tmux. This program also uses the snapshot queries above:
+fields match `where:`. This program also uses the snapshot queries above:
 
 <!-- example: api_query/main -->
 ```ruby
@@ -179,6 +202,36 @@ It prints:
 matching session: work
 missing session: true
 matching pane: %0
+```
+
+### [`Server#explain_panes`][server-explain_panes]: what runs in tmux, what runs in Ruby
+
+`explain_panes` returns the plan for a pane query and sends nothing to tmux.
+Today tmux returns the whole server and Ruby applies every criterion:
+
+<!-- example: api_explain_panes/main -->
+```ruby
+require "libtmux"
+
+LibTmux::Server.start do |server|
+  server.new_session(name: "work", command: ["/bin/cat"])
+  criteria = {active: true}
+  plan = server.explain_panes(where: criteria)
+  puts "tmux reads: #{plan.fetch(:capture)}"
+  puts "tmux filters: #{plan.fetch(:pushed) || 'nothing'}"
+  puts "Ruby filters: #{plan.fetch(:residual).fetch('where').keys.join(', ')}"
+  puts "matching panes: #{server.search_panes(where: criteria).length}"
+end
+```
+<!-- /example -->
+
+It prints:
+
+```text
+tmux reads: full_graph
+tmux filters: nothing
+Ruby filters: active
+matching panes: 1
 ```
 
 ## Create sessions, windows, and panes
@@ -612,21 +665,34 @@ application owns. Require `libtmux/async`, then open a scope with
 $ gem install libtmux-async
 ```
 
-Capture every pane concurrently with [`Scope#map`][async-scope-map]. This
-excerpt uses an open [`LibTmux::Server`][server] and the `Example.check`
-assertion helper from the [complete program](../../examples/async_cancel.rb):
+Capture every pane concurrently with [`Scope#map`][async-scope-map]:
 
-<!-- example: async_cancel/map -->
+<!-- example: api_async_scope/main -->
 ```ruby
-Async do |parent|
-  LibTmux::Async.open(parent: parent, server: server) do |scope|
-    refs = scope.server.list_panes.map(&:ref)
-    screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
-    Example.check(screens.length == refs.length && screens.all?(&:success?), "concurrent captures failed")
-  end
-end.wait
+require "libtmux"
+require "libtmux/async"
+
+LibTmux::Server.start do |server|
+  server.new_session(name: "work", command: ["/bin/cat"])
+  server.new_session(name: "logs", command: ["/bin/cat"])
+  Async do |parent|
+    LibTmux::Async.open(parent: parent, server: server) do |scope|
+      refs = scope.server.list_panes.map(&:ref)
+      screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
+      puts "captured panes: #{screens.length}"
+      puts "all succeeded: #{screens.all?(&:success?)}"
+    end
+  end.wait
+end
 ```
 <!-- /example -->
+
+It prints:
+
+```text
+captured panes: 2
+all succeeded: true
+```
 
 ### [libtmux-mcp](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-mcp): a tmux server for MCP clients
 

@@ -97,12 +97,22 @@ touches a tmux you already use.
 
 ### [`Server#snapshot`][server-snapshot]: one read, many queries
 
-Continue with the snapshot above. [`where`][selection-where] accepts criteria
-as data, and [`select`][selection-select] accepts a Ruby block. These queries
-make no tmux calls:
+[`where`][selection-where] accepts criteria as data, and
+[`select`][selection-select] accepts a Ruby block. These queries make no tmux
+calls:
 
 <!-- example: quickstart/queries -->
 ```ruby
+require "libtmux"
+
+snapshot = LibTmux::Server.start do |server|
+  session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
+  window = session.new_window(name: "logs", command: ["/bin/cat"])
+  window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
+
+  server.snapshot
+end
+
 panes = snapshot.panes
 active_ids = panes.where(active: true).map(&:id)
 wide_panes = panes.select { |pane| pane.width >= 40 }
@@ -110,8 +120,22 @@ panes_by_window = panes.group_by { |pane| pane.window.name }
 
 logs = snapshot.windows.one(name: "logs")
 missing = snapshot.windows.one_or_nil(name: "missing")
+
+puts "active: #{active_ids.join(', ')}"
+puts "wide: #{wide_panes.map(&:id).join(', ')}"
+puts "logs panes: #{logs.panes.length}"
+puts "missing: #{missing.inspect}"
 ```
 <!-- /example -->
+
+It prints:
+
+```text
+active: %0, %1
+wide: %0, %1
+logs panes: 2
+missing: nil
+```
 
 [`one`][selection-one] raises [`NoMatchError`][nomatcherror] or
 [`MultipleMatchesError`][multiplematcheserror] unless exactly one record
@@ -137,14 +161,18 @@ leaves the one you hold as it was. [`Session#snapshot`][session-snapshot] and
 
 <!-- example: refresh/main -->
 ```ruby
-session = server.new_session(name: "work", window_name: "editor", command: ["/bin/cat"])
-window = session.list_windows.fetch(0)
+require "libtmux"
 
-held = window.snapshot
-window.rename("build")
+LibTmux::Server.start do |server|
+  session = server.new_session(name: "work", window_name: "editor", command: ["/bin/cat"])
+  window = session.list_windows.fetch(0)
 
-puts held.name
-puts window.snapshot.name
+  held = window.snapshot
+  window.rename("build")
+
+  puts held.name
+  puts window.snapshot.name
+end
 ```
 <!-- /example -->
 
@@ -233,21 +261,34 @@ application owns. Require `libtmux/async`, then open a scope with
 $ gem install libtmux-async
 ```
 
-Capture every pane concurrently with [`Scope#map`][async-scope-map]. This
-excerpt uses an open [`LibTmux::Server`][server] and the `Example.check`
-assertion helper from the [complete program](examples/async_cancel.rb):
+Capture every pane concurrently with [`Scope#map`][async-scope-map]:
 
-<!-- example: async_cancel/map -->
+<!-- example: api_async_scope/main -->
 ```ruby
-Async do |parent|
-  LibTmux::Async.open(parent: parent, server: server) do |scope|
-    refs = scope.server.list_panes.map(&:ref)
-    screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
-    Example.check(screens.length == refs.length && screens.all?(&:success?), "concurrent captures failed")
-  end
-end.wait
+require "libtmux"
+require "libtmux/async"
+
+LibTmux::Server.start do |server|
+  server.new_session(name: "work", command: ["/bin/cat"])
+  server.new_session(name: "logs", command: ["/bin/cat"])
+  Async do |parent|
+    LibTmux::Async.open(parent: parent, server: server) do |scope|
+      refs = scope.server.list_panes.map(&:ref)
+      screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
+      puts "captured panes: #{screens.length}"
+      puts "all succeeded: #{screens.all?(&:success?)}"
+    end
+  end.wait
+end
 ```
 <!-- /example -->
+
+It prints:
+
+```text
+captured panes: 2
+all succeeded: true
+```
 
 ### [libtmux-mcp](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-mcp): a tmux server for MCP clients
 
