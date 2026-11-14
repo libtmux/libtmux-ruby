@@ -80,8 +80,12 @@ class ReadmeCommandsTest < Minitest::Test
     end
 
     # A page that says "set TMUX_SOCKET to an existing tmux socket" gets one.
+    # Asked again, it stops the earlier server and starts a new one, so each
+    # command that creates a session finds none of its own name.
     def provide_socket
-      socket = File.join(directory, "env.sock")
+      run(tmux, "-S", @variables["TMUX_SOCKET"], "kill-server") if @variables["TMUX_SOCKET"]
+      @sockets = @sockets.to_i + 1
+      socket = File.join(directory, "env#{@sockets}.sock")
       created = run(tmux, "-S", socket, "-f", "/dev/null", "new-session", "-d", "-s", "existing")
       raise "could not start the TMUX_SOCKET server: #{created.stderr}" unless created.status.success?
 
@@ -223,6 +227,7 @@ class ReadmeCommandsTest < Minitest::Test
     assert_match(/no-such-command/, refusal(broken))
 
     assert_match(/no verifier/, refusal("```console\n$ curl https://example.invalid\n```\n"))
+    assert_match(/no verifier/, refusal("```console\n$ ruby no-such-example.rb\n```\n"))
 
     workspace = "```yaml\nsession_name: a\nwindows:\n  - window_name: a\n    panes: [{}]\n```\n"
     validate = "```console\n$ libtmux-workspace validate workspace.yaml\n```\n"
@@ -238,6 +243,12 @@ class ReadmeCommandsTest < Minitest::Test
     assert_match(/Invalid arguments/, refusal(start + "```console\n$ libtmux-mcp --socket-name control --no-such-option\n```\n"))
 
     assert_match(/does not show a command/, refusal("Prose only.\n"))
+  end
+
+  def test_each_workspace_load_runs_against_a_server_of_its_own
+    workspace = "```yaml\nsession_name: a\nwindows:\n  - window_name: a\n    panes: [{}]\n```\n"
+    load = "```console\n$ libtmux-workspace load \\\n    --socket \"$TMUX_SOCKET\" \\\n    workspace.yaml\n```\n"
+    run_markdown(workspace + load + load, "control.md")
   end
 
   private
@@ -300,6 +311,11 @@ class ReadmeCommandsTest < Minitest::Test
       result = sandbox.run(Gem.ruby, "-W:no-experimental", File.join(Blocks::ROOT, words[6]))
       assert result.status.success?, "#{where}: #{command}\n#{result.stderr}"
       assert_equal step.output, result.stdout, "#{where}: output differs from the page" if step.output
+    elsif words.first == "ruby" && words.length == 2 && File.file?(File.join(Blocks::ROOT, "examples", words[1]))
+      # The page says to save the example above under that name; the example source is that program.
+      result = sandbox.run(Gem.ruby, "-W:no-experimental", File.join(Blocks::ROOT, "examples", words[1]))
+      assert result.status.success?, "#{where}: #{command}\n#{result.stderr}"
+      assert_equal step.output, result.stdout, "#{where}: output differs from the page" if step.output
     elsif words.first == "mise"
       nil # Checkout setup and builds; test/packaging builds and installs the artifacts.
     elsif %w[claude codex].include?(words.first) && words[1, 2] == %w[mcp add] && words.include?("--")
@@ -309,6 +325,7 @@ class ReadmeCommandsTest < Minitest::Test
     elsif words.first == "libtmux-mcp"
       launch(sandbox, words.drop(1), table, where)
     elsif %w[tmux libtmux-workspace rm].include?(words.first)
+      sandbox.provide_socket if words.first == "libtmux-workspace" && words.include?("load") && sandbox.variable("TMUX_SOCKET")
       result = sandbox.shell(command)
       assert result.status.success?, "#{where}: #{command}\n#{result.stdout}#{result.stderr}"
       assert_equal step.output, result.stdout, "#{where}: output differs from the page" if step.output
