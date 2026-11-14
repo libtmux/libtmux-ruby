@@ -33,6 +33,7 @@ program. An [MCP server][mcp-application], an Async adapter and a workspace
 loader ship beside the core: see [Packages](#packages).
 
 **Contents** — [Quick start](#quick-start) ·
+[Drive a pane](#drive-a-pane) ·
 [Find things](#find-things-in-a-snapshot) ·
 [Several commands](#run-several-commands-in-order) ·
 [Watch tmux](#watch-tmux-change) ·
@@ -87,6 +88,46 @@ logs: %1, %2
 [`Server.start`][server-start] gives the program a tmux server of its own, on
 its own socket with an empty configuration, and closes it when the block exits.
 It never touches a tmux you already use. Pane commands take argument arrays.
+
+## Drive a pane
+
+### [`Pane#split`][pane-split]: split a pane, type into it, resize it
+
+[`send_text`][pane-send_text] types literal text, [`send_keys`][pane-send_keys]
+sends key names such as `Enter`, and [`capture`][pane-capture] reads the screen.
+[`Pane#resize`][pane-resize] and [`Window#resize`][window-resize] set sizes in
+cells:
+
+<!-- example: api_split_resize/main -->
+```ruby
+require "libtmux"
+
+LibTmux::Server.start do |server|
+  created = server.new_session(name: "work", command: ["/bin/sh"], receipt: true)
+  pane = created.pane
+  side = pane.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
+
+  pane.send_text("echo ready")
+  pane.send_keys("Enter")
+  line = nil
+  50.times do
+    line = pane.capture.stdout.lines(chomp: true).find { |text| text == "ready" }
+    break if line
+    sleep 0.1
+  end
+  puts "captured: #{line}"
+
+  created.window.resize(width: 100, height: 30)
+  side.resize(width: 20)
+  puts "side pane: #{side.snapshot.width} columns"
+end
+```
+<!-- /example -->
+
+It prints `captured: ready` and `side pane: 20 columns`.
+[`Entity#kill`][entity-kill] removes a pane, window or session, and
+[`Server#kill`][server-kill] stops a daemon. More:
+[pane input and capture](docs/reference/behavior.md#pane-input-and-capture).
 
 ## Find things in a snapshot
 
@@ -606,13 +647,18 @@ MIT. See [LICENSE](LICENSE).
 [doc-optional-features]: docs/reference/behavior.md#optional-tmux-features
 [doc-ownership]: docs/ownership-errors.md
 [endpoint-new]: https://libtmux.org/en/ruby/latest/reference/libtmux-endpoint-new/
+[entity-kill]: https://libtmux.org/en/ruby/latest/reference/libtmux-entity-kill/
 [groupresult]: https://libtmux.org/en/ruby/latest/reference/libtmux-groupresult/
 [mcp-application]: https://libtmux.org/en/ruby/latest/mcp/reference/libtmux-mcp-application/
 [multiplematcheserror]: https://libtmux.org/en/ruby/latest/reference/libtmux-multiplematcheserror/
 [nomatcherror]: https://libtmux.org/en/ruby/latest/reference/libtmux-nomatcherror/
 [pane]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-14z6/
 [pane-capture]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-capture/
+[pane-resize]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-resize/
+[pane-send_keys]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-send_keys/
+[pane-send_text]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-send_text/
 [pane-snapshot]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-snapshot/
+[pane-split]: https://libtmux.org/en/ruby/latest/reference/libtmux-pane-split/
 [rc-policy]: https://libtmux.org/en/tmux/guides/tmux-support/#release-candidates
 [selection-one]: https://libtmux.org/en/ruby/latest/reference/libtmux-selection-one/
 [selection-one_or_nil]: https://libtmux.org/en/ruby/latest/reference/libtmux-selection-one_or_nil/
@@ -620,6 +666,7 @@ MIT. See [LICENSE](LICENSE).
 [selection-where]: https://libtmux.org/en/ruby/latest/reference/libtmux-selection-where/
 [server]: https://libtmux.org/en/ruby/latest/reference/libtmux-server/
 [server-explain_panes]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-explain_panes/
+[server-kill]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-kill/
 [server-new]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-new/
 [server-open]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-open/
 [server-open_control]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-open_control/
@@ -633,5 +680,6 @@ MIT. See [LICENSE](LICENSE).
 [tool-tmux_capabilities]: https://libtmux.org/en/ruby/latest/mcp/tools/tmux_capabilities/
 [tool-tmux_snapshot]: https://libtmux.org/en/ruby/latest/mcp/tools/tmux_snapshot/
 [window]: https://libtmux.org/en/ruby/latest/reference/libtmux-window-1vfx/
+[window-resize]: https://libtmux.org/en/ruby/latest/reference/libtmux-window-resize/
 [window-snapshot]: https://libtmux.org/en/ruby/latest/reference/libtmux-window-snapshot/
 [workspace]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace/

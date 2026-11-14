@@ -496,6 +496,12 @@
       "language": "ruby"
     },
     {
+      "id": "api_split_resize/main",
+      "source": "examples/api/split_resize.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
       "id": "api_options/main",
       "source": "examples/api/options.rb",
       "region": "main",
