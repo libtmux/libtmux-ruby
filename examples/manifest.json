@@ -176,6 +176,20 @@
       }
     },
     {
+      "id": "api_split_resize",
+      "path": "examples/api/split_resize.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Pane#split",
+          "LibTmux::Pane#resize",
+          "LibTmux::Window#resize"
+        ],
+        "description": "Split a pane, type into the first pane and poll until its output line appears, then resize the window and the second pane. The shell echoes the typed command, so the poll matches a whole line.",
+        "output": "captured: ready\nside pane: 20 columns\n"
+      }
+    },
+    {
       "id": "api_options",
       "path": "examples/api/options.rb",
       "gem": "libtmux",
