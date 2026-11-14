@@ -261,7 +261,7 @@ The contract is in [Control connections][behavior-control].
 | [Reference](https://libtmux.org/en/ruby/latest/reference/libtmux-async/) | The Async classes, one page each |
 | [Async guide](https://libtmux.org/en/ruby/latest/guides/async/) | Running concurrent commands within an owned scope |
 | [Execution modes][doc-modes] | Blocking calls, Async tasks and control subscriptions |
-| [Recipes][doc-recipes] | Complete programs with checked excerpts |
+| [Recipes][doc-recipes] | Complete programs and their excerpts |
 | [Public behavior][behavior-async-scope] | Scheduling, ownership and limits of a scope |
 
 [async-controlconnection-events]: https://libtmux.org/en/ruby/latest/reference/libtmux-async-controlconnection-events/

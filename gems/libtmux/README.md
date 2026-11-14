@@ -823,7 +823,7 @@ server and lists every option.
 | --- | --- |
 | [Reference](https://libtmux.org/en/ruby/latest/reference/) | Every public class and method, one page each |
 | [Guides](https://libtmux.org/en/ruby/latest/guides/) | Getting started, server bindings and the Async scope |
-| [Recipes](../../docs/recipes.md) | Complete programs with checked excerpts |
+| [Recipes](../../docs/recipes.md) | Complete programs and their excerpts |
 | [Execution modes](../../docs/modes.md) | Blocking calls, Async tasks and control subscriptions |
 | [Ownership and errors](../../docs/ownership-errors.md) | What close and failure mean |
 | [Public behavior](../../docs/reference/behavior.md) | Defaults, ownership, blocking and failure of each call |
