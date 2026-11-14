@@ -1,9 +1,10 @@
 # Executable recipes
 
-Every linked program loads installed gems, starts an isolated server, asserts
-its result and verifies owned-daemon cleanup. The shared
-[support module](../examples/support.rb) supplies assertions and the cleanup
-wrapper. No program adds checkout paths to Ruby's load path.
+Each program starts its own tmux server, asserts its result and removes the
+server. The excerpts below leave out the imports and the server setup: the
+shared [support module](../examples/support.rb) supplies `Example.check` and
+the `server`, and the complete program each section links starts with its
+requires.
 
 Run a program from the repository after installing its required local gems:
 
@@ -11,10 +12,8 @@ Run a program from the repository after installing its required local gems:
 $ ruby examples/window_links.rb
 ```
 
-The artifact suite copies programs outside the checkout and runs them against
-each gem's isolated dependency closure. [The manifest](../examples/manifest.json)
-owns file discovery and the source regions used below. `scripts/examples
---check` rejects an unlisted program or a changed excerpt.
+[The manifest](../examples/manifest.json) lists each program and the source
+region shown below.
 
 ## Captured queries
 
@@ -40,9 +39,9 @@ Example.check(panes.one_or_nil(id: "%4294967294").nil?, "missing pane was invent
 ## Layout and bytes
 
 [Complete layout/capture/send program](../examples/layout_io.rb). On tmux 3.7
-and newer a control output event establishes that the literal input has
-reached the pane before capture; older daemons refuse the control client.
-Binary buffers round-trip without text decoding.
+and newer, a control output event shows the input reached the pane before
+capture; older daemons refuse the control client. Binary buffers round-trip
+undecoded.
 
 <!-- example: layout_io/main -->
 ```ruby
@@ -93,8 +92,8 @@ Example.check(session.display('#{window_index}').text == "9\n", "wrong current l
 ## Blocking request cancellation
 
 [Complete plain-Ruby cancellation program](../examples/cancel.rb). A tmux event
-proves dispatch before another thread cancels the blocked client. The program
-joins the caller, checks client reaping and closes the token's owned pipe.
+shows dispatch before another thread cancels the blocked client. The program
+joins the caller, checks that the client was reaped, and closes the token.
 
 <!-- example: cancel/main -->
 ```ruby
@@ -207,8 +206,7 @@ Example.check(server.options(scope: :session).list.none? { |option| option.name 
 
 [Complete MCP program](../examples/mcp_protocol.rb). Real pipe frames exercise
 discovery, snapshot reads, default mutation denial and cancellation of an
-application-owned WAIT method. The custom WAIT method is a transport probe,
-not part of the advertised tmux tool catalog.
+application-owned wait. That wait is a transport probe, not a tmux tool.
 
 <!-- example: mcp_protocol/main -->
 ```ruby
@@ -221,13 +219,11 @@ runner = parent.async { transport.run }
 ```
 <!-- /example -->
 
-The installed executable also exercises explicitly enabled create, send,
-close and authored-run tools. Its complete program creates a zsh pane whose
-startup file explicitly sources the CLI's mode-0600 enrollment file, waits
-for the authenticated acknowledgement, and checks binary stderr and native
-exit status. It closes stdin and verifies enrollment cleanup and borrowed
-daemon survival. An unsupported advertised process backend exercises the
-structured refusal instead; that is not positive enrollment evidence.
+The installed executable also runs the create, send, close and authored-run
+tools. The program enrolls a zsh pane, runs a script in it, and checks binary
+stderr and the exit status. It then closes stdin and checks that the enrollment
+file is gone and the borrowed daemon survives. Without native process
+identity, it checks the refusal instead.
 
 <!-- example: mcp_protocol/cli -->
 ```ruby
@@ -287,10 +283,10 @@ end
 
 ## Workspace plan, load and failure
 
-[Complete workspace program](../examples/workspace_apply.rb) consumes the
-[checked configuration](../examples/workspace.yaml), applies it, then verifies
-partial failure and guarded compensation when another layout exceeds available
-pane space. It also runs installed CLI validation, planning and loading.
+[Complete workspace program](../examples/workspace_apply.rb) applies the
+[configuration](../examples/workspace.yaml), then shows partial failure and
+guarded compensation when a layout exceeds the pane space. It also runs the
+installed CLI's validate, plan and load.
 
 <!-- example: workspace_apply/main -->
 ```ruby

@@ -10,36 +10,44 @@
 | MCP | Caller supplies transport streams, Async scope and tool policy | Versioned protocol envelopes and structured tool responses |
 | Workspace | Parsing and planning are inert; apply performs ordered commands | Created-reference ledger, observed effects and explicit uncertainty |
 
-Use `Server.open(socket_path: ...)` to borrow a daemon through a pinned
-binding. With no socket named, `Server.open` borrows the daemon tmux would pick
-(see [Endpoints](reference/behavior.md#endpoints)). `Server.start` creates an
-owned daemon on a unique socket and closes it with the block. These recipes
-name a socket or own one.
+## Servers
 
-`CommandResult#success?` means the client exited successfully. Sending input
-does not establish shell completion. A `GuardedReply` has no `success?`:
-`%end` terminates a guard, while WAIT commands, aliases and hooks can change
-what finishes when. Its `boundary_window` attribution is deliberately weaker
-than per-command ownership.
+- `Server.open(socket_path: ...)` borrows a daemon through a pinned binding.
+  With no socket named, it borrows the daemon tmux would pick. See
+  [Endpoints](reference/behavior.md#endpoints).
+- `Server.start` creates an owned daemon on a unique socket and closes it with
+  the block.
 
-Concurrent control calls pipeline complete wire requests on one connection.
-The writer can submit a later request while an earlier reply waits; the reader
-assigns boundaries in the same order. Admission limits include all pending
-and completed but unconsumed requests. Cancellation after any request bytes
-are written closes the connection: other written requests have
-`possibly_sent` delivery, and requests with no written bytes have `not_sent`.
-No uncertain request is replayed. Sequential calls still wait for each reply.
+## Results
 
-Reliable control subscriptions raise `SubscriptionOverflow` when they cannot
-retain the stream. Tail subscriptions emit a gap containing lost sequence
-and byte evidence. Neither mode blocks the command reader behind a slow
-consumer. Limits apply to connection-owned buffers; callers own the replies
-they retain after return.
+- `CommandResult#success?` means the client exited successfully. Sending input
+  does not show that a shell finished.
+- A `GuardedReply` has no `success?`: `%end` ends a guard, and WAIT commands,
+  aliases and hooks can change what finishes when. Its `boundary_window`
+  attribution is weaker than per-command ownership.
 
-Captured queries evaluate the whole criteria tree before selecting rows,
-including inactive OR branches. Explain methods perform no I/O. Current
-source plans use explicit capture and local evaluation; unsupported required
-pushdown fails rather than silently changing semantics.
+## Control connections
 
-See [the recipes](recipes.md) for event-based WAIT release, cancellation,
-overflow and group-failure examples. No throughput comparison is claimed.
+- Concurrent calls pipeline complete requests on one connection. The writer can
+  submit a later request while an earlier reply waits, and the reader assigns
+  boundaries in the same order. Sequential calls still wait for each reply.
+- Admission limits count every pending request and every completed request
+  whose reply nobody has consumed.
+- Cancelling after any request bytes are written closes the connection. Other
+  written requests report `possibly_sent` delivery, and requests with no
+  written bytes report `not_sent`. Nothing uncertain is replayed.
+- A reliable subscription raises `SubscriptionOverflow` when it cannot keep the
+  stream. A tail subscription emits a gap with the lost sequence and byte
+  counts. Neither blocks the command reader behind a slow consumer.
+- Limits apply to connection-owned buffers. Callers own the replies they keep.
+
+## Captured queries
+
+- A query evaluates the whole criteria tree before selecting rows, including
+  inactive OR branches.
+- Explain methods perform no I/O. Current source plans capture explicitly and
+  evaluate locally. A required pushdown with no exact compiler fails rather
+  than change semantics.
+
+More: the [recipes](recipes.md) cover WAIT release, cancellation, overflow and
+group failure.
