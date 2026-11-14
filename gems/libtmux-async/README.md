@@ -20,8 +20,10 @@ Run libtmux operations inside an application-owned Async task: a
 [Guide](https://libtmux.org/en/ruby/latest/guides/async/) ·
 [RubyGems](https://rubygems.org/gems/libtmux-async)
 
-[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
+[![compatibility](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml/badge.svg)](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
 [![libtmux-async](https://img.shields.io/gem/v/libtmux-async?label=libtmux-async)](https://rubygems.org/gems/libtmux-async)
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
+[![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/libtmux/libtmux-ruby/blob/master/LICENSE)
 
 </div>
 
@@ -236,27 +238,21 @@ The contract is in [Control connections][behavior-control].
 
 ## Support and status
 
-Releases are numbered `0.1.N`, and each release increments `N`. The API is not
-settled: any release may change or remove exported identifiers, and the
-changelogs mark each break. Pin an exact version to avoid one.
-See the [changelog](CHANGELOG.md), and the [main
-changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
-for changes that span gems.
-
-- **Ruby 3.3 or newer** and **tmux 3.3a or newer.** The facade dispatches
-  through a version-checked core server, so it carries the same daemon release
-  check.
+- **Unstable API.** Releases are numbered `0.1.N`, and any release may change
+  or remove exported identifiers. Pin an exact version. See the
+  [changelog](CHANGELOG.md), and the [main
+  changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
+  for changes that span gems.
+- **Ruby 3.3 or newer** and **tmux 3.3a or newer.** The facade runs through a
+  core server, so it refuses an older daemon the same way.
 - **Control connections need tmux 3.7 or newer.**
   [`open_control`][async-server-open_control] refuses an older daemon before a
   control client attaches.
-- **Async 2.46.** The gem depends on `async` ~> 2.46.0 and the same version of
-  `libtmux`.
-- **Linux, including WSL, and macOS.** The [compatibility workflow][compat]
-  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04 and
-  retains per-revision results. A push and a pull request run the oldest and
-  newest of those releases, 3.3a and 3.8, and a release runs all of them. macOS
-  is supported on a best-effort basis, and CI coverage for it is highly
-  limited.
+- **Dependencies.** The gem needs `async` and `libtmux` at the same version as
+  itself; the gemspec pins the range.
+- **Linux, including WSL, and macOS.** CI runs on Linux; macOS is best effort.
+  See the [compatibility workflow][compat] and the
+  [CI matrix](../../.github/CONTRIBUTING.md#running-ci-against-any-tmux).
 
 ## Documentation
 

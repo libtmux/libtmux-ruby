@@ -20,8 +20,10 @@ tool at a time.
 [Guides](https://libtmux.org/en/ruby/latest/mcp/guides/) ·
 [RubyGems](https://rubygems.org/gems/libtmux-mcp)
 
-[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/latest/mcp/)
+[![compatibility](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml/badge.svg)](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
 [![libtmux-mcp](https://img.shields.io/gem/v/libtmux-mcp?label=libtmux-mcp)](https://rubygems.org/gems/libtmux-mcp)
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/latest/mcp/)
+[![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/libtmux/libtmux-ruby/blob/master/LICENSE)
 
 </div>
 
@@ -29,9 +31,7 @@ Part of [libtmux for Ruby](https://github.com/libtmux/libtmux-ruby#readme).
 Built on [libtmux](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux)
 and [libtmux-async](https://github.com/libtmux/libtmux-ruby/tree/master/gems/libtmux-async).
 
-An MCP client starts `libtmux-mcp` and talks to it over stdin and stdout. The
-official MCP SDK handles the protocol, and bounded Async tasks handle
-transport.
+An MCP client starts `libtmux-mcp` and talks to it over stdin and stdout.
 
 **Contents** — [Quick start](#quick-start) ·
 [Connect a client](#connect-a-client) ·
@@ -190,9 +190,8 @@ $ libtmux-mcp \
 ### [`tmux_wait`][tool-tmux_wait]: wait for text or exit
 
 - It waits for screen text, or for the pane process to exit. Screen text
-  comes from control events on tmux 3.7 and newer, and from polling the pane
-  every 50 ms on older daemons, which take no control client. Process exit
-  uses process descriptors.
+  comes from control events on tmux 3.7 and newer, and from polling on older
+  daemons, which take no control client.
 - Wrapped rows are joined, so text that the pane width split across rows
   still matches.
 - If the pane, or the tmux server holding it, ends before the text appears,
@@ -202,8 +201,8 @@ $ libtmux-mcp \
   `observation_lost`.
 - A cancelled or expired wait closes its observers and never signals the pane
   program.
-- Process tracking needs a native identity backend: Linux peer pidfds with
-  matching PID namespaces, or Darwin kqueue. Without one, the call is refused.
+- Process tracking needs native process identity. Without it, the call is
+  refused.
 
 ### [Resource templates][mcp-resources]: the same data as URIs
 
@@ -346,29 +345,24 @@ pass the invitation to [`accept_shell`][mcp-application-accept_shell].
 
 ## Support and status
 
-Releases are numbered `0.1.N`, and each release increments `N`. The API is not
-settled: any release may change or remove exported identifiers, and the
-changelogs mark each break. Pin an exact version to avoid one.
-See the [changelog](CHANGELOG.md), and the [main
-changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
-for changes that span gems.
-
-- **Ruby 3.3 or newer.** The gem depends on `libtmux` and `libtmux-async` at
-  the same version, the `mcp` SDK 1.5, `digest` and `optparse`.
-- **tmux 3.3a or newer.** The server refuses an older daemon when it starts,
-  before it serves any tool, and prints the reason and the remedy on stderr.
+- **Unstable API.** Releases are numbered `0.1.N`, and any release may change
+  or remove exported identifiers. Pin an exact version. See the
+  [changelog](CHANGELOG.md), and the [main
+  changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
+  for changes that span gems.
+- **Ruby 3.3 or newer** and **tmux 3.3a or newer.** The server refuses an older
+  daemon when it starts, before it serves any tool, and prints the reason and
+  the remedy on stderr.
 - **A daemon that changes while it runs.** A tool call returns an
   `unsupported` result with `delivery: not_sent`. The result names the floor
   and says to upgrade tmux and restart the server.
 - **The `screen_contains` wait.** It uses control events on tmux 3.7 and
-  newer and polls the pane screen on older daemons, which take no control
-  client.
-- **Linux, including WSL, and macOS.** The core
-  [compatibility workflow][compat] runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a
-  through 3.8 on Ubuntu 24.04. A push and a pull request run the oldest and
-  newest of those releases, 3.3a and 3.8, and a release runs all of them. macOS
-  is supported on a best-effort basis, and CI coverage for it is highly
-  limited.
+  newer and polls the pane screen on older daemons.
+- **Dependencies.** The gem needs `libtmux` and `libtmux-async` at the same
+  version as itself, and the `mcp` SDK.
+- **Linux, including WSL, and macOS.** CI runs on Linux; macOS is best effort.
+  See the [compatibility workflow][compat] and the
+  [CI matrix](../../.github/CONTRIBUTING.md#running-ci-against-any-tmux).
 
 ## Documentation
 

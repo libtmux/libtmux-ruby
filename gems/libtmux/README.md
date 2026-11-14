@@ -19,8 +19,10 @@ as handles, [snapshots][snapshot] you filter in plain Ruby, and
 [Guides](https://libtmux.org/en/ruby/latest/guides/) ·
 [RubyGems](https://rubygems.org/gems/libtmux)
 
-[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
+[![compatibility](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml/badge.svg)](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
 [![libtmux](https://img.shields.io/gem/v/libtmux?label=libtmux)](https://rubygems.org/gems/libtmux)
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
+[![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/libtmux/libtmux-ruby/blob/master/LICENSE)
 
 </div>
 
@@ -58,8 +60,7 @@ $ gem install libtmux
 ```
 
 This program creates a session, adds a window, splits it, and prints each
-window with its panes. [`Server.start`][server-start] closes its private tmux
-server when the block exits, and the snapshot stays readable afterward:
+window with its panes:
 
 <!-- example: quickstart/main -->
 ```ruby
@@ -79,6 +80,12 @@ end
 ```
 <!-- /example -->
 
+Save it as `quickstart.rb` and run it:
+
+```console
+$ ruby quickstart.rb
+```
+
 It prints:
 
 ```text
@@ -86,9 +93,10 @@ main: %0
 logs: %1, %2
 ```
 
-Requiring the gem starts no tmux process, scheduler or MCP server.
-[`Server.start`][server-start] gives its tmux server a socket and an empty
-configuration of its own, so it never touches a tmux you already use.
+[`Server.start`][server-start] gives the program a tmux server of its own, on
+its own socket with an empty configuration, and closes it when the block exits.
+It never touches a tmux you already use. Requiring the gem starts no tmux
+process.
 
 ## Find sessions, windows, and panes
 
@@ -483,11 +491,9 @@ windows: @0
 ```
 
 - Select, unlink, move, swap and display check the whole link identity in the
-  same tmux queue turn as the operation.
-- A hook that waits before dispatch cannot turn a stale link into its
+  same tmux queue turn as the operation, so a stale link never becomes its
   replacement.
-- Rewriting command aliases during an operation is outside that guarantee, so
-  coordinate configuration changes.
+- Rewriting command aliases during an operation is outside that guarantee.
 
 The contract is in [Window links][behavior-window-links], and the
 [linked-windows recipe](../../docs/recipes.md#one-window-at-three-indexes)
@@ -780,48 +786,36 @@ server and lists every option.
   [Live handles][behavior-live-handles].
 - **A terminal emulator.** [`Pane#capture`][pane-capture] returns the bytes
   tmux holds for the screen, with the flags above to shape them.
-- **A server it starts on its own.** [`Server.new`][server-new] and
-  [`Server.open`][server-open] bind a running server and never start one. With
-  no socket named, [`Endpoint.new`][endpoint-new] picks the one tmux would:
-  `LIBTMUX_SOCKET_PATH`, `LIBTMUX_SOCKET`, the server `TMUX` names, then tmux's
-  default socket. The recipes name a socket or own one.
+- **A server it starts unasked.** [`Server.new`][server-new] and
+  [`Server.open`][server-open] bind a running server; only
+  [`Server.start`][server-start] starts one. With no socket named,
+  [`Endpoint.new`][endpoint-new] picks the socket tmux would, so a program run
+  inside tmux reaches that tmux.
 - **Replay.** A reconnected control connection reports a gap and never replays
   requests or missed output. See [Control flow][behavior-control-flow].
 - **Transactions.** A [group][server-run_group] runs in order and keeps the
   effects of the steps before a failure.
-- **Whole-program typing.** RBS declarations ship with the gem and selected
-  installed calls are checked. See [Signature proof][behavior-signature].
+- **Whole-program typing.** RBS declarations ship with the gem. See
+  [Signature proof][behavior-signature].
 
 ## Support and status
 
-Releases are numbered `0.1.N`, and each release increments `N`. The API is not
-settled: any release may change or remove exported identifiers, and the
-changelogs mark each break. Pin an exact version to avoid one.
-See the [changelog](CHANGELOG.md), and the [main
-changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
-for changes that span gems.
-
-- **Ruby 3.3 or newer.** The gem depends on `json`, `tmpdir`, `securerandom`,
-  `fiddle` and `io-console`.
-- **tmux 3.3a or newer.** Unpatched 3.3 is below the minimum. A
-  [server handle][server] checks the connected daemon's release before it sends
-  the requested command, and refuses an older daemon even when its client is
-  newer.
+- **Unstable API.** Releases are numbered `0.1.N`, and any release may change
+  or remove exported identifiers. Pin an exact version. See the
+  [changelog](CHANGELOG.md), and the [main
+  changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
+  for changes that span gems.
+- **Ruby 3.3 or newer** and **tmux 3.3a or newer.** A [server handle][server]
+  checks the connected daemon's release before it runs a command, and refuses
+  an older daemon even when its client is newer.
 - **Control connections need tmux 3.7 or newer.** An older daemon refuses
   [`open_control`][server-open_control] before a control client attaches.
   Subprocess operations and snapshots do not need it. The
   [optional feature table](../../docs/reference/behavior.md#optional-tmux-features)
-  lists the other per-release requirements.
-- **Linux, including WSL, and macOS.** The [compatibility workflow][compat]
-  runs Ruby 3.3, 3.4 and 4.0 with tmux 3.3a through 3.8 on Ubuntu 24.04. A push
-  and a pull request run the oldest and newest of those releases, 3.3a and 3.8,
-  and a release runs all of them. macOS is supported on a best-effort basis, and CI coverage for it is highly
-  limited.
-- **tmux master and old daemons.** On Ubuntu a release also runs the suite
-  against a pinned tmux master, and checks that tmux 3.0a, 3.1c, 3.2a and 3.3
-  daemons are refused.
-- **Per-revision results.** Read the workflow's results for your revision
-  before relying on one combination.
+  lists the other releases.
+- **Linux, including WSL, and macOS.** CI runs on Linux; macOS is best effort.
+  See the [compatibility workflow][compat] and the
+  [CI matrix](../../.github/CONTRIBUTING.md#running-ci-against-any-tmux).
 
 ## Documentation
 

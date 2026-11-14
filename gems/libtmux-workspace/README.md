@@ -20,8 +20,10 @@
 [Guides](https://libtmux.org/en/ruby/latest/workspace/guides/) ·
 [RubyGems](https://rubygems.org/gems/libtmux-workspace)
 
-[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/latest/workspace/)
+[![compatibility](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml/badge.svg)](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
 [![libtmux-workspace](https://img.shields.io/gem/v/libtmux-workspace?label=libtmux-workspace)](https://rubygems.org/gems/libtmux-workspace)
+[![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/latest/workspace/)
+[![license](https://img.shields.io/badge/license-MIT-blue)](https://github.com/libtmux/libtmux-ruby/blob/master/LICENSE)
 
 </div>
 
@@ -138,22 +140,12 @@ The full field, option and limit lists are in
 
 ### [`libtmux-workspace load`][cli-load]: build it on a running server
 
-`load` needs a running server. It never starts one, so start a private server
-with a keepalive session and no user configuration:
-
-```console
-$ WORKSPACE_TMP=$(mktemp -d)
-```
-
-```console
-$ tmux -S "$WORKSPACE_TMP/tmux.sock" -f /dev/null new-session -d -s keepalive
-```
-
-Create the workspace's session on that socket. It stays detached:
+`load` never starts a server. Set `TMUX_SOCKET` to the socket of a running tmux
+server that has no `work` session, then create the session. It stays detached:
 
 ```console
 $ libtmux-workspace load \
-    --socket "$WORKSPACE_TMP/tmux.sock" \
+    --socket "$TMUX_SOCKET" \
     workspace.yaml
 ```
 
@@ -161,24 +153,9 @@ $ libtmux-workspace load \
 Workspace created; 11 steps completed. Shell commands were dispatched.
 ```
 
-The new `work` session holds the `editor` window:
-
-```console
-$ tmux -S "$WORKSPACE_TMP/tmux.sock" list-windows -t work
-```
-
-Stop only the private server and remove its directory:
-
-```console
-$ tmux -S "$WORKSPACE_TMP/tmux.sock" kill-server
-```
-
-```console
-$ rm -rf "$WORKSPACE_TMP"
-```
-
 Loading the same file again fails with status 1: a plan creates a new session
-and never reconciles an existing one.
+and never reconciles an existing one. To try the same without a server of your
+own, run the Ruby program below, which starts and stops its own.
 
 ### [`Plan#apply`][workspace-plan-apply]: the same from Ruby
 
@@ -290,7 +267,7 @@ sessions: borrowed
 
 - Compensation removes the new session only after a tmux guard shows that
   every window and pane in it has a positively identified created reference.
-- An unknown initial entity, or a borrowed entity moved into the session,
+  An unknown initial entity, or a borrowed entity moved into the session,
   makes it refuse.
 - Compensation cannot undo what shell commands did. Without it, the partial
   state stays for you to inspect.
@@ -343,8 +320,8 @@ $ libtmux-workspace plan \
 `LIBTMUX_SOCKET`, else the server `TMUX` names when run inside tmux, else
 tmux's default socket. When both variables are set, the path wins, an empty
 variable counts as unset, and `--socket` ignores both. A command run from a tmux
-pane with none of these set acts on that pane's server. This detached creation
-example names its socket with a `TMUX_SOCKET` value:
+pane with none of these set acts on that pane's server. This example loads into
+the server `TMUX_SOCKET` names:
 
 ```console
 $ libtmux-workspace load \
@@ -398,25 +375,20 @@ values by design.
 
 ## Support and status
 
-Releases are numbered `0.1.N`, and each release increments `N`. The API is not
-settled: any release may change or remove exported identifiers, and the
-changelogs mark each break. Pin an exact version to avoid one.
-See the [changelog](CHANGELOG.md), and the [main
-changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
-for changes that span gems.
-
-- **Ruby 3.3 or newer.** The gem depends on the same version of `libtmux`,
-  JSON 3.0 and Psych 5.5.
-- **tmux 3.3a or newer** to load or apply a plan.
+- **Unstable API.** Releases are numbered `0.1.N`, and any release may change
+  or remove exported identifiers. Pin an exact version. See the
+  [changelog](CHANGELOG.md), and the [main
+  changelog](https://github.com/libtmux/libtmux-ruby/blob/master/CHANGELOG.md)
+  for changes that span gems.
+- **Ruby 3.3 or newer** and **tmux 3.3a or newer** to load or apply a plan. The
+  gem needs `libtmux` at the same version as itself.
 - **Older daemons.** `load` creates nothing and prints the refusal with the
   floor and the remedy. With `--json`, the refusal is in `error.message` and
   `error.kind` is `tmux_unsupported`.
-- **Linux, including WSL, and macOS.** The library and the command share the
-  core [compatibility workflow][compat]: Ruby 3.3, 3.4 and 4.0 with tmux 3.3a
-  through 3.8 on Ubuntu 24.04, with per-revision results. A push and a pull
-  request run the oldest and newest of those releases, 3.3a and 3.8, and a
-  release runs all of them. macOS is supported on a best-effort basis, and CI
-  coverage for it is highly limited.
+- **Linux, including WSL, and macOS.** CI runs on Linux; macOS is best effort.
+  The library and the command share the core
+  [compatibility workflow][compat]; see the
+  [CI matrix](../../.github/CONTRIBUTING.md#running-ci-against-any-tmux).
 - **History limit.** On tmux 3.3a to 3.6 the reused initial pane keeps the
   global `history-limit`. Set the server's global value before you apply to
   get one history size.
