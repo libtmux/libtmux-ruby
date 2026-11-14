@@ -12,10 +12,13 @@ class PublicAPI
   PACKAGES = %w[libtmux libtmux-async libtmux-mcp libtmux-workspace].freeze
   attr_reader :builder, :exports
 
-  def initialize
+  # signatures: extra RBS directories, which the audit's tests use to declare
+  # planted classes.
+  def initialize(signatures: [])
     loader = RBS::EnvironmentLoader.new
     @specs = PACKAGES.map { |name| Gem::Specification.find_by_name(name) }
     @specs.each { |spec| loader.add(path: Pathname(File.join(spec.full_gem_path, "sig"))) }
+    signatures.each { |path| loader.add(path: Pathname(path)) }
     @builder = RBS::DefinitionBuilder.new(env: RBS::Environment.from_loader(loader).resolve_type_names)
     @exports = []
     collect(LibTmux)
@@ -24,6 +27,10 @@ class PublicAPI
   def definition(value, kind)
     name = RBS::TypeName.parse(value.name).absolute!
     kind == :instance ? builder.build_instance(name) : builder.build_singleton(name)
+  end
+
+  def declared?(value)
+    !builder.env.module_class_entry(RBS::TypeName.parse(value.name).absolute!).nil?
   end
 
   def records
@@ -63,6 +70,9 @@ class PublicAPI
   end
 
   def audit!
+    undeclared = exports.reject { |value| declared?(value) }
+    raise Error, undeclared.map { |value| "missing RBS declaration: #{value.name}" }.join("\n") unless undeclared.empty?
+
     errors = []
     records.each do |record|
       errors << "missing signature: #{record.fetch('id')}" unless record.fetch("signatures")
@@ -85,8 +95,53 @@ class PublicAPI
         end
       end
     end
+    errors.concat(inherited_factory_errors, declaration_errors)
     raise Error, errors.join("\n") unless errors.empty?
     records.length
+  end
+
+  # A subclass that replaces initialize cannot use a class method written
+  # against an ancestor's constructor, whether the ancestor is exported or
+  # internal and whether the method is its own or comes from an extended
+  # module; the subclass must override or refuse it.
+  def inherited_factory_errors
+    exports.grep(Class).flat_map do |value|
+      next [] if value.instance_method(:initialize).owner == value.superclass.instance_method(:initialize).owner
+
+      inherited = value.superclass.singleton_class.ancestors
+      (value.singleton_methods - [:new]).filter_map do |name|
+        owner = value.method(name).owner
+        next unless inherited.include?(owner)
+
+        origin = owner.singleton_class? ? owner.attached_object : owner
+        next unless origin.name&.start_with?("LibTmux")
+
+        "inherited factory not overridden: #{value.name}.#{name}"
+      end
+    end
+  end
+
+  # Every public method the shipped RBS declares for a LibTmux type must be
+  # public at runtime, so a removed or hidden method cannot stay documented.
+  def declaration_errors
+    exports.flat_map do |value|
+      %i[singleton instance].flat_map do |kind|
+        definition(value, kind).methods.filter_map do |name, declared|
+          next unless declared.accessibility == :public && declared.defined_in.to_s.start_with?("::LibTmux")
+
+          present = if kind == :instance
+            value.public_method_defined?(name)
+          elsif name == :new
+            value.respond_to?(:new)
+          else
+            value.singleton_class.public_method_defined?(name)
+          end
+          next if present
+
+          "declared public but not callable: #{value.name}#{kind == :instance ? '#' : '.'}#{name}"
+        end
+      end
+    end
   end
 
   def reference(root)

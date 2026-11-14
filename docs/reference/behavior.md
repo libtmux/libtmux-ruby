@@ -628,11 +628,11 @@ preserves the daemon. Output remains on the terminal and the return value is
 
 Control connections require tmux 3.7 or newer and are refused earlier on the
 checked release (see [Optional tmux features](#optional-tmux-features)).
-Prefer `Server#open_control(session: ref)` so the binding accounts for the
-connection. Blocks close it on exit; without a block the caller must close
-it. Low-level constructors require an internal binding and exact session ID.
-The connection retains its own socket route, client and pipes. Core uses an
-owned reader thread; Async uses tasks on its scope scheduler.
+Open one with `Server#open_control(session: ref)`, which accounts for the
+connection in its binding; `ControlConnection.new` and `.open` are private.
+Blocks close it on exit; without a block the caller must close it. The
+connection retains its own socket route, client and pipes. Core uses an owned
+reader thread; Async uses tasks on its scope scheduler.
 
 `exchange` accepts one bounded authored command line and returns
 `GuardedReply`. Defaults are 32 admitted exchanges, 256 KiB command/line and
@@ -751,10 +751,17 @@ item counts and are not exact Ruby heap measurements.
 
 ## Async unsupported operations
 
-The Async server explicitly refuses `start` and interactive `attach`.
-Create an owned core server before opening the Async scope, and use the core
-terminal attachment API with an explicit terminal. These methods do not
-silently fall back to a blocking implementation on the scheduler.
+The Async server refuses `start`, `open` and interactive `attach`. Each raises
+`UnsupportedFeatureError` in the `admission` phase and names the supported
+path. Create an owned core server before opening the Async scope, and read
+the facade from `scope.server`. Open Async control connections with
+`open_control` on that facade. Use the core terminal attachment API with an
+explicit terminal. These methods do not silently fall back to a blocking
+implementation on the scheduler.
+
+`Async::Server`, `Async::ControlConnection` and `Async::ControlSubscription`
+have no public constructor. The scope builds the facade and its control
+connections, and each connection builds its subscriptions.
 
 ## MCP application
 

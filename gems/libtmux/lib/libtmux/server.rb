@@ -343,7 +343,7 @@ module LibTmux
               if @controls.length >= @max_controls
                 raise CapacityError.new("server control capacity is exhausted", phase: :admission)
               end
-              connection = ControlConnection.new(binding: @pin, session_id: session_id, **options)
+              connection = ControlConnection.__send__(:new, binding: @pin, session_id: session_id, **options)
               @controls << connection
             end
             if block_given?

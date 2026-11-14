@@ -4,6 +4,7 @@ module LibTmux
   module Async
     class Server < LibTmux::Server
       def initialize(scope, source)
+        raise ArgumentError, "scope must be a LibTmux::Async::Scope" unless scope.is_a?(Scope)
         raise ArgumentError, "server must be a bound LibTmux::Server" unless source.is_a?(LibTmux::Server)
 
         @scope, @source = scope, source
@@ -56,6 +57,12 @@ module LibTmux
       def self.start(**)
         raise UnsupportedFeatureError.new("create an owned core server before opening its Async scope", phase: :admission)
       end
+
+      def self.open(**)
+        raise UnsupportedFeatureError.new("open the core server, then call LibTmux::Async.open(server:) to get an Async facade", phase: :admission)
+      end
+
+      private_class_method :new
 
       private
 
