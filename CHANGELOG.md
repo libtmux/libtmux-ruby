@@ -25,6 +25,9 @@ at one version, so a release has a section in each changelog.
   its own tmux server, and the root README shows `Server#explain_panes`,
   `Server#run_group` and `Server#open_control`. `Server#explain_panes` has an
   API example, which the docs site shows on its page.
+- The root README shows how to split a pane, send keys, capture the screen and
+  resize a pane and its window. `Pane#split`, `Pane#resize` and
+  `Window#resize` have an API example, which the docs site shows on each page.
 
 ## 0.1.2 (2026-11-04)
 
