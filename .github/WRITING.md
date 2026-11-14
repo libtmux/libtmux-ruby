@@ -27,22 +27,8 @@ installation commands, or package names from another port without evidence.
 A README should explain the purpose, status, requirements, installation, and
 smallest working example. Keep detailed API contracts in API documentation.
 
-A README is built to be scanned:
+A README follows [README shape](#readme-shape).
 
-- It opens with the logo header, one line, and a quick start with the shortest
-  working program.
-- Task sections follow in the reader's words, ordered from first use to deeper
-  use.
-- A `###` heading names a linked API and its job, such as
-  ``### [`Server#snapshot`][server-snapshot]: one read, many queries``.
-- Under it go a sentence that names the call and its siblings, a short example
-  from a tested program, where it runs and what it prints, and at most one
-  short note.
-- Paragraphs stay near four lines. Contract detail moves to `docs/` and is
-  linked.
-- Every API, tool and command the prose names is linked. Reference-style links
-  sit at the foot of the file, and no link appears inside a code fence.
-- Package tables and lists stay when a README is restructured.
 Commands must work as written; examples must use real interfaces and state
 their prerequisites. A performance claim needs a measurement and a command
 that reproduces it.
@@ -54,6 +40,48 @@ Do not repeat a signature in prose or invent removal versions.
 
 Error messages name the failed operation, the concrete cause, and a useful
 next action when one exists. Help text states option semantics and defaults.
+
+## README shape
+
+A README is built to be scanned, like a sign read from a highway.
+
+- The header is the logo, a centred title, one line, and badges in a fixed
+  order: CI, gem version, libtmux.org, license. Add a badge or link only when
+  its page returns 200.
+- Each `##` section is a task in the reader's words, ordered from first use to
+  deeper use.
+- Each `###` heading names a linked API, a colon, and its job in plain words,
+  such as ``### [`Server#snapshot`][server-snapshot]: one read, many queries``.
+  The link goes to the API's page on libtmux.org.
+- Under a heading go a line or two that link sibling APIs, an example, what it
+  prints, at most one short note, and a `More:` link to the guide.
+- No paragraph runs past three lines. A list of facts is a bullet list.
+- No feature inventory. The sections and their examples show what exists.
+- Requirements are floors a reader can act on, such as "tmux 3.3a or newer".
+  Leave out patch versions, CI matrices and kernel details, and link the page
+  that holds them.
+- Leave out what a reader would assume or never need: that examples are tested,
+  how docs are built, what the checks cover, and "evidence" or "contract"
+  boilerplate.
+- Every API, tool and command the prose names is linked. Reference-style links
+  sit at the foot of the file, and no link appears inside a code fence.
+- Examples start with their imports, so a reader can paste one into a file and
+  run it.
+- An example starts its own private tmux server through the library with
+  `Server.start` and removes it when the block exits. It needs no `tmux` shell
+  command to create the server or to clean up after it.
+- Every displayed example comes from a file CI runs: a program under
+  `examples/`, registered in `examples/manifest.json` and shown through its
+  `<!-- example: id -->` markers.
+- Show the query, planner, chaining and control-mode features this port has:
+  `Server#snapshot`, `Server#explain_panes`, `Server#run_group` and
+  `Server#open_control`, each under its own heading with a tested example.
+- The packages section keeps its table, then gives each gem a `###` heading
+  that links its directory on GitHub, one line on what it is, and a link line
+  for the API reference, the guides and RubyGems.
+- "What it leaves out" and "Support and status" are short bullets, each with a
+  bold lead.
+- Package tables and lists stay when a README is restructured.
 
 ## Source comments
 
