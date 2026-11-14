@@ -19,6 +19,12 @@ at one version, so a release has a section in each changelog.
   `LibTmux::Workspace.load`. The files the loader reads show on the docs site as
   workspace presets; each file it refuses fails with the message the test
   records.
+- The READMEs and guides state floors and link the CI matrix in the
+  contributor guide, and a unit test checks that guide against
+  `scripts/ci-matrix.json`. Each README example starts with its imports and
+  its own tmux server, and the root README shows `Server#explain_panes`,
+  `Server#run_group` and `Server#open_control`. `Server#explain_panes` has an
+  API example, which the docs site shows on its page.
 
 ## 0.1.2 (2026-11-04)
 
