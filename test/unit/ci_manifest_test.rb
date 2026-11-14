@@ -8,8 +8,6 @@ require_relative "../../scripts/ci_manifest"
 # that breaks it, so a guard that stops guarding fails here.
 class CIManifestTest < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
-  READMES = %w[README.md gems/libtmux/README.md gems/libtmux-async/README.md
-    gems/libtmux-mcp/README.md gems/libtmux-workspace/README.md].freeze
 
   def manifest
     @manifest ||= CIManifest.load
@@ -63,7 +61,8 @@ class CIManifestTest < Minitest::Test
 
   CONTRIBUTING = ".github/CONTRIBUTING.md"
 
-  # What a README says about the tested range, against the manifest.
+  # What the contributor guide says about the tested range, against the
+  # manifest. The READMEs state only the floors and link this guide.
   def range_problems(path, text)
     supported = CIManifest.supported(manifest)
     rubies = CIManifest.rubies(manifest).map { |version| version[/\A\d+\.\d+/] }
@@ -73,26 +72,18 @@ class CIManifestTest < Minitest::Test
       text.match(/tmux (\d\.\d[a-z]?) through (\d\.\d[a-z]?)/)&.captures == [supported.first, supported.last]
     found << "#{path} states other Rubies" unless text.include?("Ruby #{rubies[0..-2].join(', ')} and #{rubies.last}")
     found << "#{path} states other edges" unless
-      text.match(/oldest and newest of those releases, (\S+) and (\S+),/)&.captures == [supported.first, supported.last]
+      text.include?("oldest and newest supported release only (#{supported.first} and #{supported.last})")
     found
   end
 
-  def test_the_readmes_state_the_range_the_manifest_lists
-    READMES.each do |path|
-      assert_equal [], range_problems(path, File.read(File.join(ROOT, path)))
-    end
+  def test_the_contributor_guide_states_the_range_and_edges_the_manifest_lists
+    assert_equal [], range_problems(CONTRIBUTING, File.read(File.join(ROOT, CONTRIBUTING)))
   end
 
-  def test_the_contributor_guide_names_the_edges_the_manifest_lists
-    text = File.read(File.join(ROOT, CONTRIBUTING)).gsub(/\s+/, " ")
-    supported = CIManifest.supported(manifest)
-    assert_includes text, "oldest and newest supported release only (#{supported.first} and #{supported.last})"
-  end
-
-  def test_a_readme_that_states_another_range_is_reported
-    text = File.read(File.join(ROOT, "README.md"))
-    assert_equal ["README.md states another tmux range"], range_problems("README.md", text.sub("through 3.8", "through 3.7c"))
-    assert_equal ["README.md states other Rubies"], range_problems("README.md", text.sub("Ruby 3.3, 3.4 and 4.0", "Ruby 3.3 and 4.0"))
-    assert_equal ["README.md states other edges"], range_problems("README.md", text.sub("3.3a and 3.8,", "3.3a and 3.7c,"))
+  def test_a_guide_that_states_another_range_is_reported
+    text = File.read(File.join(ROOT, CONTRIBUTING))
+    assert_equal ["#{CONTRIBUTING} states another tmux range"], range_problems(CONTRIBUTING, text.sub("through 3.8", "through 3.7c"))
+    assert_equal ["#{CONTRIBUTING} states other Rubies"], range_problems(CONTRIBUTING, text.sub("Ruby 3.3, 3.4 and 4.0", "Ruby 3.3 and 4.0"))
+    assert_equal ["#{CONTRIBUTING} states other edges"], range_problems(CONTRIBUTING, text.sub("(3.3a and 3.8)", "(3.3a and 3.7c)"))
   end
 end

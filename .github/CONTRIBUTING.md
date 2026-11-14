@@ -241,7 +241,8 @@ The [compatibility workflow](workflows/compatibility.yml) plans its jobs with
 [scripts/ci-plan](../scripts/ci-plan) from
 [scripts/ci-matrix.json](../scripts/ci-matrix.json), which lists the Rubies, the
 supported tmux releases oldest first, the refused releases and the development
-build. A push and a pull request run the oldest and newest supported release
+build. The workflow runs Ruby 3.3, 3.4 and 4.0 against tmux 3.3a through 3.8 on
+Linux. A push and a pull request run the oldest and newest supported release
 only (3.3a and 3.8) on every Ruby. The full scope adds every other supported
 release, the refusal jobs and the development build. The
 [Release workflow](workflows/release.yml) runs the full scope on the tag before
