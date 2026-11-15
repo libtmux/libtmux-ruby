@@ -6,6 +6,13 @@ require "optparse"
 module LibTmux
   module MCP
     class CLI
+      # The tmux server --start-session asked for did not come up.
+      class StartError < StandardError; end
+      private_constant :StartError
+
+      SESSION_NAME = /\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z/
+      private_constant :SESSION_NAME
+
       def self.run(arguments, input: $stdin, out: $stdout, err: $stderr, environment: ENV)
         new(arguments, input, out, err, environment).run
       end
@@ -34,6 +41,8 @@ module LibTmux
             0
           rescue Interrupt, LibTmux::Cancelled => error
             report("MCP interrupted; dispatched effects may remain.", 130, failure: error)
+          rescue StartError => error
+            report("MCP #{error.message}.", 1, failure: error)
           rescue StandardError => error
             if error.is_a?(LibTmux::UnsupportedFeatureError) && error.phase == :admission && error.delivery == :not_sent
               report("MCP refused to start: #{error.message}.", 1, failure: error)
@@ -72,6 +81,80 @@ module LibTmux
       end
 
       def serve(endpoint, task)
+        started = start_session(endpoint)
+        failure = nil
+        begin
+          serve_endpoint(endpoint, task)
+        rescue Exception => error
+          failure = error
+        ensure
+          if started && !@options[:keep]
+            begin
+              stop_started_server(endpoint, started)
+            rescue Exception => error
+              if failure
+                ProcessIdentity.attach_cleanup(failure, ["MCP could not stop the tmux server it started (#{error.class})"])
+              else
+                failure = error
+              end
+            end
+          end
+        end
+        raise failure if failure
+      end
+
+      # With --start-session and no server answering at the endpoint, starts
+      # one with an empty configuration that holds the session, and answers its
+      # pid. A server that answers is borrowed as it is, so the option never
+      # changes a server it did not start.
+      def start_session(endpoint)
+        name = @options[:start_session]
+        return nil if name.nil? || answering?(endpoint)
+
+        directory = File.dirname(endpoint.socket_path)
+        # tmux makes this directory itself for a socket named with -L, not for -S.
+        Dir.mkdir(directory, 0o700) if File.basename(directory) == "tmux-#{Process.uid}" && !File.exist?(directory)
+        argv = [endpoint.executable, "-S", endpoint.socket_path, "-f", File::NULL, "new-session", "-d", "-s", name]
+        result = Internal::ProcessExecutor.new.run(argv, timeout: @options.fetch(:timeout), discard_stdout: true)
+        reason = result.stderr.dup.force_encoding(Encoding::UTF_8).scrub.lines.first.to_s.gsub(/[[:cntrl:]]/, " ").strip.byteslice(0, 200).to_s.scrub
+        failure = StartError.new("could not start session #{name}: #{reason.empty? ? 'tmux started no server' : reason}")
+        raise failure unless result.success?
+
+        begin
+          Server.open(endpoint: endpoint) do |server|
+            begin
+              server_pid(server)
+            rescue Exception
+              # Started moments ago: a failure here must not leave it running.
+              server.kill(timeout: @options.fetch(:timeout))
+              raise
+            end
+          end
+        rescue TargetNotFoundError
+          # tmux 3.7c and older exit with status 0 when they cannot create the socket.
+          raise failure
+        end
+      end
+
+      def answering?(endpoint)
+        Server.open(endpoint: endpoint) { true }
+      rescue TargetNotFoundError
+        false
+      end
+
+      def server_pid(server)
+        server.display('#{pid}', timeout: @options.fetch(:timeout)).text.strip
+      end
+
+      # Stops the server this process started, and only that one: when the
+      # socket now answers with another pid, the one it started is already gone.
+      def stop_started_server(endpoint, pid)
+        Server.open(endpoint: endpoint) { |server| server.kill(timeout: @options.fetch(:timeout)) if server_pid(server) == pid }
+      rescue TargetNotFoundError
+        nil
+      end
+
+      def serve_endpoint(endpoint, task)
         Server.open(endpoint: endpoint) do |server|
           LibTmux::Async.open(server: server, parent: task) do |scope|
             app = Application.new(server: scope.server, endpoint_name: @options.fetch(:endpoint_name),
@@ -209,6 +292,10 @@ module LibTmux
             "server TMUX names, then tmux's default socket") { |value| @options[:socket_path] = value }
           options.on("--socket-name NAME", "Borrow the tmux server with this socket name",
             "Not with --socket") { |value| @options[:socket_name] = value }
+          options.on("--start-session NAME", "When no tmux server answers at the socket, start one with an",
+            "empty configuration that holds session NAME, and stop it at",
+            "exit. A server that answers is borrowed as it is") { |value| @options[:start_session] = value }
+          options.on("--keep", "With --start-session, leave the server it started running at exit") { @options[:keep] = true }
           options.on("--endpoint NAME", "Public endpoint alias (default: local)") { |value| @options[:endpoint_name] = value }
           options.on("--tmux EXECUTABLE", "Resolve and pin this tmux executable at startup") { |value| @options[:executable] = value }
           options.on("--enable-tool NAME", "Enable one additional tool; repeat as needed") { |value| @options.fetch(:tools) << value }
@@ -233,6 +320,8 @@ module LibTmux
       def validate_arguments
         raise ArgumentError unless @arguments.empty?
         raise ArgumentError if @options[:socket_path] && @options[:socket_name]
+        raise ArgumentError if @options[:start_session] && !SESSION_NAME.match?(@options[:start_session])
+        raise ArgumentError if @options[:keep] && !@options[:start_session]
         raise ArgumentError unless @options.fetch(:tools).all? { |name| Catalog::NAMES.include?(name) }
         raise ArgumentError unless /\A[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\z/.match?(@options.fetch(:endpoint_name))
         raise ArgumentError unless @options.fetch(:timeout).finite? && @options.fetch(:timeout).positive?

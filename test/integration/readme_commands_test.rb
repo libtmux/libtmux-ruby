@@ -358,6 +358,9 @@ class ReadmeCommandsTest < Minitest::Test
     setup = argv.each_cons(2).filter_map { |flag, value| value.split("=", 2).last if flag == "--enroll-pane" }
     setup = setup.map { |name| File.expand_path(name, sandbox.work) }
     served = nil
+    flag = options.key?("--socket-name") ? ["-L", options["--socket-name"]] : ["-S", options["--socket"]]
+    # --start-session starts a server only when none answers, and then stops it at EOF unless --keep.
+    answering = sandbox.run(sandbox.tmux, *flag, "has-session").status.success?
     result = sandbox.mcp(argv, where) do |session|
       served = session.tools.sort
       assert_equal endpoint, session.capabilities.fetch("endpoint"), "#{where}: --endpoint is not the public alias"
@@ -373,8 +376,13 @@ class ReadmeCommandsTest < Minitest::Test
     assert_equal 0, result.status&.exitstatus, "#{where}: EOF did not end the server: #{result.stderr}"
     assert_empty result.stderr, "#{where}: the server wrote to stderr"
     setup.each { |file| refute File.exist?(file), "#{where}: setup file survived EOF" }
-    flag = options.key?("--socket-name") ? ["-L", options["--socket-name"]] : ["-S", options["--socket"]]
-    assert sandbox.run(sandbox.tmux, *flag, "has-session").status.success?, "#{where}: EOF stopped the borrowed daemon"
+    stops = options.key?("--start-session") && !answering && !argv.include?("--keep")
+    remains = sandbox.run(sandbox.tmux, *flag, "has-session").status.success?
+    if stops
+      refute remains, "#{where}: EOF left the server --start-session started"
+    else
+      assert remains, "#{where}: EOF stopped a daemon the server did not start"
+    end
   end
 
   # Tool name => enabled by default, from the rows of the Tools | Default table.

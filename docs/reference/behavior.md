@@ -818,7 +818,11 @@ SDK transport binding; it does not close caller streams or the scheduler.
 `--socket-name` names. With neither flag it borrows the one `Endpoint.new`
 picks from the `environment:` argument, which is the process environment by
 default. The two flags together are invalid, and a flag ignores the socket
-variables. It never starts a daemon. It owns protocol tasks/clients, uses the
+variables. Without `--start-session` it never starts a daemon. With
+`--start-session NAME` and no server answering at the endpoint, it starts one
+with an empty configuration and a session named `NAME`, and stops that server
+at exit unless `--keep` is given; a server that answers is borrowed as it is.
+It owns protocol tasks/clients, uses the
 caller's stdin/stdout/stderr, and keeps stdout protocol-only. Default tools
 remain read-only; repeated `--enable-tool` opts into supported operations.
 Help/version exit zero, invalid arguments exit two, execution failures exit

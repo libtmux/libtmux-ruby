@@ -6,6 +6,8 @@ require "libtmux/mcp/cli"
 require "stringio"
 require "socket"
 require "shellwords"
+require "open3"
+require "tmpdir"
 
 class McpCLIIntegrationTest < Minitest::Test
   def test_explicit_enrollment_file_serves_protocol_and_retires_pending_accept_on_eof
@@ -272,6 +274,110 @@ class McpCLIIntegrationTest < Minitest::Test
       end
     ensure
       listener&.close
+    end
+  end
+
+  # --start-session runs tmux itself, so the panes it creates would run the
+  # login shell of whoever runs the suite; /bin/sh keeps them quiet.
+  def with_plain_shell
+    saved = ENV.fetch("SHELL", nil)
+    ENV["SHELL"] = "/bin/sh"
+    yield
+  ensure
+    saved ? ENV["SHELL"] = saved : ENV.delete("SHELL")
+  end
+
+  def tmux_at(socket, *arguments)
+    output, status = Open3.capture2e({"TMUX" => nil, "TMUX_PANE" => nil}, ENV.fetch("LIBTMUX_TEST_TMUX", "tmux"), "-S", socket, *arguments)
+    [output, status]
+  end
+
+  # Runs the CLI on pipes until the block ends, then closes its input and returns its status.
+  def serve_cli(arguments, environment: {})
+    reader, input = IO.pipe
+    output, writer = IO.pipe
+    errors = StringIO.new
+    worker = Thread.new do
+      LibTmux::MCP::CLI.run(arguments, input: reader, out: writer, err: errors, environment: environment)
+    ensure
+      writer.close
+    end
+    begin
+      send_frame(input, id: 1, method: "initialize", params: {protocolVersion: "2025-11-25",
+        capabilities: {}, clientInfo: {name: "test", version: "1"}})
+      assert_equal "2025-11-25", frame(output).dig("result", "protocolVersion")
+      send_frame(input, method: "notifications/initialized")
+      yield
+      input.close
+      assert worker.join(5), "MCP CLI did not retire after EOF"
+      [worker.value, errors.string]
+    ensure
+      input.close unless input.closed?
+      worker.join(0.5)
+      worker.raise(Interrupt) if worker.alive?
+      worker.join(0.5)
+      [reader, output, writer].each { |io| io.close unless io.closed? }
+    end
+  end
+
+  def test_start_session_starts_the_server_it_serves_and_eof_stops_it
+    with_plain_shell do
+      Dir.mktmpdir("libtmux-ruby-start-") do |directory|
+        socket = File.join(directory, "tmux-#{Process.uid}", "agent")
+        arguments = ["--socket-name", "agent", "--start-session", "work", "--tmux", ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")]
+        status, errors = serve_cli(arguments, environment: {"TMUX_TMPDIR" => directory}) do
+          names, = tmux_at(socket, "list-sessions", "-F", "\#{session_name}")
+          assert_equal "work\n", names
+        end
+        assert_equal 0, status, errors
+        assert_empty errors
+        assert_match(/no server running|error connecting/, tmux_at(socket, "list-sessions").first, "EOF left the server it started")
+      end
+    end
+  end
+
+  def test_keep_leaves_the_server_it_started_running_after_eof
+    with_plain_shell do
+      Dir.mktmpdir("libtmux-ruby-start-") do |directory|
+        socket = File.join(directory, "tmux-#{Process.uid}", "agent")
+        arguments = ["--socket-name", "agent", "--start-session", "work", "--keep", "--tmux", ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")]
+        begin
+          status, errors = serve_cli(arguments, environment: {"TMUX_TMPDIR" => directory}) { nil }
+          assert_equal 0, status, errors
+          assert_equal "work\n", tmux_at(socket, "list-sessions", "-F", "\#{session_name}").first
+        ensure
+          tmux_at(socket, "kill-server")
+        end
+      end
+    end
+  end
+
+  def test_start_session_borrows_a_server_that_already_answers_and_leaves_it_alone
+    LibTmuxTest::TmuxFixture.open do |fixture|
+      arguments = ["--socket", fixture.socket_path, "--start-session", "work", "--tmux", fixture.executable]
+      status, errors = serve_cli(arguments) do
+        assert_equal "fixture\n", fixture.tmux("list-sessions", "-F", "\#{session_name}").first
+      end
+      assert_equal 0, status, errors
+      assert_equal "fixture\n", fixture.tmux("list-sessions", "-F", "\#{session_name}").first
+    end
+  end
+
+  def test_start_session_reports_a_server_tmux_could_not_start
+    with_plain_shell do
+      Dir.mktmpdir("libtmux-ruby-start-") do |directory|
+        reader, input = IO.pipe
+        output, writer = IO.pipe
+        errors = StringIO.new
+        socket = File.join(directory, "missing", "socket")
+        status = LibTmux::MCP::CLI.run(["--socket", socket, "--start-session", "work", "--tmux", ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")],
+          input: reader, out: writer, err: errors)
+        assert_equal 1, status
+        assert_match(/MCP could not start session work/, errors.string)
+        assert_empty Dir.glob(File.join(directory, "**", "*"), File::FNM_DOTMATCH).select { |path| File.socket?(path) }
+      ensure
+        [reader, input, output, writer].each { |io| io.close unless io.closed? }
+      end
     end
   end
 

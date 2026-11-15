@@ -11,9 +11,9 @@
 
 # libtmux-mcp
 
-Expose an existing tmux server over MCP stdio. Read snapshots, capture pane
-output and wait for events, or enable creation, input and shell commands one
-tool at a time.
+Expose a tmux server over MCP stdio. Read snapshots, capture pane output and
+wait for events, or enable creation, input and shell commands one tool at a
+time.
 
 [API reference](https://libtmux.org/en/ruby/latest/mcp/reference/) ·
 [Tools](https://libtmux.org/en/ruby/latest/mcp/tools/) ·
@@ -50,19 +50,17 @@ and tmux 3.3a or newer:
 $ gem install libtmux-mcp
 ```
 
-The server borrows a tmux server that is already running. Start one on a
-socket of its own:
-
-```console
-$ tmux -L agent new-session -d -s work
-```
-
-Add the server to Claude Code. Until you enable more tools, it serves
+Add the server to Claude Code. `--start-session work` starts a tmux server on
+the socket `agent` when none answers there, with a session named `work`, and
+stops it when the server exits. Until you enable more tools, the server serves
 [`tmux_capabilities`][tool-tmux_capabilities] and
 [`tmux_snapshot`][tool-tmux_snapshot]:
 
 ```console
-$ claude mcp add tmux -- libtmux-mcp --socket-name agent --endpoint dev
+$ claude mcp add tmux -- libtmux-mcp \
+    --socket-name agent \
+    --start-session work \
+    --endpoint dev
 ```
 
 Run by hand, `libtmux-mcp` waits for input until EOF. `libtmux-mcp --help`
@@ -72,15 +70,17 @@ lists every option.
 
 ### `claude mcp add`: Claude Code
 
-The command in the quick start registers the server with Claude Code. Start the
-tmux server first, as above.
+The command in the quick start registers the server with Claude Code.
 
 ### `codex mcp add`: Codex CLI
 
 Codex CLI takes the same command after `--`:
 
 ```console
-$ codex mcp add tmux -- libtmux-mcp --socket-name agent --endpoint dev
+$ codex mcp add tmux -- libtmux-mcp \
+    --socket-name agent \
+    --start-session work \
+    --endpoint dev
 ```
 
 ### `mcpServers`: clients that read JSON
@@ -94,7 +94,7 @@ A client that reads a JSON configuration, such as Claude Desktop's
   "mcpServers": {
     "tmux": {
       "command": "libtmux-mcp",
-      "args": ["--socket-name", "agent", "--endpoint", "dev"]
+      "args": ["--socket-name", "agent", "--start-session", "work", "--endpoint", "dev"]
     }
   }
 }
@@ -118,25 +118,41 @@ $ libtmux-mcp \
 ```
 
 Use `--socket-name NAME` instead of `--socket PATH` to select a named socket,
-as the quick start does:
-
-```console
-$ libtmux-mcp \
-    --socket-name agent
-```
+as the quick start does.
 
 - With neither flag, the server borrows the socket in `LIBTMUX_SOCKET_PATH`,
   else the name in `LIBTMUX_SOCKET`, else the server `TMUX` names when it runs
   inside tmux, else tmux's default socket. When both variables are set, the
   path wins, and an empty variable counts as unset. A flag ignores both
   variables, and the two flags are refused together.
-- The server never starts a tmux server. When none answers at the socket it
-  chose, it exits with status 1.
+- Without `--start-session`, the server never starts a tmux server. When none
+  answers at the socket it chose, it exits with status 1.
 - Started from a tmux pane with no flag or variable, the server drives that
   pane's server. Pass `--socket-name` to give an agent a server of its own.
-- EOF retires the clients the server owns and leaves the daemon running.
+- EOF retires the clients the server owns and leaves a borrowed daemon
+  running.
 - `--endpoint` sets the public alias in discovery and resource URIs, and
   defaults to `local`.
+
+### `--start-session`: start the server too
+
+`--start-session NAME` starts a tmux server on the socket the other flags
+choose when none answers there. The server has an empty configuration and one
+session named `NAME`, which runs your default shell:
+
+```console
+$ libtmux-mcp \
+    --socket-name agent \
+    --start-session work
+```
+
+- A server that already answers is borrowed as it is. The flag creates no
+  session in it and stops nothing.
+- EOF stops the server the flag started. Add `--keep` to leave it running,
+  for example to attach to it from a terminal.
+- A fresh server's first pane is `%0`.
+- `NAME` starts with a letter or digit, then takes letters, digits, `_` and
+  `-`, up to 128 characters.
 
 ## The tools
 
@@ -225,6 +241,7 @@ Enable the three tools together:
 ```console
 $ libtmux-mcp \
     --socket-name agent \
+    --start-session work \
     --enable-tool tmux_create \
     --enable-tool tmux_send \
     --enable-tool tmux_close
@@ -252,21 +269,14 @@ $ libtmux-mcp \
 [`tmux_run`][tool-tmux_run] runs a POSIX script in a pane's interactive zsh
 5.9. It needs both the tool and an enrolled pane.
 
-List the pane IDs of the server:
-
-```console
-$ tmux -L agent list-panes -a -F '#{pane_id}'
-```
-
-```text
-%0
-```
-
-Enable the tool and write a setup file for one exact pane:
+Enable the tool and write a setup file for one exact pane. The first pane of
+the server that `--start-session` starts is `%0`; on a server you started
+another way, read the pane IDs with [`tmux_snapshot`][tool-tmux_snapshot]:
 
 ```console
 $ libtmux-mcp \
     --socket-name agent \
+    --start-session work \
     --enable-tool tmux_run \
     --enroll-pane %0=enroll.zsh
 ```

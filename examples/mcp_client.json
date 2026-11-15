@@ -2,7 +2,7 @@
   "mcpServers": {
     "tmux": {
       "command": "libtmux-mcp",
-      "args": ["--socket-name", "agent", "--endpoint", "dev"]
+      "args": ["--socket-name", "agent", "--start-session", "work", "--endpoint", "dev"]
     }
   }
 }

@@ -497,8 +497,8 @@ type checking. See [signature proof](behavior.md#signature-proof).
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
-| [#run](../../gems/libtmux-mcp/lib/libtmux/mcp/cli.rb#L23) | `::Integer` | [MCP CLI](behavior.md#mcp-cli) |
-| [.run](../../gems/libtmux-mcp/lib/libtmux/mcp/cli.rb#L9) | `::Integer` | [MCP CLI](behavior.md#mcp-cli) |
+| [#run](../../gems/libtmux-mcp/lib/libtmux/mcp/cli.rb#L30) | `::Integer` | [MCP CLI](behavior.md#mcp-cli) |
+| [.run](../../gems/libtmux-mcp/lib/libtmux/mcp/cli.rb#L16) | `::Integer` | [MCP CLI](behavior.md#mcp-cli) |
 
 ## LibTmux::MCP::StdioTransport
 

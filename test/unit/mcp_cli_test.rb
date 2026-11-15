@@ -56,6 +56,11 @@ class McpCLITest < Minitest::Test
       %w[--socket private-path --enable-tool tmux_run --enroll-pane %0=private-one --enroll-pane %0=private-two],
       %w[--socket private-path --enable-tool tmux_run --enroll-pane %0=private-one --enroll-pane %1=private-one],
       %w[--socket private-path --enrollment-timeout 301],
+      %w[--socket private-path --keep],
+      %w[--socket private-path --start-session],
+      %w[--socket private-path --start-session private:name], %w[--socket private-path --start-session private.name],
+      %w[--socket private-path --start-session -private], ["--socket", "private-path", "--start-session", ""],
+      ["--socket", "private-path", "--start-session", "private name"], ["--socket", "private-path", "--start-session", "p" * 129],
       %w[--socket private-path --unknown private-value]].each do |arguments|
       output, error = StringIO.new, StringIO.new
       assert_equal 2, LibTmux::MCP::CLI.run(arguments, out: output, err: error)
@@ -63,6 +68,13 @@ class McpCLITest < Minitest::Test
       assert_includes error.string, "Invalid arguments"
       refute_includes error.string, "private-"
     end
+  end
+
+  def test_help_lists_the_options_that_start_a_session
+    output = StringIO.new
+    assert_equal 0, LibTmux::MCP::CLI.run(%w[--help], out: output, err: StringIO.new)
+    assert_match(/--start-session NAME/, output.string)
+    assert_match(/--keep/, output.string)
   end
 
   def test_a_flag_names_the_socket_and_the_variables_name_it_otherwise

@@ -715,19 +715,17 @@ Installs `libtmux-mcp`; require `libtmux/mcp` to embed it through
 $ gem install libtmux-mcp
 ```
 
-The server borrows a tmux server that is already running. Start one on a
-socket of its own:
-
-```console
-$ tmux -L agent new-session -d -s work
-```
-
-Add the server to Claude Code. Until you enable more tools, it serves
+Add the server to Claude Code. `--start-session work` starts a tmux server on
+the socket `agent` when none answers there, with a session named `work`, and
+stops it when the server exits. Until you enable more tools, the server serves
 [`tmux_capabilities`][tool-tmux_capabilities] and
 [`tmux_snapshot`][tool-tmux_snapshot]:
 
 ```console
-$ claude mcp add tmux -- libtmux-mcp --socket-name agent --endpoint dev
+$ claude mcp add tmux -- libtmux-mcp \
+    --socket-name agent \
+    --start-session work \
+    --endpoint dev
 ```
 
 The [MCP README](../libtmux-mcp/README.md) covers other clients, every tool and
