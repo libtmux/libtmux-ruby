@@ -108,7 +108,7 @@ module CIPlan
   def self.cell(manifest, ruby, tmux)
     system = manifest.fetch("systems").first
     {"id" => [system, ruby, tmux].join("/"), "system" => system, "ruby" => ruby, "tmux" => tmux,
-     "sha256" => CIManifest.sha256(manifest, tmux), "tmate" => "off"}
+     "tmate" => "off"}
   end
 
   def self.suffix(ruby, default)
@@ -117,7 +117,7 @@ module CIPlan
 
   def self.unsupported_leg(manifest, entry, ruby)
     {"name" => "Refuse tmux #{entry.fetch('tmux')} before effects#{suffix(ruby, CIManifest.rubies(manifest).last)}",
-     "tmux" => entry.fetch("tmux"), "sha256" => entry.fetch("sha256"), "check" => entry.fetch("check"),
+     "tmux" => entry.fetch("tmux"), "check" => entry.fetch("check"),
      "ruby" => ruby, "tmate" => "off"}
   end
 

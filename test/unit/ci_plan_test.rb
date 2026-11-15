@@ -41,7 +41,7 @@ class CIPlanTest < Minitest::Test
 
   def manifest_with(release)
     copy = Marshal.load(Marshal.dump(MANIFEST))
-    copy["supported"] << {"tmux" => release, "sha256" => "a" * 64}
+    copy["supported"] << {"tmux" => release}
     copy
   end
 
@@ -137,9 +137,8 @@ class CIPlanTest < Minitest::Test
     result = plan("workflow_dispatch", scope: "custom", ruby: NEWEST_RUBY,
       tmux_ref: "#{OLDEST}, #{refused_release['tmux']},#{DEVELOPMENT.first['tmux']},master,#{sha},#{OLDEST}")
     assert_equal ["linux/#{NEWEST_RUBY}/#{OLDEST}"], result.fetch("cells").map { |cell| cell.fetch("id") }
-    assert_equal CIManifest.sha256(MANIFEST, OLDEST), result.fetch("cells").first.fetch("sha256")
-    assert_equal [[refused_release["tmux"], refused_release["check"], refused_release["sha256"]]],
-      result.fetch("unsupported").map { |leg| leg.values_at("tmux", "check", "sha256") }
+    assert_equal [[refused_release["tmux"], refused_release["check"]]],
+      result.fetch("unsupported").map { |leg| leg.values_at("tmux", "check") }
     assert_equal [[DEVELOPMENT.first["tmux"], DEVELOPMENT.first["commit"], "^next-"], ["master", "master", ""], [sha, sha, ""]],
       result.fetch("development").map { |leg| leg.values_at("tmux", "ref", "expect") }
   end

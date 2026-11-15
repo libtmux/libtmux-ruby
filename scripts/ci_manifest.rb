@@ -5,11 +5,11 @@ require "json"
 # The one list of what CI covers: the Rubies, the tmux releases the library
 # supports (oldest first), the releases it refuses and the development build.
 # The workflow, scripts/matrix and scripts/ci-plan read it; nothing else
-# writes a version down, and the tests tie the documents to it.
+# writes a version down, and the tests tie the documents to it. The shared
+# build-tmux action pins each release's checksum.
 module CIManifest
   PATH = File.expand_path("ci-matrix.json", __dir__)
   CHECKS = %w[old_daemon refused].freeze
-  DIGEST = /\A[0-9a-f]{64}\z/
   COMMIT = /\A[0-9a-f]{40}\z/
 
   def self.load(path = PATH)
@@ -26,13 +26,6 @@ module CIManifest
 
   def self.unsupported(manifest)
     manifest.fetch("unsupported").map { |entry| entry.fetch("tmux") }
-  end
-
-  def self.sha256(manifest, tmux)
-    entry = (manifest.fetch("supported") + manifest.fetch("unsupported")).find { |item| item.fetch("tmux") == tmux }
-    raise KeyError, "tmux #{tmux} is not a release in the manifest" unless entry
-
-    entry.fetch("sha256")
   end
 
   # Orders 3.3a < 3.4 < 3.5a, so the first and last supported entries are the
@@ -61,9 +54,6 @@ module CIManifest
         supported.empty? || unsupported.all? { |version| before?(version, supported.first) }
     rescue ArgumentError => error
       found << error.message
-    end
-    (manifest.fetch("supported") + manifest.fetch("unsupported")).each do |entry|
-      found << "release #{entry['tmux']} has no SHA-256" unless DIGEST.match?(entry["sha256"].to_s)
     end
     manifest.fetch("unsupported").each do |entry|
       found << "refused release #{entry['tmux']} has no known check" unless CHECKS.include?(entry["check"])

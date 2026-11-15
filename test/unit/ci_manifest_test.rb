@@ -33,20 +33,13 @@ class CIManifestTest < Minitest::Test
     assert_raises(ArgumentError) { CIManifest.version_key("next-3.9") }
   end
 
-  def test_a_digest_is_found_for_a_release_and_missing_for_anything_else
-    assert_match CIManifest::DIGEST, CIManifest.sha256(manifest, "3.8")
-    assert_match CIManifest::DIGEST, CIManifest.sha256(manifest, "3.0a")
-    assert_raises(KeyError) { CIManifest.sha256(manifest, "master") }
-  end
-
   def test_each_rule_reports_its_break
     {
       "the manifest lists no supported release" => ->(copy) { copy["supported"] = [] },
       "the manifest lists no Ruby" => ->(copy) { copy["rubies"] = [] },
       "a release is listed twice" => ->(copy) { copy["unsupported"] << copy["supported"].first },
       "supported releases must run oldest first" => ->(copy) { copy["supported"].reverse! },
-      "a refused release is not older than the oldest supported one" => ->(copy) { copy["unsupported"] << {"tmux" => "3.9", "sha256" => "a" * 64, "check" => "refused"} },
-      "release 3.8 has no SHA-256" => ->(copy) { copy["supported"].last["sha256"] = "3.8" },
+      "a refused release is not older than the oldest supported one" => ->(copy) { copy["unsupported"] << {"tmux" => "3.9", "check" => "refused"} },
       "refused release 3.3 has no known check" => ->(copy) { copy["unsupported"].last["check"] = "skip" },
       "development build next-3.9 has no full commit" => ->(copy) { copy["development"].first["commit"] = "main" },
       "the manifest lists a system other than linux" => ->(copy) { copy["systems"] << "macos" }
