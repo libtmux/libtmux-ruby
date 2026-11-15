@@ -249,9 +249,10 @@ jobs:
         run: bundle install
 
       - name: Install tmux for native MCP discovery
-        run: |
-          "$GITHUB_WORKSPACE/docs-generator/scripts/apt-get.sh" update -qq
-          "$GITHUB_WORKSPACE/docs-generator/scripts/apt-get.sh" install --no-install-recommends -y -qq tmux
+        uses: libtmux/.github/actions/apt-get@30f81842b1e639ea4e25f93f1f2543504178e228
+        with:
+          update: 'true'
+          args: install --no-install-recommends --yes tmux
 
       - name: Export the selected Ruby source
         working-directory: port
