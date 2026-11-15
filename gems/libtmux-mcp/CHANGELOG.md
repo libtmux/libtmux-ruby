@@ -11,6 +11,13 @@ in the [main changelog](../../CHANGELOG.md).
 
 ## 0.1.3 (unreleased)
 
+- `libtmux-mcp --start-session NAME` starts a tmux server on the chosen socket
+  when none answers there, with an empty configuration and a session named
+  `NAME`, and stops it at exit. `--keep` leaves it running. A server that
+  answers is borrowed as before, and without the option the server still never
+  starts one, so the quick start no longer needs a `tmux new-session` command.
+  (#113)
+
 ## 0.1.2 (2026-11-04)
 
 No entries for `libtmux-mcp`.
