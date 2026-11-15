@@ -50,6 +50,21 @@ gems. Gem specifications declare each artifact's runtime requirements.
 Declared Ruby and dependency ranges remain candidates until their matrix
 cells pass; a successful bundle install establishes dependency resolution.
 
+Remove ignored build output, such as `vendor/bundle` and `pkg`, with the
+[justfile](../justfile) recipes. Preview what `just clean` deletes:
+
+```console
+$ just clean-dry
+```
+
+Delete ignored files while keeping `.env` and `.env.*`:
+
+```console
+$ just clean
+```
+
+`just nuke` also deletes untracked files, after a confirmation.
+
 ## Checks
 
 Run a focused unit test through the timed inner loop:
