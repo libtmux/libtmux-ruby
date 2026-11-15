@@ -22,12 +22,12 @@ class ReleaseCI
   def check(commit)
     raise Error, "release requires a full commit SHA" unless /\A[0-9a-f]{40}\z/.match?(commit)
 
-    runs = @client.call("repos/#{REPOSITORY}/actions/workflows/compatibility.yml/runs?head_sha=#{commit}&event=push&branch=master&status=success&per_page=100")
+    runs = @client.call("repos/#{REPOSITORY}/actions/workflows/compatibility.yml/runs?head_sha=#{commit}&event=push&branch=master&status=success&per_page=#{PAGE}")
     runs.fetch("workflow_runs").each do |run|
       next unless run.values_at("head_sha", "head_branch", "event", "path", "status", "conclusion") ==
         [commit, "master", "push", WORKFLOW, "completed", "success"]
 
-      jobs = @client.call("repos/#{REPOSITORY}/actions/runs/#{run.fetch('id')}/jobs?filter=latest&per_page=100")
+      jobs = @client.call("repos/#{REPOSITORY}/actions/runs/#{run.fetch('id')}/jobs?filter=latest&per_page=#{PAGE}")
       next unless jobs.fetch("jobs").any? do |job|
         job["name"] == "All required cells" && job["conclusion"] == "success"
       end

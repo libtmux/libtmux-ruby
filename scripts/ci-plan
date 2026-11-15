@@ -1,11 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Plans the compatibility jobs from scripts/ci-matrix.json and the event.
-#
-# A push and a pull request used to run every supported tmux release on every
-# Ruby, although the oldest and newest release bracket the rest. This script
-# decides what a run covers, so the workflow lists no version.
+# Plans the compatibility jobs from scripts/ci-matrix.json and the event, so the
+# workflow lists no version. A push and a pull request run only the oldest and
+# newest supported release, which bracket the rest.
 #
 # Scopes:
 #   edges   the oldest and newest supported release on every Ruby. The default
