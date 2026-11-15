@@ -199,7 +199,7 @@ module LibTmux
   # `focus: true`. It answers the new {Pane}. A layout is a native name, an
   # unambiguous prefix of one, or a saved layout. JSON layouts raise
   # {UnsupportedFeatureError} on a tmux without them. Resizing takes `width:`
-  # or `height:`, and raises {ArgumentError} when given neither.
+  # or `height:`, and raises `ArgumentError` when given neither.
   #
   # - Split: {#split}
   # - Choose a layout: {#select_layout}
