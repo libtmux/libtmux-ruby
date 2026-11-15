@@ -129,6 +129,20 @@ Ruby, YAML and JSON blocks in a README are excerpts of programs under
 prints, and the packaging test runs it from the installed gems and compares
 that output.
 
+tmuxp's example workspace files in `test/fixtures/tmuxp` are test inputs. The
+unit test `test/unit/workspace_tmuxp_test.rb` loads each one through
+`LibTmux::Workspace.load`, and records the message of each file the loader
+refuses. For each file it accepts, it compares the loaded model with a
+structure in `test/fixtures/tmuxp/expected`, written by hand from what tmuxp
+documents for that example. No tmuxp or Python runs, and a structure is never
+generated from tmuxp's output. Where this loader means something else, the
+test lists the difference with its reason and fails when the loader stops
+differing. `test/integration/workspace_tmuxp_test.rb` builds each accepted file
+on a private tmux and compares the session, window and pane tree with the same
+structures. `test/fixtures/tmuxp/syntax-support.json` records, for each tmuxp
+key and form, whether the loader supports it, supports it with a difference, or
+refuses it with a message; the unit test checks every entry against the loader.
+
 An API example lists the tmux capabilities it needs in `api.capabilities`,
 using the ids in `capabilities.json`. The check reads the example's documented
 symbols: when one is a method the library refuses on every call below a
