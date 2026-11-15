@@ -50,7 +50,7 @@ class DocumentationSite
     manifest = ExampleManifest.new(@root)
     manifest.check
     FileUtils.mkdir_p(directory)
-    files = manifest.data.fetch("documents") + %w[AGENTS.md .github/CONTRIBUTING.md .github/WRITING.md]
+    files = manifest.data.fetch("documents") + %w[AGENTS.md .github/CONTRIBUTING.md .github/WRITING.md .github/SCRIPTS.md]
     files.each do |file|
       source = File.read(File.join(@root, file))
       body = YARD::Templates::Helpers::Markup::HybridMarkdown.new(source).to_html
