@@ -99,6 +99,62 @@ module LibTmux
     end
   end
 
+  # A session on one server, reached through a handle that wraps an {EntityRef}.
+  # A handle never caches state: each method runs one tmux command, and
+  # {Entity#snapshot} reads the session back as a record. Methods take `timeout:`
+  # and `cancel:`, and raise {CommandError} when tmux rejects the command. A
+  # listing that fails raises, so an empty array means tmux answered with nothing
+  # to list.
+  #
+  # # What is on here
+  #
+  # The methods fall into the groups below.
+  #
+  # **Finding the session.** The server wraps a ref in a handle without running
+  # a command, and a ref from another server raises {TargetNotFoundError}. A
+  # handle reads back as a snapshot record through its ref.
+  #
+  # - Handles: {Server#session}, {Server#list_sessions}
+  # - Read back as a record: {Entity#snapshot}
+  #
+  # **Looking inside a session.** Listing answers a frozen array of handles. The
+  # pane listing covers every window of the session, and the link listing
+  # answers each {WindowLink}, the session's own index for a window.
+  #
+  # - Windows: {#list_windows}
+  # - Panes: {#list_panes}
+  # - Window links: {#list_window_links}
+  #
+  # **Creating a window.** A new window starts detached unless `focus: true`, and
+  # runs `command:`, an argv array rather than a shell string. It answers the
+  # {Window}, or with `receipt: true` a {CreationReceipt}. `index:` places it at
+  # that index.
+  #
+  # - Create a window: {#new_window}
+  #
+  # **Changing things.** Rename takes a nonempty name without NUL, and tmux 3.7
+  # refuses `:` and `.` in it. Linking puts an existing window into this session
+  # at an index. Kill stops the session; with both `expected_windows:` and
+  # `expected_panes:` it refuses unless the session holds only those windows and
+  # panes, and raises {TargetNotFoundError} otherwise.
+  #
+  # - Rename: {#rename}
+  # - Link a window: {#link_window}
+  # - Kill: {#kill}
+  #
+  # **Options, hooks and environment.** Ask for {Options} or {Hooks} scoped to the
+  # session. Read, set, and unset one variable in the session's environment.
+  #
+  # - Options: {Entity#options}
+  # - Hooks: {Entity#hooks}
+  # - Read a variable: {#environment}
+  # - Set a variable: {#set_environment}
+  # - Unset a variable: {#unset_environment}
+  #
+  # **Expanding a format.** Display expands a tmux format against the session; the
+  # argument is a format, not literal text.
+  #
+  # - Expand a format: {Entity#display}
   class Session < Entity
     def new_window(name:, command:, index: nil, cwd: nil, environment: {}, focus: false, receipt: false, timeout: 5.0, cancel: nil)
       server.__send__(:create_window, ref, name: name, command: command, index: index,
@@ -114,6 +170,57 @@ module LibTmux
     end
   end
 
+  # A physical window on one server, reached through a handle that wraps an
+  # {EntityRef}. Its index and whether it is current belong to a {WindowLink},
+  # so one window can sit in several sessions. Methods take `timeout:` and
+  # `cancel:`, and raise {CommandError} when tmux rejects the command.
+  #
+  # # What is on here
+  #
+  # The methods fall into the groups below.
+  #
+  # **Finding the window.** The server wraps a ref in a handle without running a
+  # command, and a ref from another server raises {TargetNotFoundError}. A
+  # session lists its windows, and a link answers the window it points at.
+  #
+  # - Handles: {Server#window}, {Server#list_windows}
+  # - From a session: {Session#list_windows}
+  # - From a link: {WindowLink#window}
+  # - Read back as a record: {Entity#snapshot}
+  #
+  # **Looking inside a window.** Listing answers a frozen array of {Pane}
+  # handles.
+  #
+  # - Panes: {#list_panes}
+  #
+  # **Splitting and arranging.** Splitting needs `direction:`, `:horizontal` or
+  # `:vertical`, and `command:`, an argv array. `size:` is a count of cells or a
+  # percentage string such as `"30%"`, and the new pane is detached unless
+  # `focus: true`. It answers the new {Pane}. A layout is a native name, an
+  # unambiguous prefix of one, or a saved layout. JSON layouts raise
+  # {UnsupportedFeatureError} on a tmux without them. Resizing takes `width:`
+  # or `height:`, and raises `ArgumentError` when given neither.
+  #
+  # - Split: {#split}
+  # - Choose a layout: {#select_layout}
+  # - Resize: {#resize}
+  #
+  # **Changing things.** Rename takes a nonempty name without NUL, and tmux 3.7
+  # refuses `:` and `.` in it. Respawn runs `command:` again in the window, and
+  # with `kill: true` replaces a running command. Kill removes the window from
+  # the server.
+  #
+  # - Rename: {#rename}
+  # - Respawn: {#respawn}
+  # - Kill: {Entity#kill}
+  #
+  # **Options, hooks and formats.** Ask for {Options} or {Hooks} scoped to the
+  # window. Display expands a tmux format against the window; the argument is a
+  # format, not literal text.
+  #
+  # - Options: {Entity#options}
+  # - Hooks: {Entity#hooks}
+  # - Expand a format: {Entity#display}
   class Window < Entity
     LAYOUTS = %w[even-horizontal even-vertical main-horizontal main-vertical tiled].freeze
     MIRRORED_LAYOUTS = %w[main-horizontal-mirrored main-vertical-mirrored].freeze
@@ -169,6 +276,71 @@ module LibTmux
     end
   end
 
+  # A physical pane on one server, reached through a handle that wraps an
+  # {EntityRef}. Methods take `timeout:` and `cancel:`, and raise
+  # {CommandError} when tmux rejects the command.
+  #
+  # # What is on here
+  #
+  # The methods fall into the groups below.
+  #
+  # **Finding the pane.** The server wraps a ref in a handle without running a
+  # command, and a ref from another server raises {TargetNotFoundError}. A
+  # session or a window lists its panes.
+  #
+  # - Handles: {Server#pane}, {Server#list_panes}
+  # - From a session or window: {Session#list_panes}, {Window#list_panes}
+  # - Read back as a record: {Entity#snapshot}
+  #
+  # **Sending input.** Text goes to the pane literally, so key names in it are
+  # typed as characters. Keys are tmux key names such as `Enter` and `C-c`, and at
+  # least one is required. Whether a program consumed the input is not known
+  # when the command returns.
+  #
+  # - Literal text: {#send_text}
+  # - Named keys: {#send_keys}
+  #
+  # **Reading output.** Capture answers the {CommandResult}, whose stdout holds
+  # the screen. `start:` and `finish:` are integers or `"-"` for the edge of the
+  # history. The alternate screen, the mode screen and the pending input are
+  # mutually exclusive. Trimming trailing spaces and capturing the mode screen
+  # raise {UnsupportedFeatureError} on a tmux that does not advertise the flag.
+  #
+  # - Capture: {#capture}
+  #
+  # **Splitting and arranging.** Splitting needs `direction:`, `:horizontal` or
+  # `:vertical`, and `command:`, an argv array. It answers the new {Pane}, which
+  # stays detached unless `focus: true`. Breaking out moves the pane into a new
+  # window in the session you name and answers that {Window}.
+  #
+  # - Split: {#split}
+  # - Resize: {#resize}
+  # - Focus: {#select}
+  # - Swap places: {#swap}
+  # - Join or move: {#join}, {#move}
+  # - Break out: {#break_out}
+  #
+  # **Copy mode, buffers and pipes.** Enter copy mode and send it a command, paste
+  # a named buffer, or pipe the pane's output to a shell command. The shell
+  # command and its format expansion are explicitly requested.
+  #
+  # - Copy mode: {#copy_mode}, {#copy_command}
+  # - Paste a buffer: {#paste}
+  # - Pipe output: {#pipe}
+  #
+  # **Changing things.** Respawn runs `command:` again in the pane, and with
+  # `kill: true` replaces a running command. Kill removes the pane.
+  #
+  # - Respawn: {#respawn}
+  # - Kill: {Entity#kill}
+  #
+  # **Options, hooks and formats.** Ask for {Options} or {Hooks} scoped to the
+  # pane. Display expands a tmux format against the pane; the argument is a
+  # format, not literal text.
+  #
+  # - Options: {Entity#options}
+  # - Hooks: {Entity#hooks}
+  # - Expand a format: {Entity#display}
   class Pane < Entity
     def split(direction:, command:, size: nil, cwd: nil, environment: {}, focus: false, timeout: 5.0, cancel: nil)
       server.__send__(:split_window, ref, direction: direction, command: command, size: size,
