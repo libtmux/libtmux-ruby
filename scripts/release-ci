@@ -9,9 +9,14 @@ class ReleaseCI
 
   REPOSITORY = "libtmux/libtmux-ruby"
   WORKFLOW = ".github/workflows/compatibility.yml"
+  ARTIFACT = "rubygems-release"
+  PUBLISH_JOB = "Publish gems"
+  PUBLISH_STEP = "Publish core, Async, MCP and workspace"
+  PAGE = 100
 
-  def initialize(client: method(:github))
+  def initialize(client: method(:github), downloader: method(:download))
     @client = client
+    @downloader = downloader
   end
 
   def check(commit)
@@ -32,7 +37,62 @@ class ReleaseCI
     raise Error, "no successful master compatibility run for #{commit}; rerun Release after all required cells pass"
   end
 
+  # A retry of a release run finds the artifact set the first attempt
+  # retained and downloads it into the directory, so the retry validates and
+  # publishes the same bytes. Answers true when it restored them and false when
+  # the run has none and no publication can have started. Raises when a
+  # retry finds the set missing after the publish step ran, because rebuilding
+  # then could upload different bytes under a published version.
+  def restore(repository:, run_id:, attempt:, directory:)
+    artifacts = @client.call("repos/#{repository}/actions/runs/#{run_id}/artifacts?per_page=#{PAGE}").fetch("artifacts")
+    if artifacts.any? { |artifact| artifact["name"] == ARTIFACT }
+      @downloader.call(run_id, ARTIFACT, directory)
+      return true
+    end
+    if attempt > 1 && publication_attempted?(repository, run_id)
+      raise Error, "Release artifacts are missing after publication was attempted; recover the original files."
+    end
+
+    false
+  end
+
+  def self.run(arguments, environment = ENV, ci: new)
+    case arguments
+    in ["check", String => commit]
+      puts "Compatibility run #{ci.check(commit)} passed for #{commit}"
+    in ["restore", String => directory]
+      restored = ci.restore(repository: environment.fetch("GITHUB_REPOSITORY"), run_id: environment.fetch("GITHUB_RUN_ID"),
+        attempt: Integer(environment.fetch("GITHUB_RUN_ATTEMPT")), directory: directory)
+      File.open(environment.fetch("GITHUB_OUTPUT"), "a") { |file| file.puts("retained=#{restored}") }
+      puts restored ? "Restored #{ARTIFACT} into #{directory}" : "No retained #{ARTIFACT}; this run builds it"
+    else
+      warn "usage: scripts/release-ci check COMMIT | scripts/release-ci restore DIRECTORY"
+      return 2
+    end
+    0
+  rescue Error, KeyError, ArgumentError => error
+    warn error.message
+    1
+  end
+
   private
+
+  def publication_attempted?(repository, run_id)
+    jobs(repository, run_id).any? do |job|
+      job["name"] == PUBLISH_JOB && Array(job["steps"]).any? do |step|
+        step["name"] == PUBLISH_STEP && step["conclusion"] != "skipped"
+      end
+    end
+  end
+
+  def jobs(repository, run_id)
+    found = []
+    (1..).each do |page|
+      batch = @client.call("repos/#{repository}/actions/runs/#{run_id}/jobs?filter=all&per_page=#{PAGE}&page=#{page}").fetch("jobs")
+      found.concat(batch)
+      return found if batch.length < PAGE
+    end
+  end
 
   def github(path)
     output, status = Open3.capture2e("gh", "api", path)
@@ -40,13 +100,11 @@ class ReleaseCI
 
     JSON.parse(output)
   end
-end
 
-if $PROGRAM_NAME == __FILE__
-  abort "usage: scripts/release-ci COMMIT" unless ARGV.length == 1
-  begin
-    puts "Compatibility run #{ReleaseCI.new.check(ARGV.first)} passed for #{ARGV.first}"
-  rescue ReleaseCI::Error => error
-    abort error.message
+  def download(run_id, name, directory)
+    output, status = Open3.capture2e("gh", "run", "download", run_id.to_s, "--name", name, "--dir", directory)
+    raise Error, "downloading #{name} from run #{run_id} failed: #{output}" unless status.success?
   end
 end
+
+exit ReleaseCI.run(ARGV) if $PROGRAM_NAME == __FILE__

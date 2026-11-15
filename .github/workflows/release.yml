@@ -45,28 +45,12 @@ jobs:
       - name: Require compatibility for the exact commit
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bundle exec scripts/release-ci "$RELEASE_COMMIT"
+        run: bundle exec scripts/release-ci check "$RELEASE_COMMIT"
       - name: Restore artifacts on a workflow retry
         id: restore
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          artifact_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" \
-            --jq '.artifacts[] | select(.name == "rubygems-release") | .id')
-          if [ -n "$artifact_id" ]; then
-            gh run download "$GITHUB_RUN_ID" --name rubygems-release --dir pkg/release
-            echo 'retained=true' >> "$GITHUB_OUTPUT"
-          elif [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
-            previous_upload=$(gh api --paginate \
-              "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=all&per_page=100" \
-              --jq '.jobs[] | select(.name == "Publish gems") | .steps[]? | select(.name == "Publish core, Async, MCP and workspace" and .conclusion != "skipped") | .number')
-            if [ -n "$previous_upload" ]; then
-              echo 'Release artifacts are missing after publication was attempted; recover the original files.' >&2
-              exit 1
-            fi
-          fi
+        run: bundle exec scripts/release-ci restore pkg/release
       - name: Install consumer test prerequisites
         uses: libtmux/.github/actions/apt-get@30f81842b1e639ea4e25f93f1f2543504178e228
         with:
