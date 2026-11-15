@@ -578,7 +578,7 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
 | [#break_out](../../gems/libtmux/lib/libtmux/operations.rb#L351) | `::LibTmux::Window` | [Entity mutation](behavior.md#entity-mutation) |
-| [#capture](../../gems/libtmux/lib/libtmux/entity.rb#L178) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
+| [#capture](../../gems/libtmux/lib/libtmux/entity.rb#L350) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
 | [#copy_command](../../gems/libtmux/lib/libtmux/operations.rb#L419) | `::LibTmux::CommandResult` | [Copy mode](behavior.md#copy-mode) |
 | [#copy_mode](../../gems/libtmux/lib/libtmux/operations.rb#L403) | `::LibTmux::CommandResult` | [Copy mode](behavior.md#copy-mode) |
 | [#display](../../gems/libtmux/lib/libtmux/operations.rb#L247) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
@@ -597,11 +597,11 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#resize](../../gems/libtmux/lib/libtmux/operations.rb#L318) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#respawn](../../gems/libtmux/lib/libtmux/operations.rb#L374) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#select](../../gems/libtmux/lib/libtmux/operations.rb#L314) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
-| [#send_keys](../../gems/libtmux/lib/libtmux/entity.rb#L208) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
-| [#send_text](../../gems/libtmux/lib/libtmux/entity.rb#L202) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
+| [#send_keys](../../gems/libtmux/lib/libtmux/entity.rb#L380) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
+| [#send_text](../../gems/libtmux/lib/libtmux/entity.rb#L374) | `::LibTmux::CommandResult` | [Pane input and capture](behavior.md#pane-input-and-capture) |
 | [#server](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::Server` | [Live handles](behavior.md#live-handles) |
 | [#snapshot](../../gems/libtmux/lib/libtmux/entity.rb#L74) | `::LibTmux::PaneSnapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
-| [#split](../../gems/libtmux/lib/libtmux/entity.rb#L173) | `::LibTmux::Pane` | [Creation](behavior.md#creation) |
+| [#split](../../gems/libtmux/lib/libtmux/entity.rb#L345) | `::LibTmux::Pane` | [Creation](behavior.md#creation) |
 | [#swap](../../gems/libtmux/lib/libtmux/operations.rb#L336) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 
 ## LibTmux::PaneSnapshot
@@ -728,10 +728,10 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#inspect](../../gems/libtmux/lib/libtmux/entity.rb#L91) | `::String` | [Live handles](behavior.md#live-handles) |
 | [#kill](../../gems/libtmux/lib/libtmux/operations.rb#L254) | `::LibTmux::CommandResult` | [Entity removal](behavior.md#entity-removal) |
 | [#link_window](../../gems/libtmux/lib/libtmux/operations.rb#L268) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#list_panes](../../gems/libtmux/lib/libtmux/entity.rb#L112) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_panes](../../gems/libtmux/lib/libtmux/entity.rb#L168) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#list_window_links](../../gems/libtmux/lib/libtmux/operations.rb#L264) | `::Array[::LibTmux::WindowLink]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#list_windows](../../gems/libtmux/lib/libtmux/entity.rb#L108) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
-| [#new_window](../../gems/libtmux/lib/libtmux/entity.rb#L103) | `::LibTmux::CreationReceipt` / `::LibTmux::Window` | [Creation](behavior.md#creation) |
+| [#list_windows](../../gems/libtmux/lib/libtmux/entity.rb#L164) | `::Array[::LibTmux::Window]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#new_window](../../gems/libtmux/lib/libtmux/entity.rb#L159) | `::LibTmux::CreationReceipt` / `::LibTmux::Window` | [Creation](behavior.md#creation) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L239) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#ref](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::EntityRef` | [Live handles](behavior.md#live-handles) |
 | [#rename](../../gems/libtmux/lib/libtmux/operations.rb#L260) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
@@ -876,40 +876,40 @@ type checking. See [signature proof](behavior.md#signature-proof).
 | [#id](../../gems/libtmux/lib/libtmux/entity.rb#L70) | `::String` | [Live handles](behavior.md#live-handles) |
 | [#inspect](../../gems/libtmux/lib/libtmux/entity.rb#L91) | `::String` | [Live handles](behavior.md#live-handles) |
 | [#kill](../../gems/libtmux/lib/libtmux/entity.rb#L87) | `::LibTmux::CommandResult` | [Entity removal](behavior.md#entity-removal) |
-| [#list_panes](../../gems/libtmux/lib/libtmux/entity.rb#L122) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
+| [#list_panes](../../gems/libtmux/lib/libtmux/entity.rb#L229) | `::Array[::LibTmux::Pane]` | [Live acquisition](behavior.md#live-acquisition) |
 | [#options](../../gems/libtmux/lib/libtmux/operations.rb#L239) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#ref](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::EntityRef` | [Live handles](behavior.md#live-handles) |
 | [#rename](../../gems/libtmux/lib/libtmux/operations.rb#L289) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#resize](../../gems/libtmux/lib/libtmux/operations.rb#L300) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#respawn](../../gems/libtmux/lib/libtmux/operations.rb#L293) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
-| [#select_layout](../../gems/libtmux/lib/libtmux/entity.rb#L131) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
+| [#select_layout](../../gems/libtmux/lib/libtmux/entity.rb#L238) | `::LibTmux::CommandResult` | [Entity mutation](behavior.md#entity-mutation) |
 | [#server](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::Server` | [Live handles](behavior.md#live-handles) |
 | [#snapshot](../../gems/libtmux/lib/libtmux/entity.rb#L74) | `::LibTmux::WindowSnapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
-| [#split](../../gems/libtmux/lib/libtmux/entity.rb#L126) | `::LibTmux::Pane` | [Creation](behavior.md#creation) |
+| [#split](../../gems/libtmux/lib/libtmux/entity.rb#L233) | `::LibTmux::Pane` | [Creation](behavior.md#creation) |
 
 ## LibTmux::WindowLink
 
 | Method | Declared return | Contract |
 | --- | --- | --- |
 | [#==](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
-| [#display](../../gems/libtmux/lib/libtmux/entity.rb#L253) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
+| [#display](../../gems/libtmux/lib/libtmux/entity.rb#L425) | `::LibTmux::CommandResult` | [Formats](behavior.md#formats) |
 | [#eql?](../../gems/libtmux/lib/libtmux/entity.rb#L78) | `bool` | [Live handles](behavior.md#live-handles) |
 | [#hash](../../gems/libtmux/lib/libtmux/entity.rb#L83) | `::Integer` | [Live handles](behavior.md#live-handles) |
-| [#hooks](../../gems/libtmux/lib/libtmux/entity.rb#L261) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
+| [#hooks](../../gems/libtmux/lib/libtmux/entity.rb#L433) | `::LibTmux::Hooks` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#id](../../gems/libtmux/lib/libtmux/entity.rb#L70) | `::String` | [Live handles](behavior.md#live-handles) |
-| [#index](../../gems/libtmux/lib/libtmux/entity.rb#L216) | `::Integer` | [Live handles](behavior.md#live-handles) |
+| [#index](../../gems/libtmux/lib/libtmux/entity.rb#L388) | `::Integer` | [Live handles](behavior.md#live-handles) |
 | [#inspect](../../gems/libtmux/lib/libtmux/entity.rb#L91) | `::String` | [Live handles](behavior.md#live-handles) |
-| [#kill](../../gems/libtmux/lib/libtmux/entity.rb#L236) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#move](../../gems/libtmux/lib/libtmux/entity.rb#L240) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#options](../../gems/libtmux/lib/libtmux/entity.rb#L257) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
+| [#kill](../../gems/libtmux/lib/libtmux/entity.rb#L408) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#move](../../gems/libtmux/lib/libtmux/entity.rb#L412) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#options](../../gems/libtmux/lib/libtmux/entity.rb#L429) | `::LibTmux::Options` | [Options and hooks](behavior.md#options-and-hooks) |
 | [#ref](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::EntityRef` | [Live handles](behavior.md#live-handles) |
-| [#select](../../gems/libtmux/lib/libtmux/entity.rb#L228) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#select](../../gems/libtmux/lib/libtmux/entity.rb#L400) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
 | [#server](../../gems/libtmux/lib/libtmux/entity.rb#L61) | `::LibTmux::Server` | [Live handles](behavior.md#live-handles) |
-| [#session](../../gems/libtmux/lib/libtmux/entity.rb#L224) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
+| [#session](../../gems/libtmux/lib/libtmux/entity.rb#L396) | `::LibTmux::Session` | [Live handles](behavior.md#live-handles) |
 | [#snapshot](../../gems/libtmux/lib/libtmux/entity.rb#L74) | `::LibTmux::WindowLinkSnapshot` | [Snapshot acquisition](behavior.md#snapshot-acquisition) |
-| [#swap](../../gems/libtmux/lib/libtmux/entity.rb#L247) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#unlink](../../gems/libtmux/lib/libtmux/entity.rb#L232) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
-| [#window](../../gems/libtmux/lib/libtmux/entity.rb#L220) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
+| [#swap](../../gems/libtmux/lib/libtmux/entity.rb#L419) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#unlink](../../gems/libtmux/lib/libtmux/entity.rb#L404) | `::LibTmux::CommandResult` | [Window links](behavior.md#window-links) |
+| [#window](../../gems/libtmux/lib/libtmux/entity.rb#L392) | `::LibTmux::Window` | [Live handles](behavior.md#live-handles) |
 
 ## LibTmux::WindowLinkSnapshot
 
