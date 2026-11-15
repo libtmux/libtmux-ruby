@@ -127,6 +127,47 @@ class CompatibilityWorkflowTest < Minitest::Test
     found
   end
 
+  BUILD_ACTION = "libtmux/.github/actions/build-tmux"
+  BUILDING_JOBS = %w[cell unsupported development].freeze
+
+  # The shared action downloads, checks, builds and caches every tmux. A run
+  # script that configures or makes tmux, or a use of the action that is not
+  # pinned to a full commit, brings back a second recipe.
+  def self.build_problems(workflow)
+    found = []
+    jobs = workflow.fetch("jobs")
+    jobs.each do |name, job|
+      steps_of(job).each do |step|
+        found << "#{name}: builds tmux in a run script; use #{BUILD_ACTION}" if step["run"].to_s.match?(%r{\./configure|\bmake\b|autogen\.sh})
+        uses = step["uses"].to_s
+        found << "#{name}: #{BUILD_ACTION} must be pinned to a full commit SHA" if uses.start_with?("#{BUILD_ACTION}@") && !uses.match?(/@[0-9a-f]{40}\z/)
+      end
+    end
+    BUILDING_JOBS.each do |name|
+      found << "#{name}: must build tmux with #{BUILD_ACTION}" unless steps_of(jobs.fetch(name)).any? { |step| step["uses"].to_s.start_with?("#{BUILD_ACTION}@") }
+    end
+    found
+  end
+
+  BUILD_MUTATIONS = {
+    "a job builds tmux by hand again" => [->(w, _r) { w["jobs"]["cell"]["steps"] << {"run" => "./configure --prefix=/tmp/tmux && make install"} }, "cell: builds tmux in a run script"],
+    "a job runs autogen itself" => [->(w, _r) { w["jobs"]["development"]["steps"] << {"run" => "sh autogen.sh"} }, "development: builds tmux in a run script"],
+    "a job stops using the action" => [->(w, _r) { w["jobs"]["unsupported"]["steps"].reject! { |s| s["uses"].to_s.start_with?(BUILD_ACTION) } }, "unsupported: must build tmux with"],
+    "the action is pinned to a branch" => [->(w, _r) { w["jobs"]["cell"]["steps"].each { |s| s["uses"] = "#{BUILD_ACTION}@main" if s["uses"].to_s.start_with?(BUILD_ACTION) } }, "must be pinned to a full commit SHA"]
+  }.freeze
+
+  def test_every_tmux_build_comes_from_the_shared_action
+    assert_equal [], self.class.build_problems(WORKFLOW)
+  end
+
+  def test_a_build_mutation_is_reported
+    BUILD_MUTATIONS.each do |description, (mutation, message)|
+      workflow, = mutate(&mutation)
+      problems = self.class.build_problems(workflow)
+      assert problems.any? { |problem| problem.include?(message) }, "#{description}: #{message} not in #{problems.inspect}"
+    end
+  end
+
   TMATE = "mxschmitt/action-tmate"
   TEST_JOBS = %w[cell unsupported development].freeze
 

@@ -143,7 +143,6 @@ jobs:
       BUNDLE_FROZEN: 'true'
       LIBTMUX_VERSION_CHECK_EXPECT: supported
       TMUX_VERSION: ${{ matrix.tmux }}
-      TMUX_SHA256: ${{ matrix.sha256 }}
       RUBY_VERSION: ${{ matrix.ruby }}
       MATRIX_SYSTEM: ${{ matrix.system }}
       TMPDIR: /tmp
@@ -155,28 +154,17 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
+      - name: Install zsh
         uses: libtmux/.github/actions/apt-get@30f81842b1e639ea4e25f93f1f2543504178e228
         with:
           update: 'true'
-          args: install --yes libevent-dev libncurses-dev bison pkg-config zsh
+          args: install --yes zsh
       - name: Build the exact tmux release
-        shell: bash
-        run: |
-          set -euo pipefail
-          archive="$RUNNER_TEMP/tmux-$TMUX_VERSION.tar.gz"
-          curl --location --fail --silent --show-error \
-            "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
-            --output "$archive"
-          echo "$TMUX_SHA256  $archive" | sha256sum --check --strict
-          tar -xzf "$archive" -C "$RUNNER_TEMP"
-          configure_options=(--disable-utf8proc)
-          cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
-          ./configure --prefix="$RUNNER_TEMP/tmux-install" "${configure_options[@]}"
-          make -j2
-          make install
-          test "$("$RUNNER_TEMP/tmux-install/bin/tmux" -V)" = "tmux $TMUX_VERSION"
+        id: tmux
+        uses: libtmux/.github/actions/build-tmux@30f81842b1e639ea4e25f93f1f2543504178e228
+        with:
+          ref: ${{ matrix.tmux }}
+          configure-args: --disable-utf8proc
       - name: Open a tmate session before the tests
         if: ${{ github.event_name == 'workflow_dispatch' && matrix.tmate == 'before-tests' }}
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
@@ -185,11 +173,13 @@ jobs:
           limit-access-to-actor: true
       - name: Run the complete cell
         timeout-minutes: 5
+        env:
+          TMUX_BINARY: ${{ steps.tmux.outputs.binary }}
         run: >-
           bundle exec scripts/matrix
           --cell "$MATRIX_SYSTEM/$RUBY_VERSION/$TMUX_VERSION"
           --ruby "$RUBY_VERSION=$(ruby -e 'print Gem.ruby')"
-          --tmux "$TMUX_VERSION=$RUNNER_TEMP/tmux-install/bin/tmux"
+          --tmux "$TMUX_VERSION=$TMUX_BINARY"
           --output build/matrix
       - name: Retain the cell report and failure output
         if: always()
@@ -217,7 +207,6 @@ jobs:
     env:
       BUNDLE_FROZEN: 'true'
       TMUX_VERSION: ${{ matrix.tmux }}
-      TMUX_SHA256: ${{ matrix.sha256 }}
       VERSION_CHECK: ${{ matrix.check }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -227,25 +216,16 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Install native build dependencies and supported client
+      - name: Install the supported client
         uses: libtmux/.github/actions/apt-get@30f81842b1e639ea4e25f93f1f2543504178e228
         with:
           update: 'true'
-          args: install --yes tmux libevent-dev libncurses-dev bison pkg-config
+          args: install --yes tmux
       - name: Build the unsupported daemon
-        shell: bash
-        run: |
-          set -euo pipefail
-          archive="$RUNNER_TEMP/tmux-$TMUX_VERSION.tar.gz"
-          curl --location --fail --silent --show-error \
-            "https://github.com/tmux/tmux/releases/download/$TMUX_VERSION/tmux-$TMUX_VERSION.tar.gz" \
-            --output "$archive"
-          echo "$TMUX_SHA256  $archive" | sha256sum --check --strict
-          tar -xzf "$archive" -C "$RUNNER_TEMP"
-          cd "$RUNNER_TEMP/tmux-$TMUX_VERSION"
-          ./configure --prefix="$RUNNER_TEMP/unsupported-tmux"
-          make -j2
-          make install
+        id: daemon
+        uses: libtmux/.github/actions/build-tmux@30f81842b1e639ea4e25f93f1f2543504178e228
+        with:
+          ref: ${{ matrix.tmux }}
       - name: Open a tmate session before the tests
         if: ${{ github.event_name == 'workflow_dispatch' && matrix.tmate == 'before-tests' }}
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
@@ -255,7 +235,7 @@ jobs:
       - name: Exercise native refusal through a supported client
         env:
           LIBTMUX_VERSION_CHECK_CLIENT_TMUX: /usr/bin/tmux
-          LIBTMUX_TEST_TMUX: ${{ runner.temp }}/unsupported-tmux/bin/tmux
+          LIBTMUX_TEST_TMUX: ${{ steps.daemon.outputs.binary }}
         run: |
           set -euo pipefail
           case "$VERSION_CHECK" in
@@ -290,8 +270,6 @@ jobs:
     env:
       BUNDLE_FROZEN: 'true'
       LIBTMUX_VERSION_CHECK_EXPECT: supported
-      TMUX_REF: ${{ matrix.ref }}
-      EXPECT_VERSION: ${{ matrix.expect }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -300,22 +278,25 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Install native build dependencies
+      - name: Install zsh
         uses: libtmux/.github/actions/apt-get@30f81842b1e639ea4e25f93f1f2543504178e228
         with:
           update: 'true'
-          args: install --yes libevent-dev libncurses-dev bison pkg-config autoconf automake zsh
+          args: install --yes zsh
       - name: Build tmux at the commit the ref names
-        shell: bash
+        id: tmux
+        uses: libtmux/.github/actions/build-tmux@30f81842b1e639ea4e25f93f1f2543504178e228
+        with:
+          ref: ${{ matrix.ref }}
+          configure-args: --disable-utf8proc
+          add-to-path: 'true'
+      - name: Check the build's version
+        if: matrix.expect != ''
+        env:
+          BUILT: ${{ steps.tmux.outputs.version }}
+          EXPECT: ${{ matrix.expect }}
         run: |
-          set -euo pipefail
-          scripts/build-tmux "$TMUX_REF" | tee "$RUNNER_TEMP/tmux-build.txt"
-          binary="$(sed -n 's/^binary=//p' "$RUNNER_TEMP/tmux-build.txt")"
-          if [ -n "$EXPECT_VERSION" ]; then
-            "$binary" -V | grep -E "$EXPECT_VERSION"
-          fi
-          dirname "$binary" >> "$GITHUB_PATH"
-          echo "LIBTMUX_TEST_TMUX=$binary" >> "$GITHUB_ENV"
+          ruby -e 'abort("tmux #{ENV["BUILT"]} does not match #{ENV["EXPECT"]}") unless ENV["BUILT"].match?(ENV["EXPECT"])'
       - name: Open a tmate session before the tests
         if: ${{ github.event_name == 'workflow_dispatch' && matrix.tmate == 'before-tests' }}
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
@@ -324,6 +305,8 @@ jobs:
           limit-access-to-actor: true
       - name: Run the outer suite against the build
         timeout-minutes: 10
+        env:
+          LIBTMUX_TEST_TMUX: ${{ steps.tmux.outputs.binary }}
         run: bundle exec scripts/check outer
       - name: Open a tmate session after a failure
         if: ${{ failure() && github.event_name == 'workflow_dispatch' && matrix.tmate == 'on-failure' }}

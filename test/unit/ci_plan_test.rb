@@ -140,7 +140,7 @@ class CIPlanTest < Minitest::Test
     assert_equal CIManifest.sha256(MANIFEST, OLDEST), result.fetch("cells").first.fetch("sha256")
     assert_equal [[refused_release["tmux"], refused_release["check"], refused_release["sha256"]]],
       result.fetch("unsupported").map { |leg| leg.values_at("tmux", "check", "sha256") }
-    assert_equal [[DEVELOPMENT.first["tmux"], DEVELOPMENT.first["commit"], "^tmux next-"], ["master", "master", ""], [sha, sha, ""]],
+    assert_equal [[DEVELOPMENT.first["tmux"], DEVELOPMENT.first["commit"], "^next-"], ["master", "master", ""], [sha, sha, ""]],
       result.fetch("development").map { |leg| leg.values_at("tmux", "ref", "expect") }
   end
 

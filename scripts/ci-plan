@@ -123,7 +123,7 @@ module CIPlan
 
   def self.development_leg(manifest, entry, ruby)
     {"name" => "tmux development build (#{entry.fetch('tmux')})#{suffix(ruby, CIManifest.rubies(manifest).last)}",
-     "tmux" => entry.fetch("tmux"), "ref" => entry.fetch("commit"), "expect" => "^tmux next-", "ruby" => ruby, "tmate" => "off"}
+     "tmux" => entry.fetch("tmux"), "ref" => entry.fetch("commit"), "expect" => "^next-", "ruby" => ruby, "tmate" => "off"}
   end
 
   def self.source_leg(manifest, ref, ruby)

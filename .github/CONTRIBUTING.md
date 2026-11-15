@@ -263,9 +263,17 @@ $ gh workflow run compatibility.yml \
 
 A supported release runs as a matrix cell, on every Ruby unless `ruby` names
 some. A refused release runs its refusal job. Any other ref, and the
-development build, is built from source by `scripts/build-tmux` at the commit
-it names and runs the outer suite on the newest Ruby, or on the Rubies that
-`ruby` names. The `os` input picks the Ubuntu image.
+development build, is built from source at the commit it names and runs the
+outer suite on the newest Ruby, or on the Rubies that `ruby` names. The `os`
+input picks the Ubuntu image.
+
+Every tmux build, release or source, comes from the shared
+[build-tmux action](https://github.com/libtmux/.github/tree/30f81842b1e639ea4e25f93f1f2543504178e228/actions/build-tmux)
+in libtmux/.github, pinned to a full commit. It checks a release against its
+pinned SHA-256, caches the build and installs its own dependencies. Every
+`apt-get` call goes through the shared
+[apt-get action](https://github.com/libtmux/.github/tree/30f81842b1e639ea4e25f93f1f2543504178e228/actions/apt-get),
+which `test/unit/workflow_apt_test.rb` enforces.
 
 The `tmate` input opens a [tmate](https://github.com/mxschmitt/action-tmate)
 session on exactly one job, before the tests or after a failure. The session
