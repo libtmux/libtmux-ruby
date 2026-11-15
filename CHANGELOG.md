@@ -15,6 +15,13 @@ at one version, so a release has a section in each changelog.
 
 ## 0.1.3 (unreleased)
 
+- CI builds every tmux and runs every `apt-get` through the shared
+  `libtmux/.github` build-tmux and apt-get actions, so `scripts/build-tmux` and
+  `scripts/apt-get.sh` are gone, and `scripts/ci-matrix.json` no longer repeats
+  the release checksums. The release workflow's retry step is now
+  `scripts/release-ci restore`, with a test, and the commit check is
+  `scripts/release-ci check COMMIT`. The contributor guide names the `justfile`
+  clean recipes. (#115)
 - The tmuxp catalog tests compare each file the loader accepts with a
   structure written by hand from what tmuxp documents, and build it on a
   private tmux to compare the session, window and pane tree. The tests list
