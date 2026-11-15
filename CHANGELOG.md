@@ -15,6 +15,14 @@ at one version, so a release has a section in each changelog.
 
 ## 0.1.3 (unreleased)
 
+- The tmuxp catalog tests compare each file the loader accepts with a
+  structure written by hand from what tmuxp documents, and build it on a
+  private tmux to compare the session, window and pane tree. The tests list
+  where `LibTmux::Workspace` means something else: an undeclared
+  `start_directory` is the workspace file's directory, a leading `~` is not
+  expanded, and a relative directory resolves against that file's directory.
+  `test/fixtures/tmuxp/syntax-support.json` records each tmuxp key and form as
+  supported, supported with a difference, or refused with its message. (#103)
 - The unit tests load tmuxp's example catalog, with its license, through
   `LibTmux::Workspace.load`. The files the loader reads show on the docs site as
   workspace presets; each file it refuses fails with the message the test
