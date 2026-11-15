@@ -22,6 +22,8 @@ requested work.
   [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
 - Documentation, user-facing text, comments, and commit messages:
   [.github/WRITING.md](.github/WRITING.md).
+- Support scripts: what may stay, their language, layout and checks:
+  [.github/SCRIPTS.md](.github/SCRIPTS.md).
 
 Each guide is the single home for its subject. `CLAUDE.md` is a relative
 symlink to this file; keep the instructions here.
