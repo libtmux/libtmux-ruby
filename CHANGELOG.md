@@ -15,6 +15,17 @@ at one version, so a release has a section in each changelog.
 
 ## 0.1.3 (unreleased)
 
+- Each support script with tests lives in its own directory under `scripts/`,
+  with a README and its tests, so the commands that named a file there name the
+  file in the directory: `scripts/release/release-ci check COMMIT`,
+  `scripts/matrix/matrix`, `scripts/ci-plan/ci-plan`,
+  `scripts/examples/examples`, `scripts/docs/docs` and
+  `scripts/export-docs/export-docs`. `ci-matrix.json` moved to
+  `scripts/ci-plan`, and `release.rb`, `release_github.rb` and `version.rb`
+  moved to `scripts/release` and `scripts/version`. `scripts/version-check` runs
+  the refusal test that the `unsupported` job chose in shell, and
+  `rake release:dry_run` with no tag rehearses the checkout's version. Tests
+  that stood in for tmux with `#!/bin/sh` scripts now use Ruby programs.
 - CI builds every tmux and runs every `apt-get` through the shared
   `libtmux/.github` build-tmux and apt-get actions, so `scripts/build-tmux` and
   `scripts/apt-get.sh` are gone, and `scripts/ci-matrix.json` no longer repeats
