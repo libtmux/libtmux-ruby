@@ -63,6 +63,10 @@ $ claude mcp add tmux -- libtmux-mcp \
     --endpoint dev
 ```
 
+[`tmux_capabilities`][tool-tmux_capabilities] reports the connected daemon's
+version, feature requirements, support decisions and active workarounds.
+Its enabled tool list describes the operations this server permits.
+
 Run by hand, `libtmux-mcp` waits for input until EOF. `libtmux-mcp --help`
 lists every option.
 
