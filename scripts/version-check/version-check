@@ -1,0 +1,60 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Runs the test that shows the library refusing an unsupported tmux release.
+# scripts/ci-plan/ci-matrix.json gives each refused release a check, and the
+# compatibility workflow's unsupported job passes that check and the release.
+# LIBTMUX_TEST_TMUX and LIBTMUX_VERSION_CHECK_CLIENT_TMUX pass through to the
+# test.
+#
+# Usage:
+#   bundle exec scripts/version-check/version-check CHECK TMUX_VERSION
+
+require "timeout"
+
+module VersionCheck
+  class Error < StandardError; end
+
+  ROOT = File.expand_path("../..", __dir__)
+
+  # A tmux 3.0a or 3.1c daemon can hang a client, so its test has a deadline
+  # and expects the exact release. Any other refused release expects "refused".
+  TESTS = {
+    "old_daemon" => {file: "test/old_daemon/pre_3_2_refusal_test.rb", deadline: 120},
+    "refused" => {file: "test/integration/tmux_version_check_test.rb", deadline: nil}
+  }.freeze
+
+  def self.plan(check, version)
+    test = TESTS.fetch(check) { raise Error, "no version-check test is assigned to tmux #{version}" }
+    {env: {"LIBTMUX_VERSION_CHECK_EXPECT" => check == "old_daemon" ? version : "refused"},
+     argv: [Gem.ruby, "-Itest", test.fetch(:file)], deadline: test.fetch(:deadline)}
+  end
+
+  # Runs the planned command and returns its exit status, or 124 when it
+  # outlives its deadline, as timeout(1) does.
+  def self.execute(plan)
+    pid = Process.spawn(plan.fetch(:env), *plan.fetch(:argv), chdir: ROOT, pgroup: true)
+    begin
+      Timeout.timeout(plan.fetch(:deadline)) { Process.wait2(pid).last.exitstatus || 1 }
+    rescue Timeout::Error
+      Process.kill("TERM", -pid)
+      Process.wait(pid)
+      warn "#{plan.fetch(:argv).last} did not finish in #{plan.fetch(:deadline)} seconds"
+      124
+    end
+  end
+
+  def self.run(arguments)
+    check, version = arguments
+    unless arguments.length == 2
+      warn "usage: scripts/version-check/version-check CHECK TMUX_VERSION"
+      return 2
+    end
+    execute(plan(check, version))
+  rescue Error => error
+    warn error.message
+    1
+  end
+end
+
+exit VersionCheck.run(ARGV) if $PROGRAM_NAME == __FILE__

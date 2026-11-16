@@ -236,19 +236,7 @@ jobs:
         env:
           LIBTMUX_VERSION_CHECK_CLIENT_TMUX: /usr/bin/tmux
           LIBTMUX_TEST_TMUX: ${{ steps.daemon.outputs.binary }}
-        run: |
-          set -euo pipefail
-          case "$VERSION_CHECK" in
-            old_daemon)
-              export LIBTMUX_VERSION_CHECK_EXPECT="$TMUX_VERSION"
-              timeout 120 bundle exec ruby -Itest test/old_daemon/pre_3_2_refusal_test.rb ;;
-            refused)
-              export LIBTMUX_VERSION_CHECK_EXPECT=refused
-              bundle exec ruby -Itest test/integration/tmux_version_check_test.rb ;;
-            *)
-              echo "no version-check test is assigned to tmux $TMUX_VERSION" >&2
-              exit 1 ;;
-          esac
+        run: bundle exec scripts/version-check/version-check "$VERSION_CHECK" "$TMUX_VERSION"
       - name: Open a tmate session after a failure
         if: ${{ failure() && github.event_name == 'workflow_dispatch' && matrix.tmate == 'on-failure' }}
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24

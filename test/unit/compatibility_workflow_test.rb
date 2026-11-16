@@ -292,14 +292,12 @@ class CompatibilityWorkflowTest < Minitest::Test
     end
   end
 
-  def test_every_unsupported_check_has_a_version_check_arm_and_an_unknown_one_fails
+  def test_the_unsupported_job_selects_its_test_through_the_version_check_script
     job = WORKFLOW.fetch("jobs").fetch("unsupported")
-    script = job.fetch("steps").map { |step| step["run"] }.compact.find { |run| run.include?("case \"$VERSION_CHECK\"") }
-    refute_nil script, "the unsupported job must select its test by check"
-    arms = script.scan(/^\s*([\w.|*)]+)\)\s*$/).flatten.flat_map { |arm| arm.split("|") }
-    MANIFEST.fetch("unsupported").map { |entry| entry.fetch("check") }.uniq.each { |check| assert_includes arms, check }
-    assert_equal CIManifest::CHECKS.sort, MANIFEST.fetch("unsupported").map { |entry| entry.fetch("check") }.uniq.sort
-    assert_match(/^\s*\*\)\n\s*echo [^\n]*>&2\n\s*exit 1 ;;/, script)
+    runs = job.fetch("steps").map { |step| step["run"] }.compact
+    assert_includes runs, %(bundle exec scripts/version-check/version-check "$VERSION_CHECK" "$TMUX_VERSION")
+    assert_equal "${{ matrix.check }}", job.fetch("env").fetch("VERSION_CHECK")
+    assert_equal "${{ matrix.tmux }}", job.fetch("env").fetch("TMUX_VERSION")
   end
 
   def test_supported_cells_and_the_development_build_name_their_lane
