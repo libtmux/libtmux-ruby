@@ -11,6 +11,11 @@ in the [main changelog](../../CHANGELOG.md).
 
 ## 0.1.3 (unreleased)
 
+- `tmux_capabilities` reports the core feature and workaround decisions with
+  release requirements, refusal metadata and affected APIs. Discovery reads
+  the bound daemon identity without capturing every session, window and pane;
+  native support leaves the enabled-tool policy unchanged. (#56)
+
 - `libtmux-mcp --start-session NAME` starts a tmux server on the chosen socket
   when none answers there, with an empty configuration and a session named
   `NAME`, and stops it at exit. `--keep` leaves it running. A server that
