@@ -4,9 +4,9 @@ require "json"
 
 # The one list of what CI covers: the Rubies, the tmux releases the library
 # supports (oldest first), the releases it refuses and the development build.
-# The workflow, scripts/matrix and scripts/ci-plan read it; nothing else
-# writes a version down, and the tests tie the documents to it. The shared
-# build-tmux action pins each release's checksum.
+# The workflow, scripts/matrix/matrix and scripts/ci-plan/ci-plan read it;
+# nothing else writes a version down, and the tests tie the documents to it.
+# The shared build-tmux action pins each release's checksum.
 module CIManifest
   PATH = File.expand_path("ci-matrix.json", __dir__)
   CHECKS = %w[old_daemon refused].freeze

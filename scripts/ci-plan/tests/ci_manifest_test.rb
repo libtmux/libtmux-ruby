@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-require_relative "../test_helper"
+require_relative "../../../test/test_helper"
 
-require_relative "../../scripts/ci_manifest"
+require_relative "../ci_manifest"
 
 # The manifest is the one list of what CI covers. Each rule below has a case
 # that breaks it, so a guard that stops guarding fails here.
 class CIManifestTest < Minitest::Test
-  ROOT = File.expand_path("../..", __dir__)
+  ROOT = File.expand_path("../../..", __dir__)
 
   def manifest
     @manifest ||= CIManifest.load

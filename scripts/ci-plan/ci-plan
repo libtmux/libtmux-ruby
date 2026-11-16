@@ -1,9 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Plans the compatibility jobs from scripts/ci-matrix.json and the event, so the
-# workflow lists no version. A push and a pull request run only the oldest and
-# newest supported release, which bracket the rest.
+# Plans the compatibility jobs from scripts/ci-plan/ci-matrix.json and the
+# event, so the workflow lists no version. A push and a pull request run only
+# the oldest and newest supported release, which bracket the rest.
 #
 # Scopes:
 #   edges   the oldest and newest supported release on every Ruby. The default
@@ -13,9 +13,9 @@
 #   custom  only the tmux versions, tags, branches or commits a dispatch names.
 #
 # Usage:
-#   scripts/ci-plan plan --event EVENT [--scope S] [--tmux-ref REFS] [--ruby V]
+#   scripts/ci-plan/ci-plan plan --event EVENT [--scope S] [--tmux-ref REFS] [--ruby V]
 #                        [--os IMAGE] [--tmate MODE] [--github-output FILE]
-#   scripts/ci-plan verify          # reads the NEEDS environment variable
+#   scripts/ci-plan/ci-plan verify          # reads the NEEDS environment variable
 
 require "json"
 require "optparse"
@@ -267,7 +267,7 @@ module CIPlan
       File.open(options[:summary], "a") { |file| file.write(summary(result)) } if options[:summary]
       0
     else
-      warn "usage: scripts/ci-plan plan --event EVENT [options] | verify"
+      warn "usage: scripts/ci-plan/ci-plan plan --event EVENT [options] | verify"
       2
     end
   rescue Error, OptionParser::ParseError, JSON::ParserError => error

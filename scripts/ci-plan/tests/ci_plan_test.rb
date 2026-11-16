@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require_relative "../test_helper"
+require_relative "../../../test/test_helper"
 require "json"
 require "open3"
 require "tmpdir"
 
-load File.expand_path("../../scripts/ci-plan", __dir__) unless defined?(CIPlan)
+load File.expand_path("../ci-plan", __dir__) unless defined?(CIPlan)
 
 # Every rule of the plan has a check, and every check has a deliberate break:
 # the rule is replaced with its absence and the check has to notice. A check
@@ -333,7 +333,7 @@ class CIPlanTest < Minitest::Test
   def test_the_command_writes_outputs_and_exits_nonzero_on_a_refused_plan
     Dir.mktmpdir("libtmux-ruby-ci-plan-") do |directory|
       output = File.join(directory, "output")
-      script = File.expand_path("../../scripts/ci-plan", __dir__)
+      script = File.expand_path("../ci-plan", __dir__)
       _, error, status = Open3.capture3(Gem.ruby, script, "plan", "--event", "push", "--tmux-ref", "master", "--github-output", output)
       refute status.success?
       assert_match(/only used with scope custom/, error)
@@ -347,7 +347,7 @@ class CIPlanTest < Minitest::Test
   end
 
   def test_verify_reads_the_needs_context
-    script = File.expand_path("../../scripts/ci-plan", __dir__)
+    script = File.expand_path("../ci-plan", __dir__)
     _, error, status = Open3.capture3({"NEEDS" => JSON.generate(GOOD_NEEDS)}, Gem.ruby, script, "verify")
     assert status.success?, error
     bad = GOOD_NEEDS.merge("cell" => {"result" => "failure"})

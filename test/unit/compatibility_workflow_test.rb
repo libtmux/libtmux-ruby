@@ -3,7 +3,7 @@
 require_relative "../test_helper"
 require "yaml"
 
-load File.expand_path("../../scripts/ci-plan", __dir__) unless defined?(CIPlan)
+load File.expand_path("../../scripts/ci-plan/ci-plan", __dir__) unless defined?(CIPlan)
 load File.expand_path("../../scripts/release-ci", __dir__) unless defined?(ReleaseCI)
 
 # The workflow takes its jobs from the plan and lists no version, the release
@@ -84,9 +84,9 @@ class CompatibilityWorkflowTest < Minitest::Test
     found << "report: keeps its name, All required cells" unless report["name"] == "All required cells"
     found << "report: must run when a job it waits for failed" unless report["if"].to_s.delete(" ") == "${{always()}}"
     found << "report: must wait for every other job" unless needs(report).sort == (jobs.keys - ["report"]).sort
-    verify = steps_of(report).find { |step| step["run"].to_s.include?("scripts/ci-plan verify") }
+    verify = steps_of(report).find { |step| step["run"].to_s.include?("scripts/ci-plan/ci-plan verify") }
     found << "report: must verify the needs context with the plan script" unless verify && verify.dig("env", "NEEDS") == "${{ toJSON(needs) }}"
-    merge = steps_of(report).find { |step| step["run"].to_s.include?("scripts/matrix --merge") }
+    merge = steps_of(report).find { |step| step["run"].to_s.include?("scripts/matrix/matrix --merge") }
     found << "report: must require the planned cells" unless merge && merge["run"].include?("--require-all") && merge["run"].include?('--only "$CELLS"') &&
       merge.dig("env", "CELLS") == "${{ needs.plan.outputs.ids }}"
 
@@ -241,7 +241,7 @@ class CompatibilityWorkflowTest < Minitest::Test
     "the os input offers macOS" => [->(w, _r) { CompatibilityWorkflowTest.triggers(w)["workflow_dispatch"]["inputs"]["os"]["options"] << "macos-15" }, "the plan's runner images"],
     "the workflow_call scope is optional" => [->(w, _r) { CompatibilityWorkflowTest.triggers(w)["workflow_call"]["inputs"]["scope"]["required"] = false }, "scope input must be required"],
     "an input stops reaching the plan" => [->(w, _r) { w["jobs"]["plan"]["steps"].each { |s| s["env"]&.delete("RUBY") } }, "plan: the ruby input must reach the plan"],
-    "an input is used inline in a script" => [->(w, _r) { w["jobs"]["plan"]["steps"].last["run"] = 'ruby scripts/ci-plan plan --ruby "${{ inputs.ruby }}"' }, "only through env"],
+    "an input is used inline in a script" => [->(w, _r) { w["jobs"]["plan"]["steps"].last["run"] = 'ruby scripts/ci-plan/ci-plan plan --ruby "${{ inputs.ruby }}"' }, "only through env"],
     "a macOS runner is added" => [->(w, _r) { w["jobs"]["extra"] = {"runs-on" => "macos-15"} }, "must not run on macOS"],
     "the release stops calling compatibility" => [->(_w, r) { r["jobs"]["compatibility"]["uses"] = "./.github/workflows/docs.yml" }, "a job must call compatibility.yml"],
     "the release asks for the edges" => [->(_w, r) { r["jobs"]["compatibility"]["with"]["scope"] = "edges" }, "must ask for scope full"],

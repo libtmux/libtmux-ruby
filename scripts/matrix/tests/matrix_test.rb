@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require_relative "../test_helper"
+require_relative "../../../test/test_helper"
 require "json"
 require "open3"
 require "tmpdir"
 
-load File.expand_path("../../scripts/matrix", __dir__)
+load File.expand_path("../matrix", __dir__)
 
 class MatrixTest < Minitest::Test
   def test_plan_preserves_all_required_cells_and_cannot_claim_missing_cells_pass
-    path = File.expand_path("../../scripts/matrix", __dir__)
+    path = File.expand_path("../matrix", __dir__)
     assert File.file?(path), "required compatibility matrix runner is missing"
     output, error, status = Open3.capture3(Gem.ruby, path, "--plan")
     assert status.success?, error

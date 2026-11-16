@@ -22,9 +22,9 @@ on:
         default: ''
       ruby:
         description: >-
-          Comma-separated Ruby versions from scripts/ci-matrix.json, such as
-          3.3.12,4.0.7. Empty runs every Ruby for the supported cells and the
-          newest for the other jobs.
+          Comma-separated Ruby versions from scripts/ci-plan/ci-matrix.json,
+          such as 3.3.12,4.0.7. Empty runs every Ruby for the supported cells
+          and the newest for the other jobs.
         type: string
         default: ''
       os:
@@ -54,10 +54,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # What a run covers is decided here from scripts/ci-matrix.json and the
-  # event, so no job below lists a version. A push and a pull request test the
-  # oldest and newest supported tmux; a release and a dispatch with scope full
-  # test the whole table.
+  # What a run covers is decided here from scripts/ci-plan/ci-matrix.json and
+  # the event, so no job below lists a version. A push and a pull request test
+  # the oldest and newest supported tmux; a release and a dispatch with scope
+  # full test the whole table.
   plan:
     name: plan
     runs-on: ubuntu-24.04
@@ -91,7 +91,7 @@ jobs:
           IMAGE: ${{ inputs.os }}
           TMATE: ${{ inputs.tmate }}
         run: |
-          ruby scripts/ci-plan plan \
+          ruby scripts/ci-plan/ci-plan plan \
             --event "$EVENT" \
             --scope "$SCOPE" \
             --tmux-ref "$TMUX_REF" \
@@ -176,7 +176,7 @@ jobs:
         env:
           TMUX_BINARY: ${{ steps.tmux.outputs.binary }}
         run: >-
-          bundle exec scripts/matrix
+          bundle exec scripts/matrix/matrix
           --cell "$MATRIX_SYSTEM/$RUBY_VERSION/$TMUX_VERSION"
           --ruby "$RUBY_VERSION=$(ruby -e 'print Gem.ruby')"
           --tmux "$TMUX_VERSION=$TMUX_BINARY"
@@ -340,12 +340,12 @@ jobs:
         if: always()
         env:
           NEEDS: ${{ toJSON(needs) }}
-        run: ruby scripts/ci-plan verify
+        run: ruby scripts/ci-plan/ci-plan verify
       - name: Reject missing, failed, skipped or stale cells
         if: ${{ always() && needs.plan.outputs.run_cells == 'true' }}
         env:
           CELLS: ${{ needs.plan.outputs.ids }}
-        run: scripts/matrix --merge build/matrix-input --require-all --only "$CELLS" --output build/matrix
+        run: scripts/matrix/matrix --merge build/matrix-input --require-all --only "$CELLS" --output build/matrix
       - name: Retain the combined report
         if: ${{ always() && needs.plan.outputs.run_cells == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

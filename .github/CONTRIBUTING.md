@@ -267,17 +267,16 @@ $ set -a && . ./.env && set +a
 ## Running CI against any tmux
 
 The [compatibility workflow](workflows/compatibility.yml) plans its jobs with
-[scripts/ci-plan](../scripts/ci-plan) from
-[scripts/ci-matrix.json](../scripts/ci-matrix.json), which lists the Rubies, the
-supported tmux releases oldest first, the refused releases and the development
-build. The workflow runs Ruby 3.3, 3.4 and 4.0 against tmux 3.3a through 3.8 on
-Linux. A push and a pull request run the oldest and newest supported release
-only (3.3a and 3.8) on every Ruby. The full scope adds every other supported
-release, the refusal jobs and the development build. The
+[scripts/ci-plan/ci-plan](../scripts/ci-plan/ci-plan) from
+[scripts/ci-plan/ci-matrix.json](../scripts/ci-plan/ci-matrix.json), which lists
+the Rubies, the supported tmux releases oldest first, the refused releases and
+the development build. The workflow runs Ruby 3.3, 3.4 and 4.0 against tmux 3.3a
+through 3.8 on Linux. A push and a pull request run the oldest and newest
+supported release only (3.3a and 3.8) on every Ruby. The full scope adds every
+other supported release, the refusal jobs and the development build. The
 [Release workflow](workflows/release.yml) runs the full scope on the tag before
-it publishes anything. The `All required cells` job is the one check to
-require: it passes when every planned job succeeded and every other job was
-skipped.
+it publishes anything. The `All required cells` job is the one check to require:
+it passes when every planned job succeeded and every other job was skipped.
 
 Run the workflow on any branch, against any tmux version, tag, branch or full
 commit of github.com/tmux/tmux. Put the comma-separated list in `tmux-ref`,
