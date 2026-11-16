@@ -23,7 +23,12 @@ code generator, a documentation check, or a maintainer task named in
 ## Language
 
 Scripts are Ruby, run with `ruby`, the same interpreter CI uses for the
-library. Do not add shell or Python script files.
+library. Do not add shell or Python script files, and no shell or Python
+program inside a test or a workflow. A test stand-in for tmux or another
+program is a Ruby script written through
+[`test/support/stub_executable.rb`](../test/support/stub_executable.rb), which
+starts without RubyGems, so it answers inside the deadlines the tests give a
+real tmux.
 
 ## Layout and checks
 
@@ -45,3 +50,6 @@ library. Do not add shell or Python script files.
 - A capability Ruby lacks comes from a test-only Ruby dependency, not from a
   second language.
 - Test data that is not a comparison, such as workspace files a loader reads.
+- Shell commands that a README prints, which a test runs as written, and the
+  `script` argument of the MCP run tool, which a test passes to a shell
+  because the shell is the subject.

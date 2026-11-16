@@ -4,6 +4,7 @@ require_relative "../test_helper"
 require "libtmux/async"
 require "libtmux/mcp/cli"
 require "libtmux/workspace/cli"
+require_relative "../support/stub_executable"
 require_relative "../support/tmux_fixture"
 require "json"
 require "pty"
@@ -167,20 +168,18 @@ class TmuxVersionCheckTest < Minitest::Test
       next assert_refused(fixture) if refused?(fixture)
       Dir.mktmpdir("libtmux-ruby-version-check-") do |directory|
         wrapper, claim = %w[selected-tmux claimed-version].map { |name| File.join(directory, name) }
-        File.write(wrapper, <<~SH)
-          #!/bin/sh
-          for argument; do
-            case $argument in
-              libtmux-version-*'\#{version}')
-                if [ -f #{shell(claim)} ]; then
-                  printf 'unknown command: %s%s\\n' "${argument%'\#{version}'}" "$(cat #{shell(claim)})" >&2
-                  exit 1
-                fi;;
-            esac
-          done
-          exec #{shell(CLIENT_PATH.call)} "$@"
-        SH
-        File.chmod(0o700, wrapper)
+        # Answers a version probe with the claimed release once CLAIM exists.
+        LibTmuxTest::StubExecutable.write(wrapper, <<~'STUB', CLAIM: claim, CLIENT: CLIENT_PATH.call)
+          ARGV.each do |argument|
+            name = argument.delete_suffix('#{version}')
+            next unless argument.start_with?("libtmux-version-") && name != argument
+            next unless File.exist?(CLAIM)
+
+            warn "unknown command: #{name}#{File.read(CLAIM).chomp}"
+            exit 1
+          end
+          exec CLIENT, *ARGV
+        STUB
         batch = ["set-option", "-g", "@libtmux-refused", "changed;", "new-session", "-d", "-s", "must-not-exist"]
         sentinel = -> { [fixture.tmux("show-option", "-gqv", "@libtmux-refused").first, fixture.tmux("has-session", "-t", "=must-not-exist").last.success?] }
 
@@ -229,12 +228,10 @@ class TmuxVersionCheckTest < Minitest::Test
       next assert_refused(fixture) if refused?(fixture)
       Dir.mktmpdir("libtmux-ruby-version-check-") do |directory|
         wrapper, calls = %w[selected-tmux calls].map { |name| File.join(directory, name) }
-        File.write(wrapper, <<~SH)
-          #!/bin/sh
-          printf '%s\\n' "$*" >> #{shell(calls)}
-          exec #{shell(CLIENT_PATH.call)} "$@"
-        SH
-        File.chmod(0o700, wrapper)
+        LibTmuxTest::StubExecutable.write(wrapper, <<~'STUB', CALLS: calls, CLIENT: CLIENT_PATH.call)
+          File.write(CALLS, "#{ARGV.join(' ')}\n", mode: "a")
+          exec CLIENT, *ARGV
+        STUB
         control = RANKING.parse(daemon_version(fixture)) >= RANKING.parse(RANKING::CONTROL_MINIMUM)
         LibTmux::Server.open(socket_path: fixture.socket_path, executable: wrapper) do |server|
           server.list_sessions
@@ -266,14 +263,12 @@ class TmuxVersionCheckTest < Minitest::Test
       socket = File.join(directory, "socket")
       UNIXServer.new(socket).close
       wrapper, answer, holder = %w[selected-tmux answer holder].map { |name| File.join(directory, name) }
-      File.write(wrapper, <<~SH)
-        #!/bin/sh
-        sleep 30 < /dev/null 2> /dev/null &
-        printf '%s' "$!" > #{shell(holder)}
-        cat #{shell(answer)} >&2
+      # Leaves a descendant that inherits stdout, and answers on stderr.
+      LibTmuxTest::StubExecutable.write(wrapper, <<~'STUB', ANSWER: answer, HOLDER: holder)
+        File.write(HOLDER, spawn("sleep", "30", in: File::NULL, err: File::NULL).to_s)
+        $stderr.write(File.read(ANSWER))
         exit 1
-      SH
-      File.chmod(0o700, wrapper)
+      STUB
       begin
         ["usage: run-shell [-b] [-t target-pane] shell-command\n", "server version is too old for client\n"].each do |stderr|
           File.write(answer, stderr)
@@ -299,13 +294,14 @@ class TmuxVersionCheckTest < Minitest::Test
       next assert_refused(fixture) if refused?(fixture)
       Dir.mktmpdir("libtmux-ruby-version-check-") do |directory|
         wrapper, calls, rejected = %w[selected-tmux calls rejected].map { |name| File.join(directory, name) }
-        File.write(wrapper, <<~SH)
-          #!/bin/sh
-          printf '%s\\n' "$*" >> #{shell(calls)}
-          if [ "$1" = -V ] && [ -f #{shell(rejected)} ]; then printf 'tmux 3.3\\n'; exit 0; fi
-          exec #{shell(CLIENT_PATH.call)} "$@"
-        SH
-        File.chmod(0o700, wrapper)
+        LibTmuxTest::StubExecutable.write(wrapper, <<~'STUB', CALLS: calls, CLIENT: CLIENT_PATH.call, REJECTED: rejected)
+          File.write(CALLS, "#{ARGV.join(' ')}\n", mode: "a")
+          if ARGV.first == "-V" && File.exist?(REJECTED)
+            puts "tmux 3.3"
+            exit
+          end
+          exec CLIENT, *ARGV
+        STUB
         LibTmux::Server.start(executable: wrapper) { |server| assert server.owned? }
         File.write(rejected, "changed")
         File.write(calls, "")
@@ -394,9 +390,5 @@ class TmuxVersionCheckTest < Minitest::Test
 
   def refused?(fixture)
     RANKING.parse(daemon_version(fixture)) < RANKING.parse(RANKING::MINIMUM)
-  end
-
-  def shell(value)
-    "'#{value.gsub("'") { %q('\'') }}'"
   end
 end

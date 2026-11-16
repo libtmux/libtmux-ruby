@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../test_helper"
+require_relative "../support/stub_executable"
 require_relative "../support/tmux_fixture"
 require "libtmux"
 require "socket"
@@ -9,8 +10,7 @@ class ServerTest < Minitest::Test
   def test_literal_creation_topology_and_terminal_input
     LibTmuxTest::TmuxFixture.open do |fixture|
       executable = File.join(File.dirname(fixture.socket_path), "literal ; executable")
-      File.write(executable, "#!/bin/sh\nexec /bin/cat\n")
-      File.chmod(0o700, executable)
+      LibTmuxTest::StubExecutable.write(executable, 'exec "/bin/cat"')
       open_server(fixture) do |server|
         name = "session \#{pid} ';"
         session = server.new_session(name: name, command: [executable], width: 80, height: 24)

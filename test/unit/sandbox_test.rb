@@ -2,6 +2,7 @@
 
 require_relative "../test_helper"
 require_relative "../support/sandbox"
+require_relative "../support/stub_executable"
 require "fileutils"
 require "open3"
 require "tmpdir"
@@ -15,22 +16,21 @@ class SandboxTest < Minitest::Test
   DECOYS = {"TMUX" => "/decoy/server,1,0", "TMUX_PANE" => "%9", "LIBTMUX_SOCKET" => "decoy-name",
             "LIBTMUX_SOCKET_PATH" => "/decoy/path", "LIBTMUX_SOCKET_NAME" => "decoy-other"}.freeze
   TESTS = File.expand_path("..", __dir__)
-  RECORDER = <<~'SH'
-    #!/bin/sh
-    {
-      echo CALL
-      for argument in "$@"; do echo "ARG $argument"; done
-      env | sed -n -E 's/^(TMUX|TMUX_PANE|LIBTMUX_SOCKET[A-Z_]*)=.*/SET \1/p'
-      case "$TMUX_TMPDIR" in
-        "") echo "TMUX_TMPDIR unset" ;;
-        */lt-rb-*) echo "TMUX_TMPDIR sandbox" ;;
-        /decoy/tmpdir) echo "TMUX_TMPDIR decoy" ;;
-        *) echo "TMUX_TMPDIR other" ;;
-      esac
-    } >> "$FAKE_TMUX_LOG"
-    if [ -n "$FAKE_TMUX_KILLS" ] && [ "$1" = -S ] && [ "$3" = kill-server ]; then rm -f -- "${2:?}"; fi
+  RECORDER = <<~'STUB'
+    File.open(ENV.fetch("FAKE_TMUX_LOG"), "a") do |log|
+      log.puts "CALL"
+      ARGV.each { |argument| log.puts "ARG #{argument}" }
+      ENV.each_key { |name| log.puts "SET #{name}" if name.match?(/\A(?:TMUX|TMUX_PANE|LIBTMUX_SOCKET[A-Z_]*)\z/) }
+      log.puts(case ENV["TMUX_TMPDIR"]
+               when nil, "" then "TMUX_TMPDIR unset"
+               when %r{/lt-rb-} then "TMUX_TMPDIR sandbox"
+               when "/decoy/tmpdir" then "TMUX_TMPDIR decoy"
+               else "TMUX_TMPDIR other"
+               end)
+    end
+    File.delete(ARGV[1]) if ENV["FAKE_TMUX_KILLS"] && ARGV[0] == "-S" && ARGV[2] == "kill-server" && File.exist?(ARGV[1])
     exit 1
-  SH
+  STUB
 
   def test_this_process_is_sandboxed
     assert_empty Sandbox.violations(ENV)
@@ -154,7 +154,8 @@ class SandboxTest < Minitest::Test
       elsewhere = listen(bin, "outside.sock")
       File.symlink(elsewhere, File.join(directory, "link.sock"))
       log = File.join(bin, "calls")
-      released = Sandbox.release(directory, tmux: fake_tmux(bin, "echo called >> '#{log}'"), wait: 1)
+      called = fake_tmux(bin, %(File.write(LOG, "called\\n", mode: "a")), LOG: log)
+      released = Sandbox.release(directory, tmux: called, wait: 1)
       assert_empty released.leaked
       refute File.exist?(log)
       refute File.exist?(directory)
@@ -165,7 +166,10 @@ class SandboxTest < Minitest::Test
     with_directories do |directory, bin|
       sockets = [%w[tmux-1000 default], %w[custom.sock], %w[a b c.sock]].map { |path| listen(directory, *path) }
       log = File.join(bin, "calls")
-      kill = fake_tmux(bin, "echo \"$3 $2\" >> '#{log}'; rm -f -- \"${2:?}\"")
+      kill = fake_tmux(bin, <<~'STUB', LOG: log)
+        File.write(LOG, "#{ARGV[2]} #{ARGV[1]}\n", mode: "a")
+        File.delete(ARGV[1])
+      STUB
       released = Sandbox.release(directory, tmux: kill, wait: 1)
       assert_equal %w[a/b/c.sock custom.sock tmux-1000/default], released.leaked
       assert_empty released.answering
@@ -177,7 +181,13 @@ class SandboxTest < Minitest::Test
   def test_release_waits_for_a_server_that_takes_a_moment_to_go
     with_directories do |directory, bin|
       listen(directory, "custom.sock")
-      slow = fake_tmux(bin, "(sleep 0.4; rm -f -- \"${2:?}\") &")
+      slow = fake_tmux(bin, <<~'STUB')
+        socket = ARGV[1]
+        fork do
+          sleep 0.4
+          File.delete(socket)
+        end
+      STUB
       released = Sandbox.release(directory, tmux: slow, wait: 5)
       assert_empty released.answering
       refute File.exist?(directory)
@@ -188,7 +198,7 @@ class SandboxTest < Minitest::Test
     with_directories do |directory, bin|
       listen(directory, "custom.sock")
       listen(directory, "gone.sock")
-      one = fake_tmux(bin, "case \"$2\" in */gone.sock) rm -f -- \"${2:?}\" ;; esac")
+      one = fake_tmux(bin, "File.delete(ARGV[1]) if ARGV[1].end_with?('/gone.sock')")
       released = Sandbox.release(directory, tmux: one, wait: 0.2)
       assert_equal %w[custom.sock gone.sock], released.leaked
       assert_equal %w[custom.sock], released.answering
@@ -204,8 +214,11 @@ class SandboxTest < Minitest::Test
     with_directories do |directory, bin|
       listen(directory, "custom.sock")
       log = File.join(bin, "calls")
-      names = "TMUX|TMUX_PANE|TMUX_TMPDIR|LIBTMUX_SOCKET[A-Z_]*"
-      recorder = fake_tmux(bin, "env | sed -n -E 's/^(#{names})=.*/\\1/p' >> '#{log}'; rm -f -- \"${2:?}\"")
+      recorder = fake_tmux(bin, <<~'STUB', LOG: log)
+        names = ENV.keys.grep(/\A(?:TMUX|TMUX_PANE|TMUX_TMPDIR|LIBTMUX_SOCKET[A-Z_]*)\z/)
+        File.write(LOG, names.map { |name| "#{name}\n" }.join, mode: "a")
+        File.delete(ARGV[1])
+      STUB
       saved = DECOYS.keys.to_h { |name| [name, ENV.fetch(name, nil)] }
       begin
         DECOYS.each { |name, value| ENV[name] = value }
@@ -220,7 +233,7 @@ class SandboxTest < Minitest::Test
   def test_release_does_not_wait_on_a_stop_that_never_returns
     with_directories do |directory, bin|
       listen(directory, "custom.sock")
-      hung = fake_tmux(bin, "exec sleep 30")
+      hung = fake_tmux(bin, "sleep 30")
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       released = Sandbox.release(directory, tmux: hung, wait: 0.3)
       elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
@@ -304,7 +317,10 @@ class SandboxTest < Minitest::Test
   def test_the_canary_failure_does_not_echo_what_tmux_printed
     canary = File.join(TESTS, "integration", "sandbox_test.rb")
     Dir.mktmpdir("libtmux-ruby-sandbox-") do |directory|
-      printer = fake_tmux(directory, "echo 'error connecting to /lt-rb-echo-decoy/socket (No such file or directory)'; exit 1")
+      printer = fake_tmux(directory, <<~'STUB')
+        puts "error connecting to /lt-rb-echo-decoy/socket (No such file or directory)"
+        exit 1
+      STUB
       output, error, status = Open3.capture3({"LIBTMUX_TEST_TMUX" => printer}, Gem.ruby, "-I#{TESTS}", canary, "-n",
         "test_a_client_that_names_no_socket_looks_only_in_the_sandbox")
       refute_predicate status, :success?, "the canary accepted a client that looked elsewhere"
@@ -376,10 +392,8 @@ class SandboxTest < Minitest::Test
     end
   end
 
-  def fake_tmux(directory, body)
-    path = File.join(directory, "tmux")
-    File.write(path, "#!/bin/sh\n#{body}\n", perm: 0o755)
-    path
+  def fake_tmux(directory, body, **constants)
+    LibTmuxTest::StubExecutable.write(File.join(directory, "tmux"), body, **constants)
   end
 
   # A socket with a server listening on it until the test ends.
@@ -400,7 +414,7 @@ class SandboxTest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-sandbox-") do |directory|
       bin = File.join(directory, "bin")
       Dir.mkdir(bin)
-      File.write(File.join(bin, "tmux"), RECORDER, perm: 0o755)
+      LibTmuxTest::StubExecutable.write(File.join(bin, "tmux"), RECORDER)
       log = File.join(directory, "calls")
       env = DECOYS.merge("TMUX_TMPDIR" => "/decoy/tmpdir", Sandbox::MARKER => nil, "FAKE_TMUX_LOG" => log,
         "PATH" => "#{bin}#{File::PATH_SEPARATOR}#{ENV.fetch('PATH')}", "LIBTMUX_TEST_TMUX" => "tmux").merge(extra)

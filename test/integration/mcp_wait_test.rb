@@ -240,8 +240,8 @@ class MCPWaitTest < Minitest::Test
 
   def test_wait_for_screen_text_ends_as_pane_died_with_the_output_so_far_when_the_pane_dies
     with_application do |app, scope, source|
-      child = scope.server.list_panes.first.split(direction: :vertical,
-        command: ["/bin/sh", "-c", "echo output-so-far; exec cat"])
+      child = scope.server.list_panes.first.split(direction: :vertical, command: prints_and_waits)
+      await_output_so_far(app, child)
       ready = signal_after_first_capture(app)
       pending = Async::Task.current.async { call(app, wire_ref(child.ref), {type: "screen_contains", text: "never-printed"}) }
       await_ready(ready, pending)
@@ -257,8 +257,8 @@ class MCPWaitTest < Minitest::Test
     with_application do |app, scope, source|
       # The pane ignores the hangup that follows the server, so only the
       # server's own exit tells the wait that the screen is gone.
-      child = scope.server.list_panes.first.split(direction: :vertical,
-        command: ["/bin/sh", "-c", "trap '' HUP; echo output-so-far; while :; do sleep 0.2; done"])
+      child = scope.server.list_panes.first.split(direction: :vertical, command: prints_and_ignores_hangup)
+      await_output_so_far(app, child)
       pid = scope.server.snapshot.panes.find { |entry| entry.id == child.id }.pid
       begin
         ready = signal_after_first_capture(app)
@@ -275,8 +275,8 @@ class MCPWaitTest < Minitest::Test
 
   def test_wait_ends_as_pane_died_when_a_stopped_client_keeps_the_killed_server_alive
     with_application do |app, scope, _source|
-      child = scope.server.list_panes.first.split(direction: :vertical,
-        command: ["/bin/sh", "-c", "trap '' HUP; echo output-so-far; while :; do sleep 0.2; done"])
+      child = scope.server.list_panes.first.split(direction: :vertical, command: prints_and_ignores_hangup)
+      await_output_so_far(app, child)
       pid = scope.server.snapshot.panes.find { |entry| entry.id == child.id }.pid
       reader, writer, client = PTY.spawn({"TMUX" => nil}, @fixture.executable, "-S", @fixture.socket_path, "attach", "-t", "fixture")
       killer = nil
@@ -458,6 +458,23 @@ class MCPWaitTest < Minitest::Test
     cancellation.cancel
     assert_equal "cancelled", pending.wait(timeout: 0.5).dig("error", "code")
     assert_empty scope.server.list_clients
+  end
+
+  # A pane program that prints a line and waits for input, as cat would.
+  def prints_and_waits
+    [Gem.ruby, "--disable=rubyopt,gems", "-e", '$stdout.sync = true; puts "output-so-far"; $stdin.read']
+  end
+
+  # The same program, ignoring the hangup tmux sends when the server exits.
+  def prints_and_ignores_hangup
+    [Gem.ruby, "--disable=rubyopt,gems", "-e", 'trap("HUP", "IGNORE"); $stdout.sync = true; puts "output-so-far"; sleep']
+  end
+
+  # The program prints after its setup, so a pane that shows the line has
+  # already ignored the hangup.
+  def await_output_so_far(app, pane)
+    shown = call(app, wire_ref(pane.ref), {type: "screen_contains", text: "output-so-far"}, timeout: 2)
+    assert shown.fetch("ok"), shown.inspect
   end
 
   def assert_pane_died(failure)

@@ -2,6 +2,7 @@
 
 require_relative "../test_helper"
 require_relative "../support/readme_blocks"
+require_relative "../support/stub_executable"
 require "fileutils"
 require "json"
 require "libtmux/mcp"
@@ -37,9 +38,8 @@ class ReadmeCommandsTest < Minitest::Test
       [work, home, bin, File.join(directory, "t")].each { |path| FileUtils.mkdir_p(path) }
       File.symlink(tmux, File.join(bin, "tmux"))
       %w[libtmux-mcp libtmux-workspace].each do |name|
-        script = File.join(bin, name)
-        File.write(script, "#!/bin/sh\nexec #{Shellwords.join([Gem.ruby, '-W:no-experimental', Gem.bin_path(name, name)])} \"$@\"\n")
-        File.chmod(0o755, script)
+        LibTmuxTest::StubExecutable.write(File.join(bin, name), 'exec RUBY, "-W:no-experimental", EXECUTABLE, *ARGV',
+          RUBY: Gem.ruby, EXECUTABLE: Gem.bin_path(name, name))
       end
       @env = LibTmuxTest::Sandbox.scrub(ENV).merge(
         "HOME" => home, "TMPDIR" => directory, "TMUX_TMPDIR" => File.join(directory, "t"),
@@ -257,8 +257,10 @@ class ReadmeCommandsTest < Minitest::Test
   def with_a_server_kill_server_leaves
     real = Sandbox.new
     Dir.mktmpdir("libtmux-ruby-readme-noop-") do |bin|
-      noop = File.join(bin, "tmux")
-      File.write(noop, "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = kill-server ] && exit 0; done\nexec '#{real.tmux}' \"$@\"\n", perm: 0o755)
+      noop = LibTmuxTest::StubExecutable.write(File.join(bin, "tmux"), <<~'STUB', TMUX: real.tmux)
+        exit if ARGV.include?("kill-server")
+        exec TMUX, *ARGV
+      STUB
       sandbox = Sandbox.new(executable: noop)
       begin
         assert sandbox.run(sandbox.tmux, "-L", "agent", "-f", "/dev/null", "new-session", "-d", "-s", "work").status.success?

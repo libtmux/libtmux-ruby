@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../../test/test_helper"
+require_relative "../../../test/support/stub_executable"
 require "json"
 require "open3"
 require "tmpdir"
@@ -162,9 +163,18 @@ class MatrixTest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
       ruby, tmux = %w[ruby tmux].map { |name| File.join(directory, name) }
       marker = File.join(directory, "dispatched")
-      File.write(ruby, "#!/bin/sh\nif [ \"$1\" = --disable=gems ]; then printf 4.0.7; else touch '#{marker}'; exit 7; fi\n")
-      File.write(tmux, "#!/bin/sh\nprintf 'tmux 3.7c\\n'\nexit 1\n")
-      [ruby, tmux].each { |path| File.chmod(0o700, path) }
+      LibTmuxTest::StubExecutable.write(ruby, <<~'STUB', MARKER: marker)
+        if ARGV.first == "--disable=gems"
+          print "4.0.7"
+        else
+          File.write(MARKER, "")
+          exit 7
+        end
+      STUB
+      LibTmuxTest::StubExecutable.write(tmux, <<~'STUB')
+        puts "tmux 3.7c"
+        exit 1
+      STUB
       skip "the matrix runs on Linux only" unless RUBY_PLATFORM.include?("linux")
       cell = CompatibilityMatrix.cells.find { |item| item.fetch("id") == "linux/4.0.7/3.7c" }
       result = CompatibilityMatrix.execute(cell, {"4.0.7" => ruby}, {"3.7c" => tmux}, directory)
@@ -191,12 +201,14 @@ class MatrixTest < Minitest::Test
       #{leaks ? 'UNIXServer.new(File.join(ENV.fetch("TMUX_TMPDIR"), "custom.sock"))' : ""}
       3.times { puts "1 runs, 1 assertions, 0 failures, 0 errors, 0 skips" }
     RUBY
-    File.write(tmux, <<~SH, perm: 0o755)
-      #!/bin/sh
-      if [ "$1" = -V ]; then printf 'tmux 3.7c\\n'; exit 0; fi
-      echo "$@" >> '#{tmuxes}'
+    LibTmuxTest::StubExecutable.write(tmux, <<~'STUB', LOG: tmuxes)
+      if ARGV.first == "-V"
+        puts "tmux 3.7c"
+        exit
+      end
+      File.write(LOG, "#{ARGV.join(' ')}\n", mode: "a")
       exit 1
-    SH
+    STUB
     [ruby, tmux, tmuxes, sandboxes]
   end
 end
