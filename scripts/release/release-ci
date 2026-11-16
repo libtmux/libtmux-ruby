@@ -14,9 +14,14 @@ class ReleaseCI
   PUBLISH_STEP = "Publish core, Async, MCP and workspace"
   PAGE = 100
 
-  def initialize(client: method(:github), downloader: method(:download))
+  # Seconds a `gh` call may run before it is killed. This job guards a publish,
+  # and a call that never answers must not hold it.
+  DEADLINE = 120
+
+  def initialize(client: method(:github), downloader: method(:download), deadline: DEADLINE)
     @client = client
     @downloader = downloader
+    @deadline = deadline
   end
 
   def check(commit)
@@ -27,7 +32,7 @@ class ReleaseCI
       next unless run.values_at("head_sha", "head_branch", "event", "path", "status", "conclusion") ==
         [commit, "master", "push", WORKFLOW, "completed", "success"]
 
-      jobs = @client.call("repos/#{REPOSITORY}/actions/runs/#{run.fetch('id')}/jobs?filter=latest&per_page=#{PAGE}")
+      jobs = @client.call("repos/#{REPOSITORY}/actions/runs/#{run.fetch("id")}/jobs?filter=latest&per_page=#{PAGE}")
       next unless jobs.fetch("jobs").any? do |job|
         job["name"] == "All required cells" && job["conclusion"] == "success"
       end
@@ -95,15 +100,31 @@ class ReleaseCI
   end
 
   def github(path)
-    output, status = Open3.capture2e("gh", "api", path)
-    raise Error, "GitHub compatibility lookup failed: #{output}" unless status.success?
-
-    JSON.parse(output)
+    JSON.parse(gh("api", path, failure: "GitHub compatibility lookup failed"))
+  rescue JSON::ParserError => error
+    raise Error, "GitHub answered #{path} with a body that is not JSON: #{error.message}"
   end
 
   def download(run_id, name, directory)
-    output, status = Open3.capture2e("gh", "run", "download", run_id.to_s, "--name", name, "--dir", directory)
-    raise Error, "downloading #{name} from run #{run_id} failed: #{output}" unless status.success?
+    gh("run", "download", run_id.to_s, "--name", name, "--dir", directory,
+      failure: "downloading #{name} from run #{run_id} failed")
+  end
+
+  # Runs gh and returns what it printed, or raises Error with the failure text
+  # when it exits nonzero or runs past the deadline.
+  def gh(*arguments, failure:)
+    Open3.popen2e("gh", *arguments) do |stdin, output, waiter|
+      stdin.close
+      reader = Thread.new { output.read }
+      unless waiter.join(@deadline)
+        Process.kill("KILL", waiter.pid)
+        waiter.join
+        raise Error, "#{failure}: gh ran past #{@deadline} seconds"
+      end
+      raise Error, "#{failure}: #{reader.value}" unless waiter.value.success?
+
+      reader.value
+    end
   end
 end
 

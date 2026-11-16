@@ -16,6 +16,7 @@
 #   scripts/ci-plan/ci-plan plan --event EVENT [--scope S] [--tmux-ref REFS] [--ruby V]
 #                        [--os IMAGE] [--tmate MODE] [--github-output FILE]
 #   scripts/ci-plan/ci-plan verify          # reads the NEEDS environment variable
+#   scripts/ci-plan/ci-plan built --version V --expect PATTERN
 
 require "json"
 require "optparse"
@@ -52,7 +53,7 @@ module CIPlan
 
   def self.resolve_scope(event, scope)
     unless scope.to_s.empty?
-      raise Error, "scope must be one of #{SCOPES.join(', ')}, not #{scope.inspect}" unless SCOPES.include?(scope)
+      raise Error, "scope must be one of #{SCOPES.join(", ")}, not #{scope.inspect}" unless SCOPES.include?(scope)
 
       return scope
     end
@@ -85,14 +86,14 @@ module CIPlan
   def self.select_rubies(requested, available)
     chosen = split_list(requested)
     chosen.each do |ruby|
-      raise Error, "ruby must name versions from #{available.join(', ')}, not #{ruby.inspect}" unless available.include?(ruby)
+      raise Error, "ruby must name versions from #{available.join(", ")}, not #{ruby.inspect}" unless available.include?(ruby)
     end
     chosen
   end
 
   def self.choose_image(image)
     return RUNNERS.first if image.to_s.empty?
-    raise Error, "os must be one of #{RUNNERS.join(', ')}, not #{image.inspect}" unless RUNNERS.include?(image)
+    raise Error, "os must be one of #{RUNNERS.join(", ")}, not #{image.inspect}" unless RUNNERS.include?(image)
 
     image
   end
@@ -110,17 +111,17 @@ module CIPlan
   end
 
   def self.suffix(ruby, default)
-    ruby == default ? "" : " on Ruby #{ruby}"
+    (ruby == default) ? "" : " on Ruby #{ruby}"
   end
 
   def self.unsupported_leg(manifest, entry, ruby)
-    {"name" => "Refuse tmux #{entry.fetch('tmux')} before effects#{suffix(ruby, CIManifest.rubies(manifest).last)}",
+    {"name" => "Refuse tmux #{entry.fetch("tmux")} before effects#{suffix(ruby, CIManifest.rubies(manifest).last)}",
      "tmux" => entry.fetch("tmux"), "check" => entry.fetch("check"),
      "ruby" => ruby, "tmate" => "off"}
   end
 
   def self.development_leg(manifest, entry, ruby)
-    {"name" => "tmux development build (#{entry.fetch('tmux')})#{suffix(ruby, CIManifest.rubies(manifest).last)}",
+    {"name" => "tmux development build (#{entry.fetch("tmux")})#{suffix(ruby, CIManifest.rubies(manifest).last)}",
      "tmux" => entry.fetch("tmux"), "ref" => entry.fetch("commit"), "expect" => "^next-", "ruby" => ruby, "tmate" => "off"}
   end
 
@@ -152,7 +153,7 @@ module CIPlan
   end
 
   def self.assign_tmate(event, mode, legs)
-    raise Error, "tmate must be one of #{TMATE_MODES.join(', ')}, not #{mode.inspect}" unless TMATE_MODES.include?(mode)
+    raise Error, "tmate must be one of #{TMATE_MODES.join(", ")}, not #{mode.inspect}" unless TMATE_MODES.include?(mode)
     return if mode == "off"
     raise Error, "tmate is only available on a workflow_dispatch run" unless event == "workflow_dispatch"
 
@@ -181,7 +182,7 @@ module CIPlan
 
         planned
       else
-        versions = chosen == "full" ? supported : edge_versions(supported)
+        versions = (chosen == "full") ? supported : edge_versions(supported)
         {"cells" => cell_rubies.product(versions).map { |r, tmux| cell(manifest, r, tmux) },
          "unsupported" => [], "development" => []}.tap do |full|
           next unless chosen == "full"
@@ -201,7 +202,7 @@ module CIPlan
   def self.job_names(result)
     names = ["plan", "All required cells"]
     names << "Release artifacts (no publishing)" if result.fetch("release_artifacts")
-    names + result.fetch("cells").map { |c| "#{c['system']} / Ruby #{c['ruby']} / tmux #{c['tmux']}" } +
+    names + result.fetch("cells").map { |c| "#{c["system"]} / Ruby #{c["ruby"]} / tmux #{c["tmux"]}" } +
       result.fetch("unsupported").map { |leg| leg.fetch("name") } + result.fetch("development").map { |leg| leg.fetch("name") }
   end
 
@@ -211,12 +212,12 @@ module CIPlan
   def self.check_needs(needs)
     problems = []
     plan_result = needs.dig("plan", "result")
-    problems << "plan finished #{plan_result || 'missing'}, not success" unless plan_result == "success"
+    problems << "plan finished #{plan_result || "missing"}, not success" unless plan_result == "success"
     outputs = needs.dig("plan", "outputs") || {}
     PLANNED_JOBS.each do |job, flag|
-      wanted = outputs[flag] == "true" ? "success" : "skipped"
+      wanted = (outputs[flag] == "true") ? "success" : "skipped"
       result = needs.dig(job, "result")
-      problems << "#{job} finished #{result || 'missing'}, not #{wanted}" unless result == wanted
+      problems << "#{job} finished #{result || "missing"}, not #{wanted}" unless result == wanted
     end
     problems
   end
@@ -233,9 +234,15 @@ module CIPlan
   end
 
   def self.summary(result)
-    lines = ["### Compatibility plan: #{result.fetch('scope')}", "", "Expected jobs in this workflow: #{result.fetch('expected_jobs')}", ""]
+    lines = ["### Compatibility plan: #{result.fetch("scope")}", "", "Expected jobs in this workflow: #{result.fetch("expected_jobs")}", ""]
     (job_names(result) - ["plan", "All required cells"]).each { |name| lines << "- #{name}" }
     "#{lines.join("\n")}\n"
+  end
+
+  # The version a built tmux reports has to match the pattern the plan gave its
+  # leg, so a ref that resolved to another release fails before the tests run.
+  def self.check_built(version, pattern)
+    raise Error, "tmux #{version} does not match #{pattern}" unless version.match?(pattern)
   end
 
   def self.run(arguments, environment = ENV)
@@ -250,6 +257,8 @@ module CIPlan
       args.on("--tmate MODE") { |value| options[:tmate] = value }
       args.on("--github-output FILE") { |value| options[:github_output] = value }
       args.on("--summary FILE") { |value| options[:summary] = value }
+      args.on("--version VERSION") { |value| options[:version] = value }
+      args.on("--expect PATTERN") { |value| options[:expect] = value }
     end
     parser.parse!(arguments)
     case command
@@ -257,6 +266,12 @@ module CIPlan
       problems = check_needs(JSON.parse(environment.fetch("NEEDS", "{}")))
       problems.each { |problem| warn "report: #{problem}" }
       problems.empty? ? 0 : 1
+    when "built"
+      raise OptionParser::MissingArgument, "--version" unless options[:version]
+      raise OptionParser::MissingArgument, "--expect" unless options[:expect]
+
+      check_built(options[:version], options[:expect])
+      0
     when "plan"
       raise OptionParser::MissingArgument, "--event" unless options[:event]
 
@@ -267,7 +282,7 @@ module CIPlan
       File.open(options[:summary], "a") { |file| file.write(summary(result)) } if options[:summary]
       0
     else
-      warn "usage: scripts/ci-plan/ci-plan plan --event EVENT [options] | verify"
+      warn "usage: scripts/ci-plan/ci-plan plan --event EVENT [options] | verify | built --version V --expect PATTERN"
       2
     end
   rescue Error, OptionParser::ParseError, JSON::ParserError => error

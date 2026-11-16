@@ -2,6 +2,7 @@
 
 require_relative "../../../test/test_helper"
 require "tmpdir"
+require_relative "../../../test/support/stub_executable"
 load File.expand_path("../release-ci", __dir__) unless defined?(ReleaseCI)
 
 class ReleaseCITest < Minitest::Test
@@ -9,8 +10,8 @@ class ReleaseCITest < Minitest::Test
 
   def test_requires_completed_compatibility_run_for_exact_master_commit
     run = {"id" => 42, "head_sha" => COMMIT, "head_branch" => "master",
-      "event" => "push", "path" => ".github/workflows/compatibility.yml",
-      "status" => "completed", "conclusion" => "success"}
+           "event" => "push", "path" => ".github/workflows/compatibility.yml",
+           "status" => "completed", "conclusion" => "success"}
     jobs = {"jobs" => [{"name" => "All required cells", "conclusion" => "success"}]}
     queries = []
     client = lambda do |path|
@@ -21,8 +22,8 @@ class ReleaseCITest < Minitest::Test
     assert_includes queries.first, "head_sha=#{COMMIT}"
 
     {"head_sha" => "b" * 40, "head_branch" => "package", "event" => "pull_request",
-      "path" => ".github/workflows/other.yml", "status" => "in_progress",
-      "conclusion" => "failure"}.each do |key, value|
+     "path" => ".github/workflows/other.yml", "status" => "in_progress",
+     "conclusion" => "failure"}.each do |key, value|
       invalid = run.merge(key => value)
       error = assert_raises(ReleaseCI::Error) do
         ReleaseCI.new(client: ->(_) { {"workflow_runs" => [invalid]} }).check(COMMIT)
@@ -59,8 +60,8 @@ class ReleaseCITest < Minitest::Test
       lambda do |path|
         @queries << path
         case path
-        when %r{/runs/#{ID}/artifacts\?} then {"artifacts" => @artifacts.map { |name| {"name" => name} }}
-        when %r{/runs/#{ID}/jobs\?filter=all&per_page=100&page=(\d+)\z}
+        when %r{/runs/#{ID}/artifacts\?}o then {"artifacts" => @artifacts.map { |name| {"name" => name} }}
+        when %r{/runs/#{ID}/jobs\?filter=all&per_page=100&page=(\d+)\z}o
           page = Regexp.last_match(1).to_i
           {"jobs" => @jobs.slice((page - 1) * 100, 100) || []}
         else raise "unexpected request #{path}"
@@ -100,7 +101,7 @@ class ReleaseCITest < Minitest::Test
 
   def test_a_retry_that_never_reached_the_upload_builds_one
     [[], [publish_job("skipped")], [publish_job("success", job: "Validate and retain artifacts")],
-     [publish_job("success", step: "Verify the retained files before requesting credentials")]].each do |jobs|
+      [publish_job("success", step: "Verify the retained files before requesting credentials")]].each do |jobs|
       run = Run.new(jobs: jobs)
       refute run.restore(2), jobs.inspect
       assert_empty run.downloads
@@ -125,9 +126,9 @@ class ReleaseCITest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-release-ci-") do |directory|
       output = File.join(directory, "output")
       environment = {"GITHUB_REPOSITORY" => Run::REPOSITORY, "GITHUB_RUN_ID" => Run::ID, "GITHUB_RUN_ATTEMPT" => "1",
-        "GITHUB_OUTPUT" => output}
+                     "GITHUB_OUTPUT" => output}
       [[[], /No retained rubygems-release/, "retained=false\n"],
-       [["rubygems-release"], %r{Restored rubygems-release into pkg/release}, "retained=false\nretained=true\n"]].each do |artifacts, message, written|
+        [["rubygems-release"], %r{Restored rubygems-release into pkg/release}, "retained=false\nretained=true\n"]].each do |artifacts, message, written|
         run = Run.new(artifacts: artifacts)
         ci = ReleaseCI.new(client: run.client, downloader: ->(*) {})
         assert_output(message) { assert_equal 0, ReleaseCI.run(["restore", "pkg/release"], environment, ci: ci) }
@@ -142,5 +143,51 @@ class ReleaseCITest < Minitest::Test
     assert_output(nil, /usage:/) { assert_equal 2, ReleaseCI.run(%w[check one two]) }
     assert_output(nil, /GITHUB_REPOSITORY/) { assert_equal 1, ReleaseCI.run(["restore", "pkg/release"], {}) }
     assert_output(nil, /release requires a full commit SHA/) { assert_equal 1, ReleaseCI.run(%w[check HEAD]) }
+  end
+
+  # Runs the block with a `gh` stand-in first on PATH.
+  def with_gh(body)
+    Dir.mktmpdir do |directory|
+      LibTmuxTest::StubExecutable.write(File.join(directory, "gh"), body)
+      original = ENV.fetch("PATH")
+      ENV["PATH"] = [directory, original].join(File::PATH_SEPARATOR)
+      yield
+    ensure
+      ENV["PATH"] = original
+    end
+  end
+
+  def test_a_gh_call_that_never_answers_is_killed_at_the_deadline
+    with_gh("sleep 30\n") do
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      error = assert_raises(ReleaseCI::Error) { ReleaseCI.new(deadline: 0.3).check(COMMIT) }
+
+      assert_match(/gh ran past 0\.3 seconds/, error.message)
+      assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
+    end
+  end
+
+  def test_a_body_that_is_not_json_becomes_a_release_error
+    with_gh("puts \"<html>rate limited</html>\"\n") do
+      error = assert_raises(ReleaseCI::Error) { ReleaseCI.new.check(COMMIT) }
+
+      assert_match(/not JSON/, error.message)
+    end
+  end
+
+  def test_a_failing_gh_reports_what_it_printed
+    with_gh("warn \"HTTP 502\"\nexit 1\n") do
+      error = assert_raises(ReleaseCI::Error) { ReleaseCI.new.check(COMMIT) }
+
+      assert_match(/lookup failed: HTTP 502/, error.message)
+    end
+  end
+
+  def test_a_gh_answer_within_the_deadline_is_read
+    with_gh("puts '{\"workflow_runs\": []}'\n") do
+      error = assert_raises(ReleaseCI::Error) { ReleaseCI.new.check(COMMIT) }
+
+      assert_match(/no successful master compatibility run/, error.message)
+    end
   end
 end

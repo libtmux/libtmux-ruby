@@ -23,8 +23,9 @@ $ bundle exec scripts/release/release-ci check "$(git rev-parse HEAD)"
 ## Tests
 
 [`tests/`](tests) run `GemRelease`, `GitHubRelease` and `ReleaseCI` against
-injected stand-ins for the registry, `gh` and the GitHub API. No test reaches
-the network.
+injected stand-ins for the registry, `gh` and the GitHub API. Stand-in `gh`
+programs show that a call is killed at its deadline and that a body that is not
+JSON becomes a release error. No test reaches the network.
 
 ```console
 $ bundle exec scripts/check unit scripts/release/tests/*_test.rb

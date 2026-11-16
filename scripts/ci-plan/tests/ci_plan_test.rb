@@ -21,7 +21,7 @@ class CIPlanTest < Minitest::Test
   DEVELOPMENT = MANIFEST.fetch("development")
   GOOD_NEEDS = {
     "plan" => {"result" => "success", "outputs" => {"release_artifacts" => "true", "run_cells" => "true",
-      "run_unsupported" => "false", "run_development" => "false"}},
+                                                    "run_unsupported" => "false", "run_development" => "false"}},
     "release_artifacts" => {"result" => "success"}, "cell" => {"result" => "success"},
     "unsupported" => {"result" => "skipped"}, "development" => {"result" => "skipped"}
   }.freeze
@@ -135,7 +135,7 @@ class CIPlanTest < Minitest::Test
     sha = "a" * 40
     refused_release = UNSUPPORTED.first
     result = plan("workflow_dispatch", scope: "custom", ruby: NEWEST_RUBY,
-      tmux_ref: "#{OLDEST}, #{refused_release['tmux']},#{DEVELOPMENT.first['tmux']},master,#{sha},#{OLDEST}")
+      tmux_ref: "#{OLDEST}, #{refused_release["tmux"]},#{DEVELOPMENT.first["tmux"]},master,#{sha},#{OLDEST}")
     assert_equal ["linux/#{NEWEST_RUBY}/#{OLDEST}"], result.fetch("cells").map { |cell| cell.fetch("id") }
     assert_equal [[refused_release["tmux"], refused_release["check"]]],
       result.fetch("unsupported").map { |leg| leg.values_at("tmux", "check") }
@@ -250,13 +250,19 @@ class CIPlanTest < Minitest::Test
   BREAKS = [
     ["the edges rule takes every version", :edge_versions, ->(supported) { supported }, :check_push_runs_the_edges_only],
     ["the edges are written into the plan", :edge_versions, ->(_supported) { [OLDEST, NEWEST] }, :check_the_manifest_alone_decides_the_table],
-    ["a pull request runs the full scope", :resolve_scope, ->(event, scope) { event == "pull_request" ? "full" : CIPlan::EVENT_SCOPES.fetch(event) { scope } }, :check_pull_request_runs_the_edges_only],
+    ["a pull request runs the full scope", :resolve_scope, ->(event, scope) { (event == "pull_request") ? "full" : CIPlan::EVENT_SCOPES.fetch(event) { scope } }, :check_pull_request_runs_the_edges_only],
     ["a dispatch ignores the scope it was given", :resolve_scope, ->(_event, _scope) { "edges" }, :check_full_runs_the_whole_table],
     ["a given scope loses to the event", :resolve_scope, ->(event, _scope) { CIPlan::EVENT_SCOPES.fetch(event) { "edges" } }, :check_an_explicit_scope_beats_the_event],
     ["a dispatch does not default to the edges", :resolve_scope, ->(_event, scope) { scope.to_s.empty? ? "full" : scope }, :check_dispatch_defaults_to_the_edges],
     ["a schedule runs the edges", :resolve_scope, ->(event, scope) { scope.to_s.empty? ? "edges" : scope }, :check_a_schedule_runs_the_full_scope],
     ["an unknown scope is accepted", :resolve_scope, ->(_event, scope) { scope.to_s.empty? ? "edges" : scope }, :check_a_scope_must_be_known],
-    ["an unknown event is accepted", :resolve_scope, ->(event, scope) { scope.to_s.empty? ? CIPlan::EVENT_SCOPES.fetch(event, "edges") : (CIPlan::SCOPES.include?(scope) ? scope : "edges") }, :check_an_unknown_event_is_refused],
+    ["an unknown event is accepted", :resolve_scope, ->(event, scope) {
+      if scope.to_s.empty?
+        CIPlan::EVENT_SCOPES.fetch(event, "edges")
+      else
+        (CIPlan::SCOPES.include?(scope) ? scope : "edges")
+      end
+    }, :check_an_unknown_event_is_refused],
     ["refs the scope ignores are accepted", :check_scope_inputs, ->(_scope, _refs) {}, :check_a_ref_list_needs_the_custom_scope],
     ["a custom run without refs is planned", :custom_refs, ->(refs) { CIPlan.split_list(refs).empty? ? ["master"] : CIPlan.split_list(refs) }, :check_a_custom_run_needs_refs],
     ["a ref is not validated", :check_ref, ->(ref) { ref }, :check_every_ref_is_validated],
@@ -285,7 +291,7 @@ class CIPlanTest < Minitest::Test
 
   # Constants that are rules: the value, and the check that must notice.
   CONSTANT_BREAKS = {FIXED_JOBS: [0, :check_the_job_count_adds_up],
-    MAX_CUSTOM_LEGS: [1000, :check_too_many_jobs_are_refused]}.freeze
+                     MAX_CUSTOM_LEGS: [1000, :check_too_many_jobs_are_refused]}.freeze
 
   def test_every_check_has_a_deliberate_break
     broken = BREAKS.map(&:last) + CONSTANT_BREAKS.values.map(&:last)
@@ -356,5 +362,17 @@ class CIPlanTest < Minitest::Test
     assert_match(/cell finished failure/, error)
     _, _, status = Open3.capture3({"NEEDS" => "{}"}, Gem.ruby, script, "verify")
     refute status.success?
+  end
+
+  def test_built_checks_the_version_a_build_reports_against_the_leg_pattern
+    script = File.expand_path("../ci-plan", __dir__)
+    _, error, status = Open3.capture3(Gem.ruby, script, "built", "--version", "next-3.8", "--expect", "^next-")
+    assert status.success?, error
+    _, error, status = Open3.capture3(Gem.ruby, script, "built", "--version", "3.8", "--expect", "^next-")
+    refute status.success?
+    assert_match(/tmux 3\.8 does not match \^next-/, error)
+    _, error, status = Open3.capture3(Gem.ruby, script, "built", "--version", "3.8")
+    refute status.success?
+    assert_match(/--expect/, error)
   end
 end

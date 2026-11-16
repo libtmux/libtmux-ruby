@@ -29,6 +29,17 @@ The `report` job runs `verify` last. It reads the `needs` result from the
 `NEEDS` environment variable and fails when a job the plan scheduled did not
 succeed or a job it left out did not skip.
 
+## Built version
+
+A leg that expects a tmux version pattern, such as `^next-` for the development
+build, runs `built` after the build. It fails when the version the build
+reports does not match, so a ref that resolved to another release stops the leg
+before the tests.
+
+```console
+$ ruby scripts/ci-plan/ci-plan built --version next-3.8 --expect '^next-'
+```
+
 ## Tests
 
 [`tests/`](tests) holds the planner, the manifest rules and the check that the

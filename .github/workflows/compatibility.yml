@@ -280,8 +280,7 @@ jobs:
         env:
           BUILT: ${{ steps.tmux.outputs.version }}
           EXPECT: ${{ matrix.expect }}
-        run: |
-          ruby -e 'abort("tmux #{ENV["BUILT"]} does not match #{ENV["EXPECT"]}") unless ENV["BUILT"].match?(ENV["EXPECT"])'
+        run: ruby scripts/ci-plan/ci-plan built --version "$BUILT" --expect "$EXPECT"
       - name: Open a tmate session before the tests
         if: ${{ github.event_name == 'workflow_dispatch' && matrix.tmate == 'before-tests' }}
         uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113 # v3.24
