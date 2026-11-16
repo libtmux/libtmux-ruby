@@ -123,10 +123,7 @@ jobs:
           update: 'true'
           args: install --yes tmux zsh
       - name: Build and test the prospective release without credentials
-        shell: bash
-        run: |
-          version=$(ruby -r ./gems/libtmux/lib/libtmux/version -e 'print LibTmux::VERSION')
-          bundle exec rake "release:dry_run[v$version]"
+        run: bundle exec rake release:dry_run
 
   cell:
     name: ${{ matrix.system }} / Ruby ${{ matrix.ruby }} / tmux ${{ matrix.tmux }}

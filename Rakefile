@@ -38,7 +38,10 @@ namespace :release do
     task operation, [:tag, :commit] do |_, args|
       require "open3"
       load "scripts/release/release.rb" unless defined?(GemRelease)
-      tag = args[:tag] || ENV.fetch("RELEASE_TAG")
+      tag = args[:tag] || ENV["RELEASE_TAG"]
+      # A dry run on a branch has no tag, so it rehearses the checkout's version.
+      tag ||= "v#{Gem::Specification.load('gems/libtmux/libtmux.gemspec').version}" if operation == "dry_run"
+      tag ||= ENV.fetch("RELEASE_TAG")
       commit = args[:commit] || ENV["RELEASE_COMMIT"]
       unless commit
         commit, status = Open3.capture2("git", "rev-parse", "HEAD")
