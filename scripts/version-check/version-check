@@ -26,7 +26,7 @@ module VersionCheck
 
   def self.plan(check, version)
     test = TESTS.fetch(check) { raise Error, "no version-check test is assigned to tmux #{version}" }
-    {env: {"LIBTMUX_VERSION_CHECK_EXPECT" => check == "old_daemon" ? version : "refused"},
+    {env: {"LIBTMUX_VERSION_CHECK_EXPECT" => (check == "old_daemon") ? version : "refused"},
      argv: [Gem.ruby, "-Itest", test.fetch(:file)], deadline: test.fetch(:deadline)}
   end
 

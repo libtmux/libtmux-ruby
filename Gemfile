@@ -12,6 +12,7 @@ group :test do
   gem "fileutils", "~> 1.8"
   gem "minitest", "~> 6.0"
   gem "open3", "~> 0.2"
+  gem "standard", "~> 1.57", require: false
 end
 
 gem "rake", "~> 13.3"

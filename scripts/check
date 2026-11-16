@@ -3,6 +3,7 @@
 
 require "rbconfig"
 require_relative "../test/support/sandbox"
+require_relative "lint/ruby_scripts"
 
 root = File.expand_path("..", __dir__)
 Dir.chdir(root)
@@ -18,14 +19,11 @@ run = lambda do |*command|
 end
 
 if %w[mid outer].include?(mode)
-  # Every Ruby script under scripts/, found by extension or shebang so a new
-  # one needs no entry here.
-  scripts = Dir["scripts/**/*"].select do |path|
-    File.file?(path) && (path.end_with?(".rb") || File.open(path, &:gets).to_s.start_with?("#!/usr/bin/env ruby"))
-  end
+  scripts = RubyScripts.find(root)
   files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile] + scripts
   files.each { |file| RubyVM::InstructionSequence.compile_file(file) }
   puts "Syntax: #{files.length} files"
+  run.call(Gem.ruby, "scripts/lint/lint")
   run.call(Gem.ruby, "scripts/generate", "--check")
   run.call(Gem.ruby, "scripts/emit-capabilities", "--check")
   run.call(Gem.ruby, "scripts/examples/examples", "--check")
@@ -44,7 +42,7 @@ end
 # test/<suite>, plus the tests a script keeps beside it: scripts/<name>/tests
 # belongs to the unit suite and scripts/<name>/tests/<suite> to that suite.
 suite_files = lambda do |suite|
-  nested = suite == "unit" ? "scripts/*/tests/*_test.rb" : "scripts/*/tests/#{suite}/**/*_test.rb"
+  nested = (suite == "unit") ? "scripts/*/tests/*_test.rb" : "scripts/*/tests/#{suite}/**/*_test.rb"
   (Dir["test/#{suite}/**/*_test.rb"] + Dir[nested]).sort
 end
 

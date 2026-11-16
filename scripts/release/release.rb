@@ -41,10 +41,10 @@ class GemRelease
             Gem::Package.build(spec, false, true, destination)
           end
           {"name" => spec.name, "version" => spec.version.to_s,
-            "filename" => filename, "sha256" => Digest::SHA256.file(destination).hexdigest}
+           "filename" => filename, "sha256" => Digest::SHA256.file(destination).hexdigest}
         end
         manifest = {"format" => 1, "tag" => tag, "version" => specs.first.version.to_s,
-          "commit" => commit, "artifacts" => artifacts}
+                    "commit" => commit, "artifacts" => artifacts}
         File.write(File.join(temporary, "release.json"), JSON.pretty_generate(manifest) + "\n")
         verify_directory(temporary, manifest, specs, tag, commit)
         check_checkout(commit)
@@ -71,9 +71,9 @@ class GemRelease
   def publish(tag:, commit:, env: ENV)
     manifest = verify(tag: tag, commit: commit)
     expected = {"GITHUB_ACTIONS" => "true", "GITHUB_EVENT_NAME" => "push",
-      "GITHUB_REPOSITORY" => "libtmux/libtmux-ruby", "GITHUB_REF" => "refs/tags/#{tag}",
-      "GITHUB_SHA" => commit,
-      "GITHUB_WORKFLOW_REF" => "libtmux/libtmux-ruby/.github/workflows/release.yml@refs/tags/#{tag}"}
+                "GITHUB_REPOSITORY" => "libtmux/libtmux-ruby", "GITHUB_REF" => "refs/tags/#{tag}",
+                "GITHUB_SHA" => commit,
+                "GITHUB_WORKFLOW_REF" => "libtmux/libtmux-ruby/.github/workflows/release.yml@refs/tags/#{tag}"}
     expected.each do |key, value|
       fail_release("publication requires the release tag workflow: #{key} differs") unless env[key] == value
     end
@@ -81,15 +81,15 @@ class GemRelease
     artifacts = manifest.fetch("artifacts")
     existing = artifacts.map { |entry| registry_sha(registry, entry) }
     artifacts.zip(existing).each do |entry, sha|
-      fail_release("registry digest differs for #{entry.fetch('name')}; never replace a published version") if sha && sha != entry.fetch("sha256")
+      fail_release("registry digest differs for #{entry.fetch("name")}; never replace a published version") if sha && sha != entry.fetch("sha256")
     end
     artifacts.zip(existing).each do |entry, sha|
       next if sha
 
       registry.push(File.join(@directory, entry.fetch("filename")), env: env)
       actual = registry_sha(registry, entry)
-      fail_release("registry has not confirmed #{entry.fetch('name')}; retry with retained artifacts") unless actual
-      fail_release("registry digest differs after publishing #{entry.fetch('name')}; investigate before retry") unless actual == entry.fetch("sha256")
+      fail_release("registry has not confirmed #{entry.fetch("name")}; retry with retained artifacts") unless actual
+      fail_release("registry digest differs after publishing #{entry.fetch("name")}; investigate before retry") unless actual == entry.fetch("sha256")
     end
     manifest
   end
@@ -119,7 +119,7 @@ class GemRelease
     return @source_specs if @source_identity == [tag, commit]
 
     # A separate interpreter avoids require caches after another process bumps versions.
-    code = <<~'RUBY'
+    code = <<~RUBY
       require "rubygems"
       require "json"
       specs = ARGV.map do |path|
@@ -168,7 +168,7 @@ class GemRelease
     normalized.normalize
     coder = Psych::Coder.new(nil)
     normalized.encode_with(coder)
-    Psych.dump(coder.map.reject { |field, _| BUILD_FIELDS.include?(field) })
+    Psych.dump(coder.map.except(*BUILD_FIELDS))
   end
 
   def verify_directory(directory, manifest, specs, tag, commit)
@@ -221,7 +221,8 @@ class GemRelease
 
   def registry_sha(registry, entry)
     sha = registry.version_sha(entry.fetch("name"), entry.fetch("version"))
-    fail_release("registry returned an invalid digest; retry with retained artifacts") unless sha.nil? || (sha.is_a?(String) && SHA256.match?(sha))
+    valid = sha.nil? || (sha.is_a?(String) && SHA256.match?(sha))
+    fail_release("registry returned an invalid digest; retry with retained artifacts") unless valid
     sha
   end
 

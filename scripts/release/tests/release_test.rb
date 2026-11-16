@@ -37,6 +37,7 @@ end
 
 class ReleaseTest < Minitest::Test
   include ReleaseHTTP
+
   NAMES = %w[libtmux libtmux-async libtmux-mcp libtmux-workspace].freeze
   VERSION = "0.1.0.alpha.1"
 
@@ -89,9 +90,9 @@ class ReleaseTest < Minitest::Test
     @registry = Registry.new
     @release = GemRelease.new(@root, registry: @registry)
     @env = {"GITHUB_ACTIONS" => "true", "GITHUB_EVENT_NAME" => "push",
-      "GITHUB_REPOSITORY" => "libtmux/libtmux-ruby", "GITHUB_REF" => "refs/tags/#{@tag}",
-      "GITHUB_SHA" => @commit,
-      "GITHUB_WORKFLOW_REF" => "libtmux/libtmux-ruby/.github/workflows/release.yml@refs/tags/#{@tag}"}
+            "GITHUB_REPOSITORY" => "libtmux/libtmux-ruby", "GITHUB_REF" => "refs/tags/#{@tag}",
+            "GITHUB_SHA" => @commit,
+            "GITHUB_WORKFLOW_REF" => "libtmux/libtmux-ruby/.github/workflows/release.yml@refs/tags/#{@tag}"}
   end
 
   def build_source_fixture
@@ -101,7 +102,7 @@ class ReleaseTest < Minitest::Test
       FileUtils.mkdir_p(File.join(directory, "lib"))
       File.write(File.join(directory, "lib", "version.rb"), "module #{constant(name)}; VERSION = '#{VERSION}'; end\n")
       File.write(File.join(directory, "CHANGELOG.md"), "# Changelog\n\nNotable changes to `#{name}`.\n")
-      siblings = name == "libtmux" ? [] : ["libtmux"]
+      siblings = (name == "libtmux") ? [] : ["libtmux"]
       siblings << "libtmux-async" if name == "libtmux-mcp"
       File.write(File.join(directory, "#{name}.gemspec"), <<~RUBY)
         require_relative "lib/version"
@@ -166,7 +167,7 @@ class ReleaseTest < Minitest::Test
   end
 
   def test_source_binding_rejects_wrong_tag_commit_dirty_files_and_sibling_dependencies
-    ["#{VERSION}", "v0.1.0", "v../#{VERSION}"].each do |tag|
+    [VERSION.to_s, "v0.1.0", "v../#{VERSION}"].each do |tag|
       assert_raises(GemRelease::Error) { @release.prepare(tag: tag, commit: @commit) }
     end
     assert_raises(GemRelease::Error) { @release.prepare(tag: @tag, commit: "0" * 40) }
@@ -227,15 +228,15 @@ class ReleaseTest < Minitest::Test
     File.write(path, original + "# tampered\n")
     spec = Gem::Package.new(artifact).spec
     capture_io do
-      Dir.chdir(File.dirname(File.dirname(path))) { Gem::Package.build(spec, false, true, artifact) }
+      Dir.chdir(File.dirname(path, 2)) { Gem::Package.build(spec, false, true, artifact) }
     end
     File.binwrite(path, original)
     change_manifest { |m| m["artifacts"][0]["sha256"] = Digest::SHA256.file(artifact).hexdigest }
     assert_raises(GemRelease::Error) { @release.verify(tag: @tag, commit: @commit) }
 
     {autorequire: "injected", rdoc_options: ["--title", "injected"],
-      extra_rdoc_files: ["lib/version.rb"], test_files: ["lib/version.rb"],
-      specification_version: 3}.each do |field, value|
+     extra_rdoc_files: ["lib/version.rb"], test_files: ["lib/version.rb"],
+     specification_version: 3}.each do |field, value|
       File.binwrite(artifact, original_archive)
       spec = Gem::Package.new(artifact).spec
       spec.public_send("#{field}=", value)
@@ -384,10 +385,10 @@ class ReleaseRegistryTest < Minitest::Test
     version = nil
     cache = {}
     metadata = {"name" => "libtmux", "version" => "0.1.0.alpha.1",
-      "platform" => "ruby", "yanked" => false, "sha" => "a" * 64}
+                "platform" => "ruby", "yanked" => false, "sha" => "a" * 64}
     origin = lambda do |path|
       cache[path] ||= if URI(path).path == "/api/v2/rubygems/libtmux/versions/0.1.0.alpha.1.json"
-        version == :published ? ["200", JSON.generate(metadata)] : ["404", "This version could not be found."]
+        (version == :published) ? ["200", JSON.generate(metadata)] : ["404", "This version could not be found."]
       else
         version ? ["200", '{"total_downloads":0,"version_downloads":0}'] : ["404", "This rubygem could not be found."]
       end

@@ -73,7 +73,8 @@ Run a focused unit test through the timed inner loop:
 $ /usr/bin/time -p mise exec -- bundle exec ruby test/unit/process_test.rb
 ```
 
-Run all unit tests and Ruby syntax checks in the mid loop:
+Run all unit tests, the Ruby syntax compile and Standard over `scripts/` in the
+mid loop:
 
 ```console
 $ /usr/bin/time -p mise exec -- bundle exec scripts/check mid

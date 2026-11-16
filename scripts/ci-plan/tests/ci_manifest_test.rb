@@ -63,7 +63,7 @@ class CIManifestTest < Minitest::Test
     found = []
     found << "#{path} states another tmux range" unless
       text.match(/tmux (\d\.\d[a-z]?) through (\d\.\d[a-z]?)/)&.captures == [supported.first, supported.last]
-    found << "#{path} states other Rubies" unless text.include?("Ruby #{rubies[0..-2].join(', ')} and #{rubies.last}")
+    found << "#{path} states other Rubies" unless text.include?("Ruby #{rubies[0..-2].join(", ")} and #{rubies.last}")
     found << "#{path} states other edges" unless
       text.include?("oldest and newest supported release only (#{supported.first} and #{supported.last})")
     found

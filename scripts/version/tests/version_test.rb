@@ -27,7 +27,7 @@ class VersionTest < Minitest::Test
       %w[libtmux-async libtmux-mcp libtmux-workspace].each do |name|
         gemspec = File.read(File.join(root, "gems", name, "#{name}.gemspec"))
         refute_includes gemspec, "0.1.0.pre"
-        assert_includes gemspec, '"= #{spec.version}"'
+        assert_includes gemspec, "\"= \#{spec.version}\""
       end
       lock = File.read(File.join(root, "Gemfile.lock"))
       refute_includes lock, "0.1.0.pre"

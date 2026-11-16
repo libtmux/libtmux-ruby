@@ -77,7 +77,7 @@ class MatrixTest < Minitest::Test
   def test_merge_rejects_pass_labels_without_executed_suite_evidence
     Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
       report = {"source_digest" => CompatibilityMatrix.digest,
-        "cells" => CompatibilityMatrix.cells.map { |cell| cell.merge("status" => "PASS") }}
+                "cells" => CompatibilityMatrix.cells.map { |cell| cell.merge("status" => "PASS") }}
       File.write(File.join(directory, "matrix.json"), JSON.generate(report))
       result = nil
       output, = capture_io do
@@ -89,7 +89,7 @@ class MatrixTest < Minitest::Test
       assert combined.fetch("cells").all? { |cell| cell.fetch("status") == "INVALID_EVIDENCE" }
 
       report.fetch("cells").each do |cell|
-        cell.merge!("exit_status" => 0, "observed_ruby" => cell.fetch("ruby"), "observed_tmux" => "tmux #{cell.fetch('tmux')}",
+        cell.merge!("exit_status" => 0, "observed_ruby" => cell.fetch("ruby"), "observed_tmux" => "tmux #{cell.fetch("tmux")}",
           "ruby_sha256" => "a" * 64, "tmux_sha256" => "b" * 64, "whole_monotonic_seconds" => 1.0,
           "suites" => Array.new(3) { {"tests" => 1, "assertions" => 1, "failures" => 0, "errors" => 0, "skips" => 0} })
       end
@@ -129,7 +129,7 @@ class MatrixTest < Minitest::Test
     chosen = [ids.first, ids.last]
     Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
       passing = CompatibilityMatrix.cells.select { |cell| chosen.include?(cell.fetch("id")) }.map do |cell|
-        cell.merge("status" => "PASS", "exit_status" => 0, "observed_ruby" => cell.fetch("ruby"), "observed_tmux" => "tmux #{cell.fetch('tmux')}",
+        cell.merge("status" => "PASS", "exit_status" => 0, "observed_ruby" => cell.fetch("ruby"), "observed_tmux" => "tmux #{cell.fetch("tmux")}",
           "ruby_sha256" => "a" * 64, "tmux_sha256" => "b" * 64, "whole_monotonic_seconds" => 1.0,
           "suites" => Array.new(3) { {"tests" => 1, "assertions" => 1, "failures" => 0, "errors" => 0, "skips" => 0} })
       end
@@ -163,7 +163,7 @@ class MatrixTest < Minitest::Test
     Dir.mktmpdir("libtmux-ruby-matrix-") do |directory|
       ruby, tmux = %w[ruby tmux].map { |name| File.join(directory, name) }
       marker = File.join(directory, "dispatched")
-      LibTmuxTest::StubExecutable.write(ruby, <<~'STUB', MARKER: marker)
+      LibTmuxTest::StubExecutable.write(ruby, <<~STUB, MARKER: marker)
         if ARGV.first == "--disable=gems"
           print "4.0.7"
         else
@@ -171,7 +171,7 @@ class MatrixTest < Minitest::Test
           exit 7
         end
       STUB
-      LibTmuxTest::StubExecutable.write(tmux, <<~'STUB')
+      LibTmuxTest::StubExecutable.write(tmux, <<~STUB)
         puts "tmux 3.7c"
         exit 1
       STUB
@@ -198,7 +198,7 @@ class MatrixTest < Minitest::Test
       end
       require "socket"
       File.write("#{sandboxes}", ENV.fetch("TMUX_TMPDIR") + "\n", mode: "a")
-      #{leaks ? 'UNIXServer.new(File.join(ENV.fetch("TMUX_TMPDIR"), "custom.sock"))' : ""}
+      #{'UNIXServer.new(File.join(ENV.fetch("TMUX_TMPDIR"), "custom.sock"))' if leaks}
       3.times { puts "1 runs, 1 assertions, 0 failures, 0 errors, 0 skips" }
     RUBY
     LibTmuxTest::StubExecutable.write(tmux, <<~'STUB', LOG: tmuxes)

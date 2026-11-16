@@ -57,7 +57,7 @@ class GitHubReleaseTest < Minitest::Test
   end
 
   def test_conflicts_are_checked_before_any_missing_asset_is_uploaded
-    conflicts = [nil, "sha256:#{'f' * 64}", "sha512:#{'a' * 64}"]
+    conflicts = [nil, "sha256:#{"f" * 64}", "sha512:#{"a" * 64}"]
     conflicts.each do |digest|
       @assets = @expected.drop(1).map(&:dup)
       @assets.last["digest"] = digest
@@ -67,7 +67,7 @@ class GitHubReleaseTest < Minitest::Test
     end
     ["draft", "prerelease", "tag_name"].each do |key|
       original = @remote[key]
-      @remote[key] = key == "tag_name" ? "vwrong" : !original
+      @remote[key] = (key == "tag_name") ? "vwrong" : !original
       assert_raises(GitHubRelease::Error) { publish }
       assert_empty @writes
       @remote[key] = original
@@ -190,7 +190,7 @@ class GitHubReleaseTest < Minitest::Test
 
   def test_successful_upload_still_requires_complete_matching_confirmation
     @assets = []
-    @after_upload = -> { @assets.last["digest"] = "sha256:#{'f' * 64}" }
+    @after_upload = -> { @assets.last["digest"] = "sha256:#{"f" * 64}" }
     assert_raises(GitHubRelease::Error) { publish }
     assert_equal 1, @writes.length
     @assets = []
@@ -217,7 +217,7 @@ class GitHubReleaseTest < Minitest::Test
 
   def asset(name)
     path = File.join(@directory, name)
-    {"name" => name, "state" => "uploaded", "digest" => "sha256:#{File.file?(path) ? Digest::SHA256.file(path).hexdigest : 'f' * 64}"}
+    {"name" => name, "state" => "uploaded", "digest" => "sha256:#{File.file?(path) ? Digest::SHA256.file(path).hexdigest : "f" * 64}"}
   end
 
   def response(body, success: true, errors: "") = [JSON.generate(body), errors, Status.new(success)]
@@ -235,7 +235,7 @@ class GitHubReleaseTest < Minitest::Test
       elsif path.include?("/releases/tags/")
         return ["", "connection failed", Status.new(false)] if @lookup_failure == :connection
         code = @lookup_failure || (@remote ? 200 : 404)
-        body = code == 200 ? @remote : {"message" => "Not Found", "status" => "404"}
+        body = (code == 200) ? @remote : {"message" => "Not Found", "status" => "404"}
         json = @invalid_lookup ? "{" : JSON.generate(body)
         ["HTTP/2.0 #{code} Test\r\nContent-Type: application/json\r\n\r\n#{json}", "", Status.new(code == 200)]
       elsif path.include?("/releases?")

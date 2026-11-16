@@ -45,9 +45,9 @@ catalog.kinds.each do |kind|
     type = types.fetch(field.type) + (field.nullable ? "?" : "")
     signature << "    def #{field.name}: () -> #{type}"
     signature << "    alias #{field.name}? #{field.name}" if field.type == :boolean
-    bounds = field.type == :integer ? "#{field.min}..#{field.max}" : ""
+    bounds = (field.type == :integer) ? "#{field.min}..#{field.max}" : ""
     allowed = field.operators.map { |operator| "`#{operator}`" }.join(", ")
-    markdown << "| `#{field.name}` | `#{field.wire_name}` | `#{type}` | #{field.empty_is_null ? 'yes' : 'no'} | #{bounds} | #{allowed} | `#{field.format}` | #{field.min_version} |"
+    markdown << "| `#{field.name}` | `#{field.wire_name}` | `#{type}` | #{field.empty_is_null ? "yes" : "no"} | #{bounds} | #{allowed} | `#{field.format}` | #{field.min_version} |"
     scalar = {"type" => json_types.fetch(field.type)}
     scalar["minimum"] = field.min if field.min
     scalar["maximum"] = field.max if field.max
@@ -73,10 +73,14 @@ catalog.kinds.each do |kind|
   markdown.concat(["", "| Ruby relation | Wire name | Captured result |", "| --- | --- | --- |"])
   schema.relations.each_value do |relation|
     target = class_names.fetch(relation.target)
-    result = relation.cardinality == :many ? "Selection[#{target}]" : target + (relation.nullable ? "?" : "")
+    result = if relation.cardinality == :many
+      "Selection[#{target}]"
+    else
+      target + (relation.nullable ? "?" : "")
+    end
     signature << "    def #{relation.name}: () -> #{result}"
     markdown << "| `#{relation.name}` | `#{relation.wire_name}` | `#{result}` |"
-    names = relation.cardinality == :many ? %i[some every none] : %i[is is_not]
+    names = (relation.cardinality == :many) ? %i[some every none] : %i[is is_not]
     operand = reference.call(relation.target)
     operand = {"anyOf" => [operand, {"type" => "null"}]} if relation.nullable
     properties[relation.wire_name] = {"type" => "object", "minProperties" => 1,
@@ -91,13 +95,13 @@ signature << "end"
 envelopes = catalog.kinds.map do |kind|
   {"type" => "object", "required" => %w[profile version entity where], "additionalProperties" => false,
    "properties" => {"profile" => {"const" => LibTmux::FilterExpr::PROFILE},
-     "version" => {"type" => "integer", "const" => LibTmux::FilterExpr::VERSION},
-     "entity" => {"const" => catalog.entity(kind).wire_entity}, "where" => reference.call(kind)}}
+                    "version" => {"type" => "integer", "const" => LibTmux::FilterExpr::VERSION},
+                    "entity" => {"const" => catalog.entity(kind).wire_entity}, "where" => reference.call(kind)}}
 end
 wire_schema = {"$schema" => "https://json-schema.org/draft/2020-12/schema",
-  "$id" => "urn:libtmux-ruby:where:1", "title" => "Ruby libtmux criteria version 1",
-  "description" => "The Ruby decoder additionally enforces byte, depth and node limits, rejects duplicate keys and floating-point tokens for integer fields.",
-  "oneOf" => envelopes, "$defs" => definitions}
+               "$id" => "urn:libtmux-ruby:where:1", "title" => "Ruby libtmux criteria version 1",
+               "description" => "The Ruby decoder additionally enforces byte, depth and node limits, rejects duplicate keys and floating-point tokens for integer fields.",
+               "oneOf" => envelopes, "$defs" => definitions}
 outputs = {
   "gems/libtmux/sig/fields.rbs" => signature.join("\n") + "\n",
   "gems/libtmux/schema/where-v1.json" => JSON.pretty_generate(wire_schema) + "\n",
@@ -114,6 +118,6 @@ changed = outputs.filter_map do |relative, content|
   relative
 end
 if ARGV.include?("--check") && !changed.empty?
-  abort "generated files differ: #{changed.join(', ')}; run scripts/generate"
+  abort "generated files differ: #{changed.join(", ")}; run scripts/generate"
 end
-puts "Generated files: #{outputs.length} #{ARGV.include?('--check') ? 'checked' : 'written or current'}"
+puts "Generated files: #{outputs.length} #{ARGV.include?("--check") ? "checked" : "written or current"}"

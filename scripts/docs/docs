@@ -3,7 +3,6 @@
 
 require "cgi"
 require "fileutils"
-require "pathname"
 require "tmpdir"
 require "uri"
 require "open3"
@@ -107,7 +106,8 @@ class DocumentationSite
 end
 
 if $PROGRAM_NAME == __FILE__
-  abort "usage: scripts/docs/docs [--output DIRECTORY]" unless ARGV.empty? || (ARGV.length == 2 && ARGV.first == "--output")
+  usage = ARGV.empty? || (ARGV.length == 2 && ARGV.first == "--output")
+  abort "usage: scripts/docs/docs [--output DIRECTORY]" unless usage
   begin
     site = DocumentationSite.new(File.expand_path("../..", __dir__))
     if ARGV.empty?

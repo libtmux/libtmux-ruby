@@ -14,10 +14,10 @@ class ExampleManifestTest < Minitest::Test
       FileUtils.mkdir_p(File.join(root, "examples"))
       File.write(File.join(root, "examples", "one.rb"), "require 'libtmux'\nputs :one\n")
       manifest = {"version" => 1,
-        "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux",
-          "api" => {"symbols" => ["LibTmux::Server", "LibTmux::Server.new"],
-                    "description" => "Connect to a server.", "output" => "one\n"}}],
-        "support" => [], "documents" => [], "snippets" => []}
+                  "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux",
+                                  "api" => {"symbols" => ["LibTmux::Server", "LibTmux::Server.new"],
+                                            "description" => "Connect to a server.", "output" => "one\n"}}],
+                  "support" => [], "documents" => [], "snippets" => []}
       File.write(File.join(root, "examples", "manifest.json"), JSON.generate(manifest))
       checker = ExampleManifest.new(root)
       assert checker.check
@@ -45,10 +45,10 @@ class ExampleManifestTest < Minitest::Test
       FileUtils.mkdir_p(File.join(root, "examples"))
       File.write(File.join(root, "examples", "one.rb"), "require 'libtmux'\nputs :one\n")
       manifest = {"version" => 2,
-        "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux",
-          "api" => {"symbols" => ["LibTmux::Server#open_control"],
-                    "description" => "Open a control connection.", "output" => "one\n"}}],
-        "support" => [], "documents" => [], "snippets" => []}
+                  "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux",
+                                  "api" => {"symbols" => ["LibTmux::Server#open_control"],
+                                            "description" => "Open a control connection.", "output" => "one\n"}}],
+                  "support" => [], "documents" => [], "snippets" => []}
       File.write(File.join(root, "examples", "manifest.json"), JSON.generate(manifest))
       checker = ExampleManifest.new(root)
       entry = checker.data.fetch("programs").first
@@ -106,7 +106,7 @@ class ExampleManifestTest < Minitest::Test
       api = {"symbols" => ["LibTmux::Server#open_control"], "description" => "Open a control connection.", "output" => "one\n"}
       write = lambda do |version, extra|
         manifest = {"version" => version, "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux", "api" => api.merge(extra)}],
-          "support" => [], "documents" => [], "snippets" => []}
+                    "support" => [], "documents" => [], "snippets" => []}
         File.write(File.join(root, "examples", "manifest.json"), JSON.generate(manifest))
         ExampleManifest.new(root)
       end
@@ -145,7 +145,7 @@ class ExampleManifestTest < Minitest::Test
       File.write(File.join(root, "examples", "one.rb"), "require 'libtmux'\nputs :one\n")
       api = {"symbols" => ["LibTmux::Server#open_control"], "description" => "Open a control connection.", "output" => "one\n"}
       manifest = {"version" => 1, "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux", "api" => api}],
-        "support" => [], "documents" => [], "snippets" => []}
+                  "support" => [], "documents" => [], "snippets" => []}
       File.write(File.join(root, "examples", "manifest.json"), JSON.generate(manifest))
       code = "module LibTmux; module Internal; end; end; load ARGV[0]; ExampleManifest.new(ARGV[1]).check; " \
         "puts defined?(LibTmux::Internal::Capabilities).inspect"
@@ -172,7 +172,7 @@ class ExampleManifestTest < Minitest::Test
       File.write(File.join(root, "examples", "one.rb"), "# docs:begin main\nputs :one\n# docs:end main\n")
       File.write(File.join(root, "README.md"), "<!-- example: one/main -->\n```ruby\nputs :one\n```\n<!-- /example -->\n")
       manifest = {"version" => 1, "programs" => [{"id" => "one", "path" => "examples/one.rb", "gem" => "libtmux"}],
-        "support" => [], "documents" => ["README.md"], "snippets" => [{"id" => "one/main", "source" => "examples/one.rb", "region" => "main", "language" => "ruby"}]}
+                  "support" => [], "documents" => ["README.md"], "snippets" => [{"id" => "one/main", "source" => "examples/one.rb", "region" => "main", "language" => "ruby"}]}
       File.write(File.join(root, "examples", "manifest.json"), JSON.generate(manifest))
       checker = ExampleManifest.new(root)
       assert checker.check

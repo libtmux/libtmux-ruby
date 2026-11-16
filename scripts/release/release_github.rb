@@ -19,8 +19,8 @@ class GitHubRelease
 
   def publish(tag:, commit:)
     manifest = @release.verify(tag: tag, commit: commit)
-    expected = manifest.fetch("artifacts").to_h { |entry| [entry.fetch("filename"), "sha256:#{entry.fetch('sha256')}"] }
-    expected["release.json"] = "sha256:#{Digest::SHA256.file(File.join(@directory, 'release.json')).hexdigest}"
+    expected = manifest.fetch("artifacts").to_h { |entry| [entry.fetch("filename"), "sha256:#{entry.fetch("sha256")}"] }
+    expected["release.json"] = "sha256:#{Digest::SHA256.file(File.join(@directory, "release.json")).hexdigest}"
     verify_tag(tag, commit)
     release = lookup(tag)
     if release
@@ -76,7 +76,7 @@ class GitHubRelease
     valid = release.is_a?(Hash) && release["tag_name"] == tag && release["prerelease"] == prerelease?(tag) &&
       release["draft"] == false && release["id"].is_a?(Integer) && release["id"].positive?
     raise Error, "GitHub release identity differs; retain artifacts and investigate" unless valid
-    pages = json_api("releases/#{release.fetch('id')}/assets?per_page=100", "--paginate", "--slurp")
+    pages = json_api("releases/#{release.fetch("id")}/assets?per_page=100", "--paginate", "--slurp")
     raise Error, "GitHub release returned invalid asset pages" unless pages.is_a?(Array) && !pages.empty? && pages.all? { |page| page.is_a?(Array) }
     assets = pages.flatten(1)
     names = []
@@ -97,7 +97,7 @@ class GitHubRelease
 
   def run(*arguments)
     output, errors, status = @command.call("gh", *arguments, chdir: @root)
-    operation = arguments.first == "release" ? arguments[1] : "API request"
+    operation = (arguments.first == "release") ? arguments[1] : "API request"
     fail_command(operation, errors) unless status.success?
     output
   end
@@ -106,5 +106,4 @@ class GitHubRelease
     detail = errors.lines.first.to_s.strip
     raise Error, "GitHub #{operation} failed#{": #{detail}" unless detail.empty?}; retry with retained artifacts"
   end
-
 end

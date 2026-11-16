@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Formats and lints the Ruby scripts with Standard: RuboCop with a fixed rule
+# set, so the scripts follow one style with no configuration to keep in step.
+# .standard.yml at the repository root holds the only exception.
+#
+#   scripts/lint/lint [FILE ...]
+#
+# With no file it checks every Ruby script under scripts/. The exit status is
+# Standard's: 0 when every file passes.
+
+require_relative "ruby_scripts"
+
+root = File.expand_path("../..", __dir__)
+files = ARGV.empty? ? RubyScripts.find(root) : ARGV
+Dir.chdir(root)
+
+puts "Lint: #{files.length} files"
+command = [Gem.ruby, Gem.bin_path("standard", "standardrb")]
+$stdout.flush
+exec(*command, *files)

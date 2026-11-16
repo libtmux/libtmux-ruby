@@ -1,0 +1,5 @@
+# scripts/bench records any exception, Interrupt included, as evidence and
+# re-raises it after cleanup, so it rescues Exception.
+ignore:
+  - 'scripts/bench':
+      - Lint/RescueException

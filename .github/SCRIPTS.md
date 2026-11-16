@@ -37,8 +37,10 @@ real tmux.
   one file with a usage header.
 - `scripts/check` runs `scripts/<name>/tests/*_test.rb` in the unit suite, and
   a test under `tests/<suite>/`, such as `tests/packaging/`, in that suite.
-- Scripts pass the same formatter, linter, type checker and test runner as the
-  library, in CI.
+- Scripts pass a formatter and linter, the unit suite, and a syntax compile in
+  CI. [Standard](https://github.com/standardrb/standard) is the formatter and
+  linter, run by `scripts/lint/lint` from `scripts/check mid`. No type checker
+  covers the scripts: RBS describes the gems' public API only.
 - Use current language and tool idioms; no shims below the project's floor.
 - Before a new or rewritten script merges, a reviewer who did not write it
   checks it against [WRITING.md](WRITING.md) and
@@ -53,3 +55,8 @@ real tmux.
 - Shell commands that a README prints, which a test runs as written, and the
   `script` argument of the MCP run tool, which a test passes to a shell
   because the shell is the subject.
+- `.github/workflows/docs.yml`, which has not moved onto the shared
+  `port-docs.yml`. The shared workflow does not yet accept the `v<N>.x` release
+  branches, the `branch` dispatch kind or the publish environments this port
+  uses. [libtmux/docs#326](https://github.com/libtmux/docs/issues/326) tracks
+  the gap.

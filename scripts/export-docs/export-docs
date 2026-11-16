@@ -227,7 +227,7 @@ class DocumentationExport
       program.fetch("api").fetch("symbols").each do |id|
         raise Error, "unknown API example target: #{id}" unless packages.key?(id)
         unless packages.fetch(id) == program.fetch("gem")
-          raise Error, "API example package differs: #{program.fetch('id')} -> #{id}"
+          raise Error, "API example package differs: #{program.fetch("id")} -> #{id}"
         end
       end
     end
@@ -249,7 +249,7 @@ class DocumentationExport
     symbols.each do |symbol|
       path = symbol.dig("source", "path")
       raise Error, "invalid source path: #{path}" unless path&.start_with?("gems/") && !path.start_with?("/")
-      raise Error, "non-public symbol: #{symbol.fetch('id')}" unless symbol.fetch("visibility") == "public"
+      raise Error, "non-public symbol: #{symbol.fetch("id")}" unless symbol.fetch("visibility") == "public"
     end
     serialized = JSON.generate(symbols)
     raise Error, "machine-specific path in export" if serialized.match?(%r{/(?:home|Users)/})
@@ -275,7 +275,7 @@ if $PROGRAM_NAME == __FILE__
     else
       export.write(output)
     end
-    puts "Documentation export: #{export.payload.fetch('symbols').length} public methods across #{export.payload.fetch('packages').length} gems"
+    puts "Documentation export: #{export.payload.fetch("symbols").length} public methods across #{export.payload.fetch("packages").length} gems"
   rescue DocumentationExport::Error, PublicAPI::Error, ExampleManifest::Error => error
     abort error.message
   end

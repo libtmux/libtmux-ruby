@@ -56,10 +56,10 @@ module CIManifest
       found << error.message
     end
     manifest.fetch("unsupported").each do |entry|
-      found << "refused release #{entry['tmux']} has no known check" unless CHECKS.include?(entry["check"])
+      found << "refused release #{entry["tmux"]} has no known check" unless CHECKS.include?(entry["check"])
     end
     manifest.fetch("development").each do |entry|
-      found << "development build #{entry['tmux']} has no full commit" unless COMMIT.match?(entry["commit"].to_s)
+      found << "development build #{entry["tmux"]} has no full commit" unless COMMIT.match?(entry["commit"].to_s)
     end
     found << "the manifest lists a system other than linux" unless manifest.fetch("systems") == ["linux"]
     found

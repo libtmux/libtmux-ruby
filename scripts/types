@@ -2,7 +2,6 @@
 # frozen_string_literal: true
 
 require "json"
-require "pathname"
 require "rbs"
 require "libtmux/workspace/cli"
 require "libtmux/mcp/cli"
@@ -23,7 +22,7 @@ class PublicAPI
 
   def definition(value, kind)
     name = RBS::TypeName.parse(value.name).absolute!
-    kind == :instance ? builder.build_instance(name) : builder.build_singleton(name)
+    (kind == :instance) ? builder.build_instance(name) : builder.build_singleton(name)
   end
 
   def records
@@ -32,9 +31,9 @@ class PublicAPI
         names << :new if kind == :singleton && value.is_a?(Class) && value.respond_to?(:new)
         signatures = definition(value, kind)
         names.uniq.filter_map do |name|
-          callable = kind == :instance ? value.instance_method(name) : value.method(name)
+          callable = (kind == :instance) ? value.instance_method(name) : value.method(name)
           native_data = value.is_a?(Class) && value < Data &&
-            (kind == :instance ? callable.owner == value : callable.owner == value.singleton_class)
+            (callable.owner == ((kind == :instance) ? value : value.singleton_class))
           location = source(callable.source_location)
           next unless location || callable.owner.name&.start_with?("LibTmux") || native_data || name == :new
 
@@ -50,13 +49,13 @@ class PublicAPI
             location ||= source(value.instance_method(:initialize).source_location)
           end
           location ||= constant_source(value)
-          separator = kind == :instance ? "#" : "."
+          separator = (kind == :instance) ? "#" : "."
           signature = signatures.methods[name]
           {"id" => "#{value.name}#{separator}#{name}", "owner" => "#{owner}#{separator}#{name}",
-            "class" => value.name, "method" => name.to_s, "kind" => kind.to_s,
-            "source" => location, "returns" => signature&.method_types&.map { |type| type.type.return_type.to_s }&.uniq,
-            "visibility" => signature&.accessibility&.to_s,
-            "signatures" => signature&.method_types&.map(&:to_s)}
+           "class" => value.name, "method" => name.to_s, "kind" => kind.to_s,
+           "source" => location, "returns" => signature&.method_types&.map { |type| type.type.return_type.to_s }&.uniq,
+           "visibility" => signature&.accessibility&.to_s,
+           "signatures" => signature&.method_types&.map(&:to_s)}
         end
       end
     end.sort_by { |record| record.fetch("id") }
@@ -65,9 +64,9 @@ class PublicAPI
   def audit!
     errors = []
     records.each do |record|
-      errors << "missing signature: #{record.fetch('id')}" unless record.fetch("signatures")
-      errors << "missing source: #{record.fetch('id')}" unless record.fetch("source")
-      errors << "public method declared private: #{record.fetch('id')}" unless record.fetch("visibility") == "public"
+      errors << "missing signature: #{record.fetch("id")}" unless record.fetch("signatures")
+      errors << "missing source: #{record.fetch("id")}" unless record.fetch("source")
+      errors << "public method declared private: #{record.fetch("id")}" unless record.fetch("visibility") == "public"
     end
     exports.grep(Class).each do |value|
       singleton = definition(value, :singleton)
@@ -106,8 +105,8 @@ class PublicAPI
     owners = records.map { |record| record.fetch("owner") }.uniq
     missing = owners - mapping.keys
     stale = mapping.keys - owners
-    raise Error, "unmapped public methods: #{missing.join(', ')}" unless missing.empty?
-    raise Error, "stale behavioral mappings: #{stale.join(', ')}" unless stale.empty?
+    raise Error, "unmapped public methods: #{missing.join(", ")}" unless missing.empty?
+    raise Error, "stale behavioral mappings: #{stale.join(", ")}" unless stale.empty?
     behavior = File.read(File.join(root, "docs/reference/behavior.md"))
     contracts.each do |contract|
       title = contract.fetch("title")
@@ -133,9 +132,9 @@ class PublicAPI
       lines.concat(["## #{name}", "", "| Method | Declared return | Contract |", "| --- | --- | --- |"])
       methods.each do |record|
         contract = mapping.fetch(record.fetch("owner"))
-        label = (record.fetch("kind") == "singleton" ? "." : "#") + record.fetch("method")
-        returns = record.fetch("returns").map { |type| "`#{type.gsub('|', '\\|')}`" }.join(" / ")
-        lines << "| [#{label}](../../#{record.fetch('source')}) | #{returns} | [#{contract.fetch('title')}](behavior.md##{contract.fetch('id')}) |"
+        label = ((record.fetch("kind") == "singleton") ? "." : "#") + record.fetch("method")
+        returns = record.fetch("returns").map { |type| "`#{type.gsub("|", '\\|')}`" }.join(" / ")
+        lines << "| [#{label}](../../#{record.fetch("source")}) | #{returns} | [#{contract.fetch("title")}](behavior.md##{contract.fetch("id")}) |"
       end
       lines << ""
     end
@@ -159,12 +158,12 @@ class PublicAPI
     path, line = location
     spec = @specs.find { |candidate| path.start_with?(candidate.full_gem_path + "/") }
     return unless spec
-    "gems/#{spec.name}/#{path.delete_prefix(spec.full_gem_path + '/')}#L#{line}"
+    "gems/#{spec.name}/#{path.delete_prefix(spec.full_gem_path + "/")}#L#{line}"
   end
 
   def constant_source(value)
     names = value.name.split("::")
-    parent = names.length == 1 ? Object : Object.const_get(names[0...-1].join("::"))
+    parent = (names.length == 1) ? Object : Object.const_get(names[0...-1].join("::"))
     source(parent.const_source_location(names.last, false))
   end
 end

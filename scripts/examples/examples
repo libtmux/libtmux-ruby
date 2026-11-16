@@ -2,7 +2,6 @@
 # frozen_string_literal: true
 
 require "json"
-require "pathname"
 
 # Maintainer tool: one manifest owns executable discovery and source excerpts.
 class ExampleManifest
@@ -45,7 +44,7 @@ class ExampleManifest
     duplicates!(programs.map { |entry| entry.fetch("id") }, "program IDs")
     api_targets = []
     programs.each do |entry|
-      raise Error, "unknown package for example: #{entry.fetch('id')}" unless PACKAGES.include?(entry.fetch("gem"))
+      raise Error, "unknown package for example: #{entry.fetch("id")}" unless PACKAGES.include?(entry.fetch("gem"))
       unless /\A[a-z][a-z0-9_]*\z/.match?(entry.fetch("id")) && /\Aexamples\/.+\.rb\z/.match?(entry.fetch("path"))
         raise Error, "invalid executable example entry"
       end
@@ -56,7 +55,7 @@ class ExampleManifest
           api["symbols"].all? { |id| id.is_a?(String) && !id.empty? && !id.match?(/\s/) } &&
           api["description"].is_a?(String) && !api["description"].strip.empty? &&
           api["output"].is_a?(String) && !api["output"].strip.empty? && api["output"].end_with?("\n")
-        raise Error, "invalid API example metadata: #{entry.fetch('id')}"
+        raise Error, "invalid API example metadata: #{entry.fetch("id")}"
       end
       check_capabilities(entry.fetch("id"), api)
       api_targets.concat(api.fetch("symbols"))
@@ -65,8 +64,8 @@ class ExampleManifest
     declared = programs.map { |entry| entry.fetch("path") } + data.fetch("support")
     duplicates!(declared, "example paths")
     discovered = Dir.glob("examples/**/*", base: root).select { |path| File.file?(File.join(root, path)) } - ["examples/manifest.json"]
-    raise Error, "unlisted example files: #{(discovered - declared).join(', ')}" unless (discovered - declared).empty?
-    raise Error, "missing example files: #{(declared - discovered).join(', ')}" unless (declared - discovered).empty?
+    raise Error, "unlisted example files: #{(discovered - declared).join(", ")}" unless (discovered - declared).empty?
+    raise Error, "missing example files: #{(declared - discovered).join(", ")}" unless (declared - discovered).empty?
     declared.each { |path| safe_path(path) }
     snippets = data.fetch("snippets")
     duplicates!(snippets.map { |entry| entry.fetch("id") }, "snippet IDs")
@@ -76,12 +75,12 @@ class ExampleManifest
       if entry["region"]
         region = Regexp.escape(entry.fetch("region"))
         matches = source.scan(/^\s*# docs:begin #{region}\n(.*?)^\s*# docs:end #{region}\n/m)
-        raise Error, "snippet requires exactly one source region: #{entry.fetch('id')}" unless matches.length == 1
+        raise Error, "snippet requires exactly one source region: #{entry.fetch("id")}" unless matches.length == 1
         source = matches.first.first
         indentation = source.lines.reject { |line| line.strip.empty? }.map { |line| line[/\A */].size }.min || 0
         source = source.lines.map { |line| line.sub(/\A {0,#{indentation}}/, "") }.join
       end
-      [entry.fetch("id"), "```#{entry.fetch('language')}\n#{source.chomp}\n```\n"]
+      [entry.fetch("id"), "```#{entry.fetch("language")}\n#{source.chomp}\n```\n"]
     end
     documents = Dir.glob(["README.md", "CHANGELOG.md", "gems/*/README.md", "gems/*/CHANGELOG.md", "docs/**/*.md"], base: root)
       .reject { |path| path.start_with?("docs/_build/") }.sort
@@ -104,7 +103,7 @@ class ExampleManifest
       end
       File.write(safe_path(path), rendered) if write && content != rendered
     end
-    raise Error, "undocumented snippets: #{(expected.keys - used).join(', ')}" unless (expected.keys - used).empty?
+    raise Error, "undocumented snippets: #{(expected.keys - used).join(", ")}" unless (expected.keys - used).empty?
     true
   rescue KeyError, JSON::ParserError => error
     raise Error, "malformed example manifest (#{error.class})"
@@ -137,11 +136,11 @@ class ExampleManifest
 
     registry = self.class.registry::CAPABILITIES
     unknown = declared - registry.map(&:id)
-    raise Error, "unknown capability in API example #{id}: #{unknown.join(', ')}" unless unknown.empty?
+    raise Error, "unknown capability in API example #{id}: #{unknown.join(", ")}" unless unknown.empty?
     symbols = api.fetch("symbols")
     required = registry.select { |entry| ((entry.apis - CONDITIONAL_APIS) & symbols).any? }.map(&:id)
     missing = required - declared
-    raise Error, "API example #{id} uses a capability it does not declare: #{missing.join(', ')}" unless missing.empty?
+    raise Error, "API example #{id} uses a capability it does not declare: #{missing.join(", ")}" unless missing.empty?
   end
 
   def safe_path(path)
@@ -161,7 +160,7 @@ if $PROGRAM_NAME == __FILE__
   begin
     manifest = ExampleManifest.new(File.expand_path("../..", __dir__))
     manifest.check(write: ARGV == ["--write"])
-    puts "Examples: #{manifest.data.fetch('programs').length} programs; source excerpts current"
+    puts "Examples: #{manifest.data.fetch("programs").length} programs; source excerpts current"
   rescue ExampleManifest::Error => error
     abort error.message
   end

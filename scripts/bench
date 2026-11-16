@@ -52,7 +52,7 @@ module TmuxBenchmark
     {sha256: Digest::SHA256.hexdigest(JSON.generate(sources)), files: sources.to_h}
   end
 
-  WRITER = <<~'RUBY'.freeze
+  WRITER = <<~'RUBY'
     require "io/console"
     STDIN.raw!
     STDOUT.sync = true
@@ -133,15 +133,13 @@ module TmuxBenchmark
     def locked(object, kind)
       mutex = object.instance_variable_get(:@mutex)
       mutex.synchronize do
-        meter = Meter.new(object, kind, (@next_id += 1), mutex)
+        meter = Meter.new(object, kind, @next_id += 1, mutex)
         @meters << meter
         mutex.define_singleton_method(:synchronize) do |&operation|
           super() do
-            begin
-              operation.call
-            ensure
-              meter.sample
-            end
+            operation.call
+          ensure
+            meter.sample
           end
         end
         meter
@@ -163,7 +161,7 @@ module TmuxBenchmark
     end
 
     def async(scope)
-      meter = Meter.new(scope, :async, (@next_id += 1))
+      meter = Meter.new(scope, :async, @next_id += 1)
       @meters << meter
       scope.singleton_class.prepend(Module.new do
         [:acquire, :notify, :release].each do |name|
@@ -200,12 +198,10 @@ module TmuxBenchmark
 
     def begin_phase
       @hwm_reset = {ruby: Process.pid, tmux: @server_pid}.transform_values do |pid|
-        begin
-          File.write("/proc/#{pid}/clear_refs", "5\n")
-          {status: "reset", scope: "kernel-reported phase high water, including probe overhead"}
-        rescue SystemCallError => error
-          {status: "unavailable", reason: error.class.name}
-        end
+        File.write("/proc/#{pid}/clear_refs", "5\n")
+        {status: "reset", scope: "kernel-reported phase high water, including probe overhead"}
+      rescue SystemCallError => error
+        {status: "unavailable", reason: error.class.name}
       end
     end
 
@@ -225,12 +221,13 @@ module TmuxBenchmark
     def difference(before, after)
       counters = %i[self_user self_system reaped_child_user reaped_child_system allocated_objects gc_count gc_time_ms tmux_cpu_ticks]
       counters.to_h do |key|
-        [key, before[key] && after[key] ? after.fetch(key) - before.fetch(key) : nil]
+        [key, (before[key] && after[key]) ? after.fetch(key) - before.fetch(key) : nil]
       end.merge(
         ruby_memory_before: before[:ruby_memory], ruby_memory_after: after[:ruby_memory],
         tmux_memory_before: before[:tmux_memory], tmux_memory_after: after[:tmux_memory],
         memory_hwm_reset: @hwm_reset,
-        heap_live_slots_before: before[:heap_live_slots], heap_live_slots_after: after[:heap_live_slots])
+        heap_live_slots_before: before[:heap_live_slots], heap_live_slots_after: after[:heap_live_slots]
+      )
     end
 
     private
@@ -280,7 +277,7 @@ module TmuxBenchmark
         median = values.length.odd? ? values[values.length / 2] : values[(values.length / 2) - 1, 2].sum / 2.0
         {panes: key[0], lane: key[1], phase: key[2], samples: values.length,
          median_seconds: median, min_seconds: values.first, max_seconds: values.last,
-         interpretation: values.length < 6 ? "inconclusive smoke samples" : "descriptive samples; no capacity or tail claim"}
+         interpretation: (values.length < 6) ? "inconclusive smoke samples" : "descriptive samples; no capacity or tail claim"}
       end
       write("summary.json", {status: status, whole_run_seconds: seconds, comparisons: summary,
         open_gates: ["host/platform/version matrix and pressure sweep are separate runs",
@@ -439,15 +436,15 @@ module TmuxBenchmark
 
     def writer(index)
       [RbConfig.ruby, "--disable=rubyopt,gems", "-e", WRITER, index.to_s, @config.fetch(:payload_bytes).to_s,
-       @config.fetch(:tmux), "#{@ready}-#{index}"]
+        @config.fetch(:tmux), "#{@ready}-#{index}"]
     end
 
     def metadata_commands
       @fields = %i[session window window_link pane].to_h { |kind| [kind, CATALOG.entity(kind).fields.values] }
       combined = @fields.fetch(:window) + @fields.fetch(:window_link)
       [["list-sessions", "-F", METADATA.format(@fields.fetch(:session).map(&:format))],
-       ["list-windows", "-a", "-F", METADATA.format(combined.map(&:format))],
-       ["list-panes", "-a", "-F", METADATA.format(@fields.fetch(:pane).map(&:format))]]
+        ["list-windows", "-a", "-F", METADATA.format(combined.map(&:format))],
+        ["list-panes", "-a", "-F", METADATA.format(@fields.fetch(:pane).map(&:format))]]
     end
 
     def decode(bodies)
@@ -484,7 +481,7 @@ module TmuxBenchmark
       metric = @metrics.difference(before, after).merge(wall_seconds: elapsed)
       metric[:logical_resource_peaks] = @peaks.snapshot
       metric[:probe_cost_policy] = "included, not subtracted; resource probes execute under existing state ownership"
-      serializable = value.reject { |key, _| [:value, :bodies].include?(key) }
+      serializable = value.except(:value, :bodies)
       if value[:bodies]
         serializable[:output_bytes] = value.fetch(:bodies).sum(&:bytesize)
         serializable[:output_sha256] = Digest::SHA256.hexdigest(value.fetch(:bodies).join)
@@ -501,7 +498,10 @@ module TmuxBenchmark
       started, first, inflight, peak, pids = TmuxBenchmark.clock, nil, 0, 0, []
       mutex = Mutex.new
       request = lambda do |command|
-        mutex.synchronize { inflight += 1; peak = [peak, inflight].max }
+        mutex.synchronize {
+          inflight += 1
+          peak = [peak, inflight].max
+        }
         begin
           if lane.start_with?("control")
             reply = control.exchange(TmuxBenchmark.command_line(command), timeout: budget)
@@ -511,7 +511,7 @@ module TmuxBenchmark
             TmuxBenchmark.check(block.guard_success?, "control command guard failed")
             bytes = block.body
           else
-            result = (lane == "async_bounded" ? @scope.server : server).run(command, timeout: budget)
+            result = ((lane == "async_bounded") ? @scope.server : server).run(command, timeout: budget)
             mutex.synchronize { pids << result.pid }
             TmuxBenchmark.check(result.success?, "process command failed")
             TmuxBenchmark.check(result.stderr.empty?, "unexpected process diagnostic")
@@ -534,13 +534,23 @@ module TmuxBenchmark
         commands.each_with_index { |command, index| queue << [command, index] }
         workers = [@config.fetch(:concurrency), commands.length].min.times.map do
           Thread.new do
-            while (entry = queue.pop(true) rescue nil)
+            while (entry = begin
+              queue.pop(true)
+            rescue
+              nil
+            end)
               results[entry.last] = request.call(entry.first)
             end
           end
         end
         errors = []
-        workers.each { |worker| worker.value rescue errors << $! }
+        workers.each { |worker|
+          begin
+            worker.value
+          rescue
+            errors << $!
+          end
+        }
         raise errors.first unless errors.empty?
         results
       when "group"
@@ -553,7 +563,11 @@ module TmuxBenchmark
         peak = 1
         if lengths.all?
           offset = 0
-          values = lengths.map { |length| part = result.result.stdout.byteslice(offset, length); offset += length; part }
+          values = lengths.map { |length|
+            part = result.result.stdout.byteslice(offset, length)
+            offset += length
+            part
+          }
           TmuxBenchmark.check(offset == result.result.stdout.bytesize, "merged group byte count changed")
           values
         else
@@ -681,7 +695,7 @@ module TmuxBenchmark
             observed = @server.run(["show-options", "-p", "-v", "-t", pane.id, "@benchmark"], timeout: budget)
             TmuxBenchmark.check(observed.stdout == "applied\n", "mutation final option differs")
           end
-          widths = @server.run(["list-panes", "-t", @window.id, "-F", "#{'#{pane_height}'}"], timeout: budget).stdout.lines.map(&:to_i)
+          widths = @server.run(["list-panes", "-t", @window.id, "-F", "\#{pane_height}"], timeout: budget).stdout.lines.map(&:to_i)
           TmuxBenchmark.check(widths.uniq.length == 1, "layout final heights differ")
           verify_graph(@server.snapshot(timeout: budget))
           @window.select_layout(:tiled, timeout: budget)
@@ -824,10 +838,10 @@ module TmuxBenchmark
       gaps = tails.map { |subscription| subscription.next(timeout: budget) }
       TmuxBenchmark.check(overflows.all? && gaps.all? { |gap| gap.kind == :gap && gap.dropped_bytes.positive? }, "slow consumer loss was silent")
       result = {type: "slow_consumer", panes: @count, reliable_subscribers: reliable.length,
-        tail_subscribers: tails.length, reliable_overflows: overflows.count(true),
-        tail_lost_sequences: gaps.map(&:lost_sequences), tail_dropped_bytes: gaps.map(&:dropped_bytes),
-        per_subscriber_retained_byte_bound: 1024, per_subscriber_retained_event_bound: 1,
-        total_configured_retained_byte_bound: (reliable.length + tails.length) * 1024, commands_responsive: true}
+                tail_subscribers: tails.length, reliable_overflows: overflows.count(true),
+                tail_lost_sequences: gaps.map(&:lost_sequences), tail_dropped_bytes: gaps.map(&:dropped_bytes),
+                per_subscriber_retained_byte_bound: 1024, per_subscriber_retained_event_bound: 1,
+                total_configured_retained_byte_bound: (reliable.length + tails.length) * 1024, commands_responsive: true}
       @evidence.diagnostic(result)
       result
     rescue Exception => error
@@ -876,12 +890,10 @@ module TmuxBenchmark
               -> { TmuxBenchmark.check(reader.join([retire_deadline - TmuxBenchmark.clock, 0].max), "stream reader remains active") }
             end
           actions.each do |action|
-            begin
-              action.call
-            rescue Exception => error
-              cleanup_errors << error.class.name
-              failure ||= error
-            end
+            action.call
+          rescue Exception => error
+            cleanup_errors << error.class.name
+            failure ||= error
           end
           unless cleanup_errors.empty?
             begin
@@ -917,14 +929,12 @@ module TmuxBenchmark
     def cleanup
       errors = []
       @panes.each do |pane|
-        begin
-          pane.send_text("quit\n", timeout: DEADLINE)
-          @server.wait_for(@died, timeout: DEADLINE)
-          state = @server.run(["display-message", "-p", "-t", pane.id, "#{'#{pane_dead}:#{pane_dead_status}'}"], timeout: DEADLINE)
-          TmuxBenchmark.check(state.stdout == "1:0\n", "writer did not exit successfully")
-        rescue Exception => error
-          errors << "writer retirement: #{error.class}"
-        end
+        pane.send_text("quit\n", timeout: DEADLINE)
+        @server.wait_for(@died, timeout: DEADLINE)
+        state = @server.run(["display-message", "-p", "-t", pane.id, "\#{pane_dead}:\#{pane_dead_status}"], timeout: DEADLINE)
+        TmuxBenchmark.check(state.stdout == "1:0\n", "writer did not exit successfully")
+      rescue Exception => error
+        errors << "writer retirement: #{error.class}"
       end
       begin
         @pids << @control.pid if @control
@@ -947,7 +957,7 @@ module TmuxBenchmark
       @evidence.diagnostic(type: "cleanup", panes: @count, errors: errors,
         writer_exit_checks: @panes.length, tracked_command_clients: @pids.uniq.length,
         daemon_reaped: @daemon.complete?, temporary_directory_removed: !File.exist?(@directory))
-      raise "benchmark cleanup failed: #{errors.join(', ')}" unless errors.empty?
+      raise "benchmark cleanup failed: #{errors.join(", ")}" unless errors.empty?
     end
 
     def reaped(pid)
@@ -972,7 +982,10 @@ module TmuxBenchmark
       options.on("--concurrency N", Integer, "Concurrent callers in Async and pipelined control (1..16)") { |value| config[:concurrency] = value }
       options.on("--subscribers N", Integer, "Output readers and slow subscribers per policy (1..16)") { |value| config[:subscribers] = value }
       options.on("--tmux PATH", "Exact tmux executable") { |value| config[:tmux] = value }
-      options.on("--help") { puts options; return 0 }
+      options.on("--help") {
+        puts options
+        return 0
+      }
     end
     parser.parse!(argv)
     raise ArgumentError, parser.to_s unless %w[plan run].include?(command) && argv.empty?
@@ -983,7 +996,7 @@ module TmuxBenchmark
     raise ArgumentError, "concurrency must be 1..16" unless config.fetch(:concurrency).between?(1, 16)
     raise ArgumentError, "subscribers must be 1..16" unless config.fetch(:subscribers).between?(1, 16)
     config[:lanes] = LANES
-    config[:sample_interpretation] = config.fetch(:samples) < 6 ? "inconclusive smoke" : "descriptive raw samples"
+    config[:sample_interpretation] = (config.fetch(:samples) < 6) ? "inconclusive smoke" : "descriptive raw samples"
     config[:open_gates] = ["no automatic pressure or capacity inference",
       "stream is non-equivalent to screen capture", "full process-tree memory and version matrix are separate"]
     config[:maximum_run_seconds] = MAX_RUN_SECONDS
@@ -1045,7 +1058,7 @@ module TmuxBenchmark
     end
     puts "Benchmark evidence recorded; pressure, process-tree memory and matrix gates remain open."
     0
-  rescue StandardError => error
+  rescue => error
     warn "Benchmark failed (#{error.class}): #{error.message}"
     1
   end

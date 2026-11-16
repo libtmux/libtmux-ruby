@@ -23,10 +23,10 @@ class VersionBump
   }.freeze
   VERSION_PATTERN = /^(\s*VERSION = )"([^"]+)"$/
   SIBLING_PATTERN = /^\s*spec\.add_dependency "(libtmux(?:-(?:async|mcp|workspace))?)", "([^"]+)"\s*$/
-  DERIVED_CONSTRAINT = '= #{spec.version}'
+  DERIVED_CONSTRAINT = "= \#{spec.version}"
   INITIAL_VERSION = Gem::Version.new("0.1.0.pre")
   INITIAL_RELEASE = Gem::Version.new("0.1.0.alpha.1")
-  GEMSPEC_EVALUATOR = <<~'RUBY'
+  GEMSPEC_EVALUATOR = <<~RUBY
     require "json"
     require "rubygems"
     require "stringio"
@@ -132,7 +132,7 @@ class VersionBump
           semantic_names.uniq.length == semantic_names.length &&
           semantic_dependencies.all? do |dependency|
             dependency.fetch("type") == "runtime" &&
-              Gem::Requirement.new(dependency.fetch("requirement")) == expected_requirement
+                Gem::Requirement.new(dependency.fetch("requirement")) == expected_requirement
           end
         raise Error, "#{path} has inconsistent sibling dependencies"
       end
@@ -203,7 +203,7 @@ class VersionBump
   end
 
   def validate_readme(readme, current)
-    artifacts = readme.scan(%r{pkg/libtmux-([0-9A-Za-z.\-]+)\.gem}).flatten
+    artifacts = readme.scan(%r{pkg/libtmux-([0-9A-Za-z.-]+)\.gem}).flatten
     unless artifacts == [current.to_s]
       raise Error, "README artifact version is inconsistent"
     end
