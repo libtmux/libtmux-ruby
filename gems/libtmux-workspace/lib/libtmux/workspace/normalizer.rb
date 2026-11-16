@@ -19,7 +19,8 @@ module LibTmux
         "main-pane-width" => :index, "main-pane-height" => :index,
         "window-status-format" => :text, "window-status-current-format" => :text,
         "pane-border-status" => %w[off top bottom]}.freeze
-      private_constant :COMMON, :ROOT, :WINDOW, :PANE, :LAYOUTS, :SESSION_OPTIONS, :WINDOW_OPTIONS
+      BLANK_PANE = %w[blank pane].freeze
+      private_constant :COMMON, :ROOT, :WINDOW, :PANE, :LAYOUTS, :SESSION_OPTIONS, :WINDOW_OPTIONS, :BLANK_PANE
 
       def initialize(base, expand, environment, limits)
         @limits, @expand, @expanded_bytes = limits, expand, 0
@@ -226,7 +227,9 @@ module LibTmux
         value = [value] if value.is_a?(String)
         fail_at(path, "shell command string or ordered string array") unless value.is_a?(Array)
         fail_at(path, "bounded command array") if value.length > @limits.fetch(:max_nodes)
-        value.map { |command| text(command, path) }
+        commands = value.map { |command| text(command, path) }
+        # tmuxp reads a lone "pane" or "blank" as a pane with nothing to run.
+        (commands.one? && BLANK_PANE.include?(commands.first)) ? [] : commands
       end
 
       def boolean(value, path)

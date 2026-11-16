@@ -34,6 +34,16 @@ class WorkspaceTest < Minitest::Test
     end
   end
 
+  # tmuxp's "Blank panes" example: a lone pane or blank is a pane with nothing to
+  # run, and only a lone one.
+  def test_a_lone_pane_or_blank_is_a_pane_with_nothing_to_run
+    panes = ["pane", "blank", {"shell_command" => "pane"}, {"shell_command" => ["blank"]},
+      {"shell_command" => ["cd /tmp", "pane"]}, "panes"]
+    loaded = parse(document.merge("windows" => [{"window_name" => "w", "panes" => panes}]))
+    commands = loaded.to_h.fetch("windows").first.fetch("panes").map { |pane| pane.fetch("shell_command") }
+    assert_equal [[], [], [], [], ["cd /tmp", "pane"], ["panes"]], commands
+  end
+
   def test_duplicates_tags_aliases_unknown_fields_and_limits_fail_before_planning
     invalid = [
       "session_name: work\nsession_name: other\nwindows: []\n",

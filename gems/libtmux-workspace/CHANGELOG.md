@@ -11,6 +11,11 @@ in the [main changelog](../../CHANGELOG.md).
 
 ## 0.1.3 (unreleased)
 
+- **Behavior change:** a pane written as `pane` or `blank`, or with a
+  `shell_command` that is only `pane` or `blank`, is now a pane with nothing to
+  run, as in tmuxp's blank-pane example. It was a pane that typed the word
+  `pane` or `blank` into its shell.
+
 ## 0.1.2 (2026-11-04)
 
 No entries for `libtmux-workspace`.
