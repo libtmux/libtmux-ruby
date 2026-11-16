@@ -23,7 +23,7 @@ end
 namespace :version do
   desc "Prepare all gem versions and the lockfile without publishing"
   task :bump, [:version] do |_, args|
-    load "scripts/version.rb"
+    load "scripts/version/version.rb"
     puts "Prepared #{VersionBump.new(__dir__).bump(args[:version])}"
   end
 end
@@ -37,7 +37,7 @@ namespace :release do
       "dry_run" => "Build, verify and test installed artifacts without uploading"}.fetch(operation))
     task operation, [:tag, :commit] do |_, args|
       require "open3"
-      load "scripts/release.rb" unless defined?(GemRelease)
+      load "scripts/release/release.rb" unless defined?(GemRelease)
       tag = args[:tag] || ENV.fetch("RELEASE_TAG")
       commit = args[:commit] || ENV["RELEASE_COMMIT"]
       unless commit
@@ -46,11 +46,11 @@ namespace :release do
         commit = commit.strip
       end
       if operation == "publish"
-        load "scripts/release-ci" unless defined?(ReleaseCI)
+        load "scripts/release/release-ci" unless defined?(ReleaseCI)
         ReleaseCI.new.check(commit)
       end
       if operation == "github"
-        load "scripts/release_github.rb" unless defined?(GitHubRelease)
+        load "scripts/release/release_github.rb" unless defined?(GitHubRelease)
         release = GitHubRelease.new(__dir__)
         manifest = release.publish(tag: tag, commit: commit)
       else

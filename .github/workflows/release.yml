@@ -45,12 +45,12 @@ jobs:
       - name: Require compatibility for the exact commit
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bundle exec scripts/release-ci check "$RELEASE_COMMIT"
+        run: bundle exec scripts/release/release-ci check "$RELEASE_COMMIT"
       - name: Restore artifacts on a workflow retry
         id: restore
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bundle exec scripts/release-ci restore pkg/release
+        run: bundle exec scripts/release/release-ci restore pkg/release
       - name: Install consumer test prerequisites
         uses: libtmux/.github/actions/apt-get@30f81842b1e639ea4e25f93f1f2543504178e228
         with:

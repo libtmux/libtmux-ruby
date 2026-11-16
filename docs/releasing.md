@@ -102,7 +102,7 @@ normal checks passed on master; the release workflow itself runs the whole
 table on the tag before it publishes:
 
 ```console
-$ mise exec -- bundle exec scripts/release-ci check "$(git rev-parse HEAD)"
+$ mise exec -- bundle exec scripts/release/release-ci check "$(git rev-parse HEAD)"
 ```
 
 Create the annotated version tag:

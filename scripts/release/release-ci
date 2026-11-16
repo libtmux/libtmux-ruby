@@ -66,7 +66,7 @@ class ReleaseCI
       File.open(environment.fetch("GITHUB_OUTPUT"), "a") { |file| file.puts("retained=#{restored}") }
       puts restored ? "Restored #{ARTIFACT} into #{directory}" : "No retained #{ARTIFACT}; this run builds it"
     else
-      warn "usage: scripts/release-ci check COMMIT | scripts/release-ci restore DIRECTORY"
+      warn "usage: scripts/release/release-ci check COMMIT | scripts/release/release-ci restore DIRECTORY"
       return 2
     end
     0

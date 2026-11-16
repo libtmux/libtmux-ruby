@@ -125,7 +125,7 @@ class ReadmeBlocksTest < Minitest::Test
   end
 
   def test_the_root_readme_names_the_one_artifact_the_version_bump_rewrites
-    load File.join(Blocks::ROOT, "scripts/version.rb") unless defined?(VersionBump)
+    load File.join(Blocks::ROOT, "scripts/version/version.rb") unless defined?(VersionBump)
     current = Gem::Specification.load(File.join(Blocks::ROOT, "gems/libtmux/libtmux.gemspec")).version
     bump = VersionBump.new(Blocks::ROOT)
     bump.send(:validate_readme, Blocks.read("README.md"), current)

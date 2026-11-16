@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative "../test_helper"
+require_relative "../../../test/test_helper"
 require "tmpdir"
-load File.expand_path("../../scripts/release-ci", __dir__) unless defined?(ReleaseCI)
+load File.expand_path("../release-ci", __dir__) unless defined?(ReleaseCI)
 
 class ReleaseCITest < Minitest::Test
   COMMIT = "a" * 40
@@ -137,7 +137,7 @@ class ReleaseCITest < Minitest::Test
   end
 
   def test_the_command_refuses_other_arguments_and_a_missing_environment
-    assert_output(nil, /usage: scripts\/release-ci check COMMIT/) { assert_equal 2, ReleaseCI.run([]) }
+    assert_output(nil, /usage: scripts\/release\/release-ci check COMMIT/) { assert_equal 2, ReleaseCI.run([]) }
     assert_output(nil, /usage:/) { assert_equal 2, ReleaseCI.run(["restore"]) }
     assert_output(nil, /usage:/) { assert_equal 2, ReleaseCI.run(%w[check one two]) }
     assert_output(nil, /GITHUB_REPOSITORY/) { assert_equal 1, ReleaseCI.run(["restore", "pkg/release"], {}) }

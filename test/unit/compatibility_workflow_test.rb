@@ -4,7 +4,7 @@ require_relative "../test_helper"
 require "yaml"
 
 load File.expand_path("../../scripts/ci-plan/ci-plan", __dir__) unless defined?(CIPlan)
-load File.expand_path("../../scripts/release-ci", __dir__) unless defined?(ReleaseCI)
+load File.expand_path("../../scripts/release/release-ci", __dir__) unless defined?(ReleaseCI)
 
 # The workflow takes its jobs from the plan and lists no version, the release
 # stays bound to a full run, and a matrix entry that builds a tmux release but
@@ -329,17 +329,17 @@ class CompatibilityWorkflowTest < Minitest::Test
   def test_the_release_workflow_keeps_its_own_dry_run_and_the_push_check
     prepare = RELEASE.fetch("jobs").fetch("prepare")
     runs = prepare.fetch("steps").map { |step| step["run"].to_s }
-    assert_includes runs.join("\n"), "scripts/release-ci check"
+    assert_includes runs.join("\n"), "scripts/release/release-ci check"
     assert_includes runs.join("\n"), "release:dry_run"
   end
 
-  # The retry logic lives in scripts/release-ci, where a test covers it, so the
-  # step is one command and the workflow holds no gh call of its own.
+  # The retry logic lives in scripts/release/release-ci, where a test covers it,
+  # so the step is one command and the workflow holds no gh call of its own.
   def test_the_release_retry_step_runs_the_tested_script_and_no_gh_call
     steps = RELEASE.fetch("jobs").fetch("prepare").fetch("steps")
     restore = steps.find { |step| step["id"] == "restore" }
     refute_nil restore
-    assert_equal "bundle exec scripts/release-ci restore pkg/release", restore.fetch("run")
+    assert_equal "bundle exec scripts/release/release-ci restore pkg/release", restore.fetch("run")
     RELEASE.fetch("jobs").each_value do |job|
       job.fetch("steps", []).each { |step| refute_match(/\bgh\s/, step["run"].to_s) }
     end

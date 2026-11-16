@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../test_helper"
+require_relative "../../../test/test_helper"
 require "tmpdir"
 require "fileutils"
 require "open3"
@@ -8,7 +8,7 @@ require "json"
 require "digest"
 require "net/http"
 
-load File.expand_path("../../scripts/release.rb", __dir__) unless defined?(GemRelease)
+load File.expand_path("../release.rb", __dir__) unless defined?(GemRelease)
 
 module ReleaseHTTP
   def with_http(responses)

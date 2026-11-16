@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require_relative "../test_helper"
+require_relative "../../../test/test_helper"
 require "fileutils"
 require "tmpdir"
 
-VERSION_SCRIPT = File.expand_path("../../scripts/version.rb", __dir__)
+VERSION_SCRIPT = File.expand_path("../version.rb", __dir__)
 load VERSION_SCRIPT if File.file?(VERSION_SCRIPT)
 
 class VersionTest < Minitest::Test
