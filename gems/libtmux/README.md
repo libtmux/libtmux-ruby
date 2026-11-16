@@ -367,6 +367,33 @@ libtmux capture ready
 
 The full contract is in [Pane input and capture][behavior-capture].
 
+## Check what the daemon supports
+
+### [`Server#capabilities`][server-capabilities]: feature requirements and decisions
+
+Read the connected daemon's feature report. Use its support query before
+choosing an optional operation, or inspect the required release and refusal.
+
+<!-- example: api_capabilities/main -->
+```ruby
+require "libtmux"
+
+LibTmux::Server.start do |server|
+  report = server.capabilities
+  feature = report.feature("layout-json")
+  puts "JSON layouts require tmux #{feature.since}"
+  puts "Refusal: #{feature.error}"
+end
+```
+<!-- /example -->
+
+```text
+JSON layouts require tmux 3.8
+Refusal: LibTmux::UnsupportedFeatureError
+```
+
+More: [Support queries, workarounds and snapshot limits][behavior-capabilities].
+
 ## Use the tmux server you already run
 
 ### [`Server.new`][server-new]: borrow a daemon
@@ -910,3 +937,6 @@ MIT. See [LICENSE](LICENSE).
 [window-split]: https://libtmux.org/en/ruby/latest/reference/libtmux-window-split/
 [windowlink]: https://libtmux.org/en/ruby/latest/reference/libtmux-windowlink-tusj/
 [workspace]: https://libtmux.org/en/ruby/latest/workspace/reference/libtmux-workspace/
+
+[server-capabilities]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-capabilities/
+[behavior-capabilities]: ../../docs/reference/behavior.md#daemon-capabilities

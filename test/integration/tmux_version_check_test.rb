@@ -29,7 +29,12 @@ class TmuxVersionCheckTest < Minitest::Test
         assert_match(/tmux 3\.3a or newer is required/, error.message)
         assert_equal [:not_sent, :admission], [error.delivery, error.phase]
       else
-        open_server(fixture) { |server| assert_equal ["$0"], server.list_sessions.map(&:id) }
+        open_server(fixture) do |server|
+          assert_equal ["$0"], server.list_sessions.map(&:id)
+          report = server.capabilities
+          assert_equal daemon_version(fixture), report.version
+          assert_equal RANKING.parse(report.version) >= RANKING.parse("3.8"), report.supports?("layout-json")
+        end
       end
       assert fixture.tmux("has-session", "-t", "fixture").last.success?
       assert_sentinels_unchanged(fixture)
@@ -148,6 +153,7 @@ class TmuxVersionCheckTest < Minitest::Test
       open_server(fixture) do |server|
         assert_equal ["$0"], server.list_sessions.map(&:id)
         assert server.run(["set-option", "-g", "@hook-probe", "ran"]).success?
+        assert_equal release.text, server.capabilities.version
       end
       assert_equal "", fixture.tmux("show-option", "-gqv", "@hook-display").first
       assert_equal "", fixture.tmux("show-option", "-gqv", "@hook-error").first
@@ -200,13 +206,17 @@ class TmuxVersionCheckTest < Minitest::Test
           assert_raises(LibTmux::UnsupportedFeatureError) { server.list_sessions }
           assert_raises(LibTmux::UnsupportedFeatureError) { server.new_session(name: "must-not-exist", command: ["/bin/cat"]) }
           assert_raises(LibTmux::UnsupportedFeatureError) { server.snapshot }
+          assert_raises(LibTmux::UnsupportedFeatureError) { server.capabilities }
           Async do |parent|
             LibTmux::Async.open(parent: parent, server: server) do |scope|
               assert_raises(LibTmux::UnsupportedFeatureError) { scope.server.run(batch) }
               assert_raises(LibTmux::UnsupportedFeatureError) { scope.server.list_sessions }
-              app = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "test", enabled_tools: %w[tmux_snapshot])
+              assert_raises(LibTmux::UnsupportedFeatureError) { scope.server.capabilities }
+              app = LibTmux::MCP::Application.new(server: scope.server, endpoint_name: "test", enabled_tools: %w[tmux_snapshot tmux_capabilities])
               begin
                 failure = app.call("tmux_snapshot", {"entity" => "pane", "limit" => 1}).structured_content.fetch("error")
+                capability_failure = app.call("tmux_capabilities", {}).structured_content.fetch("error")
+                assert_equal %w[unsupported not_sent], capability_failure.values_at("code", "delivery")
               ensure
                 app.close
               end
@@ -235,6 +245,7 @@ class TmuxVersionCheckTest < Minitest::Test
         control = RANKING.parse(daemon_version(fixture)) >= RANKING.parse(RANKING::CONTROL_MINIMUM)
         LibTmux::Server.open(socket_path: fixture.socket_path, executable: wrapper) do |server|
           server.list_sessions
+          server.capabilities
           if control
             server.open_control(session: server.list_sessions.first.ref) { |control_connection| control_connection.exchange("display-message -p control") }
           else

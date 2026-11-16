@@ -98,6 +98,7 @@ class ServerTest < Minitest::Test
       begin
         Dir.mkdir(File.dirname(original_path), 0o700)
         File.link(replacement.socket_path, original_path)
+        assert_raises(LibTmux::Error) { server.capabilities }
         failure = assert_raises(LibTmux::CommandError) do
           server.new_session(name: "must-not-exist", command: ["/bin/cat"])
         end

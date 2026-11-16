@@ -151,6 +151,63 @@ module LibTmux
     end
   end
 
+  class Capabilities
+    private def self.new: (*untyped, **untyped) -> instance
+    attr_reader binding_key: String
+    attr_reader pid: Integer
+    attr_reader start_time: Integer
+    attr_reader version: String
+    attr_reader features: Array[Feature]
+    attr_reader workarounds: Array[Workaround]
+    def feature: (String id) -> Feature
+    def supports?: (String id) -> bool
+    def workaround: (String id) -> Workaround
+    def to_h: () -> Hash[String, untyped]
+
+    class Command < Data
+      private def self.new: (*untyped, **untyped) -> instance
+      private def self.[]: (*untyped, **untyped) -> instance
+      def self.members: () -> Array[Symbol]
+      attr_reader command: String
+      attr_reader flags: Array[String]
+      def to_h: () -> Hash[String, untyped]
+    end
+
+    class Feature < Data
+      private def self.new: (*untyped, **untyped) -> instance
+      private def self.[]: (*untyped, **untyped) -> instance
+      def self.members: () -> Array[Symbol]
+      attr_reader id: String
+      attr_reader name: String
+      attr_reader summary: String
+      attr_reader since: String
+      attr_reader handling: :refuse | :fallback | :repair
+      attr_reader error: String?
+      attr_reader apis: Array[String]
+      attr_reader commands: Array[Command]
+      attr_reader except: Array[String]
+      attr_reader supported: bool
+      def supported?: () -> bool
+      def to_h: () -> Hash[String, untyped]
+    end
+
+    class Workaround < Data
+      private def self.new: (*untyped, **untyped) -> instance
+      private def self.[]: (*untyped, **untyped) -> instance
+      def self.members: () -> Array[Symbol]
+      attr_reader id: String
+      attr_reader name: String
+      attr_reader summary: String
+      attr_reader releases: Array[String]
+      attr_reader handling: :refuse | :repair
+      attr_reader apis: Array[String]
+      attr_reader commands: Array[Command]
+      attr_reader active: bool
+      def active?: () -> bool
+      def to_h: () -> Hash[String, untyped]
+    end
+  end
+
   class Server
     attr_reader endpoint: Endpoint
     def self.open: [T] (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric, ?version_timeout: Numeric) { (Server) -> T } -> T
@@ -158,6 +215,7 @@ module LibTmux
     def initialize: (?endpoint: Endpoint?, ?socket_path: String?, ?socket_name: String?, ?executable: String, ?max_requests: Integer, ?max_controls: Integer, ?close_timeout: Numeric, ?version_timeout: Numeric) -> void
     def tmux_version: () -> String
     def supports_control?: () -> bool
+    def capabilities: (?timeout: Numeric, ?cancel: untyped) -> Capabilities
     def run: (Array[String], ?input: String, ?timeout: Numeric, ?cancel: untyped) -> CommandResult
     def close: () -> nil
     def diagnostics: () -> {admitted_requests: Integer, reserved_process_slots: Integer, control_connections: Integer, closed: bool, limits: {max_requests: Integer, max_controls: Integer, close_timeout: Numeric}}

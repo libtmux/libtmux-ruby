@@ -2,6 +2,7 @@
 
 require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
+require_relative "../support/stub_executable"
 require_relative "../support/control_support"
 require_relative "../support/control_assertions"
 require "libtmux/async"
@@ -11,6 +12,53 @@ class AsyncTest < Minitest::Test
   include LibTmuxTest::ControlSupport
 
   include LibTmuxTest::ControlAssertions
+
+  def test_pending_capability_discovery_yields_and_cancellation_reaps_its_client
+    LibTmuxTest::TmuxFixture.open do |fixture|
+      listener = UNIXServer.new(File.join(File.dirname(fixture.socket_path), "capability-ready"))
+      wrapper = File.join(File.dirname(fixture.socket_path), "capability-client")
+      LibTmuxTest::StubExecutable.write(wrapper, <<~'RUBY', READY: listener.path, CLIENT: fixture.executable)
+        require "socket"
+        if ARGV.any? { |argument| argument.start_with?("libtmux-identity-") }
+          UNIXSocket.open(READY) do |peer|
+            peer.puts(Process.pid)
+            peer.read(1)
+          end
+        end
+        exec CLIENT, *ARGV
+      RUBY
+      LibTmux::Server.open(socket_path: fixture.socket_path, executable: wrapper) do |source|
+        Async do |parent|
+          parent.with_timeout(0.5) do
+            LibTmux::Async.open(parent: parent, server: source) do |scope|
+              token = LibTmux::Cancellation.new
+              request = parent.async do
+                scope.server.capabilities(cancel: token)
+              rescue LibTmux::Cancelled => failure
+                failure
+              end
+              peer = listener.accept
+              pid = Integer(peer.gets, 10)
+              assert_equal :responsive, parent.async { :responsive }.wait
+              token.cancel
+              failure = request.wait
+              assert_instance_of LibTmux::Cancelled, failure
+              assert_equal pid, failure.pid
+              assert_raises(Errno::ECHILD) { Process.waitpid(pid, Process::WNOHANG) }
+              assert_equal 0, scope.diagnostics.fetch(:active_process_slots)
+              assert_equal 0, scope.diagnostics.fetch(:admitted_requests)
+            ensure
+              peer&.close
+              token&.close
+            end
+          end
+        end.wait
+      end
+    ensure
+      listener&.close
+    end
+  end
+
   def test_process_facade_yields_to_the_client_that_releases_a_wait
     assert LibTmux::Async.respond_to?(:open), "Async scope is missing"
     LibTmuxTest::TmuxFixture.open do |fixture|

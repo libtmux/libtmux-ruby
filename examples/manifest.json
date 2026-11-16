@@ -248,7 +248,9 @@
           "LibTmux::ControlConnection#subscribe",
           "LibTmux::ControlSubscription#next"
         ],
-        "capabilities": ["control-mode"],
+        "capabilities": [
+          "control-mode"
+        ],
         "description": "Open a control connection, run one command through it, and read the notification tmux sends when a window is renamed.",
         "output": "reply: ready\nevent: %window-renamed @0 renamed\n"
       }
@@ -301,7 +303,9 @@
           "LibTmux::Async::ControlConnection#events",
           "LibTmux::Async::ControlSubscription#next"
         ],
-        "capabilities": ["control-mode"],
+        "capabilities": [
+          "control-mode"
+        ],
         "description": "Open a control connection inside an Async scope and read the notification tmux sends when a window is renamed.",
         "output": "reply: ready\nevent: %window-renamed @0 renamed\n"
       }
@@ -335,6 +339,31 @@
         ],
         "description": "Apply a workspace whose panes cannot fit with compensate: true. The failed split is reported, the created session is removed, and the borrowed session stays.",
         "output": "failed action: split_pane\ncreated a session: true\ncompensation: completed\nsessions: borrowed\n"
+      }
+    },
+    {
+      "id": "api_capabilities",
+      "path": "examples/api/capabilities.rb",
+      "gem": "libtmux",
+      "api": {
+        "symbols": [
+          "LibTmux::Server#capabilities",
+          "LibTmux::Capabilities#feature"
+        ],
+        "description": "Read an optional feature requirement from the connected daemon report. The report also exposes supported? and active workaround decisions.",
+        "output": "JSON layouts require tmux 3.8\nRefusal: LibTmux::UnsupportedFeatureError\n"
+      }
+    },
+    {
+      "id": "api_async_capabilities",
+      "path": "examples/api/async_capabilities.rb",
+      "gem": "libtmux-async",
+      "api": {
+        "symbols": [
+          "LibTmux::Async::Server#capabilities"
+        ],
+        "description": "Read the same feature report through the Async dispatcher within an owned scope.",
+        "output": "Control mode requires tmux 3.7\n"
       }
     }
   ],
@@ -558,6 +587,18 @@
     {
       "id": "api_workspace_failure/main",
       "source": "examples/api/workspace_failure.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_capabilities/main",
+      "source": "examples/api/capabilities.rb",
+      "region": "main",
+      "language": "ruby"
+    },
+    {
+      "id": "api_async_capabilities/main",
+      "source": "examples/api/async_capabilities.rb",
       "region": "main",
       "language": "ruby"
     }
