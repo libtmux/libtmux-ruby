@@ -6,8 +6,8 @@ require "json"
 require "open3"
 require "yard"
 
-load File.expand_path("types", __dir__) unless defined?(PublicAPI)
-load File.expand_path("examples", __dir__) unless defined?(ExampleManifest)
+load File.expand_path("../types", __dir__) unless defined?(PublicAPI)
+load File.expand_path("../examples/examples", __dir__) unless defined?(ExampleManifest)
 
 class DocumentationExport
   Error = Class.new(StandardError)
@@ -257,7 +257,7 @@ class DocumentationExport
 end
 
 if $PROGRAM_NAME == __FILE__
-  root = File.expand_path("..", __dir__)
+  root = File.expand_path("../..", __dir__)
   output = File.join(root, "docs/_build")
   check = false
   until ARGV.empty?
@@ -265,7 +265,7 @@ if $PROGRAM_NAME == __FILE__
     when "--source" then root = ARGV.shift || abort("--source requires a directory")
     when "--output" then output = ARGV.shift || abort("--output requires a directory")
     when "--check" then check = true
-    else abort "usage: scripts/export-docs [--source DIRECTORY] [--output DIRECTORY] [--check] (unknown: #{argument})"
+    else abort "usage: scripts/export-docs/export-docs [--source DIRECTORY] [--output DIRECTORY] [--check] (unknown: #{argument})"
     end
   end
   begin

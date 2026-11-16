@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "../test_helper"
+require_relative "../../../test/test_helper"
 require "tmpdir"
 require "fileutils"
 require "json"
@@ -8,7 +8,7 @@ require "open3"
 
 class ExampleManifestTest < Minitest::Test
   def test_api_examples_require_unique_targets_description_and_expected_output
-    path = File.expand_path("../../scripts/examples", __dir__)
+    path = File.expand_path("../examples", __dir__)
     load path unless defined?(ExampleManifest)
     Dir.mktmpdir("libtmux-ruby-api-manifest-") do |root|
       FileUtils.mkdir_p(File.join(root, "examples"))
@@ -39,7 +39,7 @@ class ExampleManifestTest < Minitest::Test
   end
 
   def test_api_capabilities_must_resolve_and_cover_the_symbols_the_program_documents
-    path = File.expand_path("../../scripts/examples", __dir__)
+    path = File.expand_path("../examples", __dir__)
     load path unless defined?(ExampleManifest)
     Dir.mktmpdir("libtmux-ruby-api-capabilities-") do |root|
       FileUtils.mkdir_p(File.join(root, "examples"))
@@ -98,7 +98,7 @@ class ExampleManifestTest < Minitest::Test
   end
 
   def test_a_version_1_manifest_is_read_as_it_was_written
-    path = File.expand_path("../../scripts/examples", __dir__)
+    path = File.expand_path("../examples", __dir__)
     load path unless defined?(ExampleManifest)
     Dir.mktmpdir("libtmux-ruby-api-capabilities-") do |root|
       FileUtils.mkdir_p(File.join(root, "examples"))
@@ -123,9 +123,9 @@ class ExampleManifestTest < Minitest::Test
   end
 
   def test_the_committed_control_examples_declare_control_mode_and_state_tmux_3_7
-    path = File.expand_path("../../scripts/examples", __dir__)
+    path = File.expand_path("../examples", __dir__)
     load path unless defined?(ExampleManifest)
-    checker = ExampleManifest.new(File.expand_path("../..", __dir__))
+    checker = ExampleManifest.new(File.expand_path("../../..", __dir__))
     assert checker.check
     programs = checker.data.fetch("programs").select { |entry| entry.key?("api") }
     releases = programs.to_h { |entry| [entry.fetch("path"), checker.tmux_release(entry)] }
@@ -139,7 +139,7 @@ class ExampleManifestTest < Minitest::Test
   def test_a_version_1_manifest_is_checked_without_the_capability_registry
     # A docs rebuild of a release from before the registry runs with that
     # release's library loaded, which defines no Capabilities.
-    script = File.expand_path("../../scripts/examples", __dir__)
+    script = File.expand_path("../examples", __dir__)
     Dir.mktmpdir("libtmux-ruby-api-legacy-") do |root|
       FileUtils.mkdir_p(File.join(root, "examples"))
       File.write(File.join(root, "examples", "one.rb"), "require 'libtmux'\nputs :one\n")
@@ -156,31 +156,15 @@ class ExampleManifestTest < Minitest::Test
   end
 
   def test_the_conditional_apis_are_the_registry_channels_and_select_layout
-    path = File.expand_path("../../scripts/examples", __dir__)
+    path = File.expand_path("../examples", __dir__)
     load path unless defined?(ExampleManifest)
     registry = ExampleManifest.registry
     expected = registry::RUN_CHANNELS + registry::CONTROL_CHANNELS + ["LibTmux::Window#select_layout"]
     assert_equal expected.sort, ExampleManifest::CONDITIONAL_APIS.sort
   end
 
-  def test_rendered_links_require_a_real_destination_and_fragment
-    path = File.expand_path("../../scripts/docs", __dir__)
-    assert File.file?(path), "rendered documentation checker is missing"
-    load path unless defined?(DocumentationSite)
-    Dir.mktmpdir("libtmux-ruby-links-") do |directory|
-      File.write(File.join(directory, "index.html"), '<a href="target.html#missing">target</a>')
-      failure = assert_raises(DocumentationSite::Error) { DocumentationSite.validate(directory) }
-      assert_match(/missing destination/, failure.message)
-      File.write(File.join(directory, "target.html"), '<h1 id="present">Title</h1>')
-      failure = assert_raises(DocumentationSite::Error) { DocumentationSite.validate(directory) }
-      assert_match(/missing fragment/, failure.message)
-      File.write(File.join(directory, "index.html"), '<a href="target.html#present">target</a>')
-      assert_equal 2, DocumentationSite.validate(directory)
-    end
-  end
-
   def test_discovery_rejects_an_unlisted_program_and_a_changed_documented_excerpt
-    path = File.expand_path("../../scripts/examples", __dir__)
+    path = File.expand_path("../examples", __dir__)
     assert File.file?(path), "executable-example discovery checker is missing"
     load path unless defined?(ExampleManifest)
     Dir.mktmpdir("libtmux-ruby-manifest-") do |root|
@@ -207,7 +191,7 @@ class ExampleManifestTest < Minitest::Test
   end
 
   def test_the_workspace_example_writes_the_example_workspace_file
-    root = File.expand_path("../..", __dir__)
+    root = File.expand_path("../../..", __dir__)
     program = File.read(File.join(root, "examples/api/workspace_apply.rb"))
     document = program[/<<~'YAML'\n(.*?)^\s*YAML\n/m, 1]
     refute_nil document

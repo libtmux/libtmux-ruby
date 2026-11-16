@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-require_relative "../test_helper"
+require_relative "../../../../test/test_helper"
 require "json"
 require "tmpdir"
 
 class DocsExportTest < Minitest::Test
-  ROOT = File.expand_path("../..", __dir__)
+  ROOT = File.expand_path("../../../..", __dir__)
 
   def test_export_covers_the_public_inventory_without_machine_paths
-    load File.join(ROOT, "scripts/export-docs") unless defined?(DocumentationExport)
+    load File.join(ROOT, "scripts/export-docs/export-docs") unless defined?(DocumentationExport)
     payload = DocumentationExport.new(ROOT).payload
     packages = payload.fetch("packages")
     namespaces = payload.fetch("namespaces")
@@ -39,13 +39,13 @@ class DocsExportTest < Minitest::Test
   end
 
   def test_serialization_is_deterministic
-    load File.join(ROOT, "scripts/export-docs") unless defined?(DocumentationExport)
+    load File.join(ROOT, "scripts/export-docs/export-docs") unless defined?(DocumentationExport)
     export = DocumentationExport.new(ROOT)
     assert_equal export.to_json, export.to_json
   end
 
   def test_api_examples_retain_complete_file_bytes_and_resolve_public_package_targets
-    load File.join(ROOT, "scripts/export-docs") unless defined?(DocumentationExport)
+    load File.join(ROOT, "scripts/export-docs/export-docs") unless defined?(DocumentationExport)
     payload = DocumentationExport.new(ROOT).payload
     examples = payload.fetch("examples")
     programs = examples.fetch("manifest").fetch("programs").select { |entry| entry.key?("api") }

@@ -257,7 +257,7 @@ jobs:
       - name: Export the selected Ruby source
         working-directory: port
         run: |
-          bundle exec ruby "$GITHUB_WORKSPACE/docs-generator/scripts/export-docs" \
+          bundle exec ruby "$GITHUB_WORKSPACE/docs-generator/scripts/export-docs/export-docs" \
             --source "$GITHUB_WORKSPACE/port" \
             --output "$GITHUB_WORKSPACE/port/docs/_build"
 

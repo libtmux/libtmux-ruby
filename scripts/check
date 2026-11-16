@@ -28,11 +28,11 @@ if %w[mid outer].include?(mode)
   puts "Syntax: #{files.length} files"
   run.call(Gem.ruby, "scripts/generate", "--check")
   run.call(Gem.ruby, "scripts/emit-capabilities", "--check")
-  run.call(Gem.ruby, "scripts/examples", "--check")
+  run.call(Gem.ruby, "scripts/examples/examples", "--check")
 end
 
 run.call(Gem.ruby, "scripts/types", "--check") if %w[mid types outer].include?(mode)
-run.call(Gem.ruby, "scripts/export-docs", "--check") if %w[types outer].include?(mode)
+run.call(Gem.ruby, "scripts/export-docs/export-docs", "--check") if %w[types outer].include?(mode)
 
 suites = case mode
 when "unit", "mid" then ["unit"]
@@ -59,4 +59,4 @@ if %w[types outer].include?(mode)
   run.call(Gem.ruby, Gem.bin_path("rbs", "rbs"), *paths, "validate")
 end
 
-run.call(Gem.ruby, "scripts/docs") if mode == "outer"
+run.call(Gem.ruby, "scripts/docs/docs") if mode == "outer"

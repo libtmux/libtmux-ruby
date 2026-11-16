@@ -23,7 +23,7 @@ class ExampleManifest
   # that release's library, which may have neither.
   def self.registry
     unless defined?(LibTmux::Internal::Capabilities)
-      $LOAD_PATH.unshift(File.expand_path("../gems/libtmux/lib", __dir__))
+      $LOAD_PATH.unshift(File.expand_path("../../gems/libtmux/lib", __dir__))
       require "libtmux/tmux_version"
     end
     LibTmux::Internal::Capabilities
@@ -157,9 +157,9 @@ class ExampleManifest
 end
 
 if $PROGRAM_NAME == __FILE__
-  abort "usage: scripts/examples [--check|--write]" unless ARGV.empty? || [%w[--check], %w[--write]].include?(ARGV)
+  abort "usage: scripts/examples/examples [--check|--write]" unless ARGV.empty? || [%w[--check], %w[--write]].include?(ARGV)
   begin
-    manifest = ExampleManifest.new(File.expand_path("..", __dir__))
+    manifest = ExampleManifest.new(File.expand_path("../..", __dir__))
     manifest.check(write: ARGV == ["--write"])
     puts "Examples: #{manifest.data.fetch('programs').length} programs; source excerpts current"
   rescue ExampleManifest::Error => error
