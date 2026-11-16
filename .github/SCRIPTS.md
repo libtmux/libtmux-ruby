@@ -30,6 +30,8 @@ library. Do not add shell or Python script files.
 - A script with tests lives in `scripts/<name>/`, with a `README.md` (what it
   does, who runs it, how) and `tests/`. A short single-purpose script may be
   one file with a usage header.
+- `scripts/check` runs `scripts/<name>/tests/*_test.rb` in the unit suite, and
+  a test under `tests/<suite>/`, such as `tests/packaging/`, in that suite.
 - Scripts pass the same formatter, linter, type checker and test runner as the
   library, in CI.
 - Use current language and tool idioms; no shims below the project's floor.

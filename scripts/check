@@ -18,7 +18,12 @@ run = lambda do |*command|
 end
 
 if %w[mid outer].include?(mode)
-  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile scripts/check scripts/generate scripts/emit-capabilities scripts/examples scripts/docs scripts/export-docs scripts/matrix scripts/ci_manifest.rb scripts/ci-plan scripts/types scripts/bench scripts/version.rb scripts/release.rb scripts/release-ci scripts/release_github.rb]
+  # Every Ruby script under scripts/, found by extension or shebang so a new
+  # one needs no entry here.
+  scripts = Dir["scripts/**/*"].select do |path|
+    File.file?(path) && (path.end_with?(".rb") || File.open(path, &:gets).to_s.start_with?("#!/usr/bin/env ruby"))
+  end
+  files = Dir["{gems,test,examples}/**/*.rb", "gems/*/*.gemspec"] + %w[Gemfile Rakefile] + scripts
   files.each { |file| RubyVM::InstructionSequence.compile_file(file) }
   puts "Syntax: #{files.length} files"
   run.call(Gem.ruby, "scripts/generate", "--check")
@@ -36,8 +41,15 @@ when "types" then []
 else [mode]
 end
 
+# test/<suite>, plus the tests a script keeps beside it: scripts/<name>/tests
+# belongs to the unit suite and scripts/<name>/tests/<suite> to that suite.
+suite_files = lambda do |suite|
+  nested = suite == "unit" ? "scripts/*/tests/*_test.rb" : "scripts/*/tests/#{suite}/**/*_test.rb"
+  (Dir["test/#{suite}/**/*_test.rb"] + Dir[nested]).sort
+end
+
 suites.each do |suite|
-  files = ARGV.empty? ? Dir["test/#{suite}/**/*_test.rb"].sort : ARGV
+  files = ARGV.empty? ? suite_files.call(suite) : ARGV
   abort "no #{suite} tests found" if files.empty?
   run.call(Gem.ruby, "-Itest", "-rsupport/sandbox", "-e", "ARGV.each { |file| require File.expand_path(file) }", *files)
 end
