@@ -3,6 +3,86 @@
 require "json"
 
 module LibTmux
+  # Immutable feature decisions observed through one bound daemon.
+  # Obtain a report with {Server#capabilities}; it remains a historical
+  # observation after that server changes or closes, never mutation authority.
+  class Capabilities
+    # A native command and the flags a feature depends on.
+    Command = Data.define(:command, :flags) do
+      def to_h = super.transform_keys(&:to_s)
+      private_class_method :new, :[]
+    end
+
+    # A library feature, its requirement, and this daemon's support decision.
+    Feature = Data.define(:id, :name, :summary, :since, :handling, :error,
+      :apis, :commands, :except, :supported) do
+      def supported? = supported
+
+      def to_h
+        super.transform_keys(&:to_s).merge("handling" => handling.to_s,
+          "commands" => commands.map(&:to_h))
+      end
+
+      private_class_method :new, :[]
+    end
+
+    # A release-specific repair or refusal, including whether it applies here.
+    Workaround = Data.define(:id, :name, :summary, :releases, :handling,
+      :apis, :commands, :active) do
+      def active? = active
+
+      def to_h
+        super.transform_keys(&:to_s).merge("handling" => handling.to_s,
+          "commands" => commands.map(&:to_h))
+      end
+
+      private_class_method :new, :[]
+    end
+
+    attr_reader :binding_key, :pid, :start_time, :version, :features, :workarounds
+
+    def initialize(binding_key:, pid:, start_time:, release:)
+      @binding_key, @pid, @start_time = binding_key.dup.freeze, pid, start_time
+      @version = release.text.dup.freeze
+      @features = Internal::Capabilities::CAPABILITIES.map do |entry|
+        Feature.__send__(:new, **entry.to_h.transform_keys(&:to_sym),
+          error: entry.error, except: entry.except, handling: entry.handling,
+          commands: commands(entry.commands), supported: entry.available?(release))
+      end.freeze
+      @workarounds = Internal::Capabilities::WORKAROUNDS.map do |entry|
+        Workaround.__send__(:new, **entry.to_h.transform_keys(&:to_sym),
+          handling: entry.handling, commands: commands(entry.commands), active: entry.applies?(release))
+      end.freeze
+      freeze
+    end
+    private_class_method :new
+
+    # The feature named by the registry. An unknown id raises KeyError.
+    def feature(id)
+      features.find { |entry| entry.id == id } || raise(KeyError, "no capability #{id}")
+    end
+
+    def supports?(id) = feature(id).supported?
+
+    # The workaround named by the registry. An unknown id raises KeyError.
+    def workaround(id)
+      workarounds.find { |entry| entry.id == id } || raise(KeyError, "no workaround #{id}")
+    end
+
+    # A fresh JSON-compatible projection; its containers do not own the report.
+    def to_h
+      {"server_identity" => {"generation" => binding_key, "pid" => pid,
+        "start_time" => start_time, "tmux_version" => version},
+       "features" => features.map(&:to_h), "workarounds" => workarounds.map(&:to_h)}
+    end
+
+    private
+
+    def commands(entries)
+      entries.map { |entry| Command.__send__(:new, command: entry.command, flags: entry.flags) }.freeze
+    end
+  end
+
   module Internal
     # What the connected tmux daemon can do, in one table. Each gate in the
     # library reads its release floor or affected releases from here, and

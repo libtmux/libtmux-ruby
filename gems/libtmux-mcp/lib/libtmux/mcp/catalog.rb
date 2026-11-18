@@ -44,6 +44,24 @@ module LibTmux
           "start_time" => {"type" => "integer"}, "tmux_version" => text})
       end
 
+      def self.feature_properties
+        {"id" => text, "name" => text, "summary" => text,
+         "handling" => {"enum" => %w[refuse fallback repair]},
+         "apis" => {"type" => "array", "items" => text},
+         "commands" => {"type" => "array", "items" => object({"command" => text,
+           "flags" => {"type" => "array", "items" => text}})}}
+      end
+
+      def self.feature_decision
+        object(feature_properties.merge("since" => text, "error" => {"type" => %w[string null]},
+          "except" => {"type" => "array", "items" => text}, "supported" => {"type" => "boolean"}))
+      end
+
+      def self.workaround_decision
+        object(feature_properties.merge("releases" => {"type" => "array", "items" => text},
+          "active" => {"type" => "boolean"}))
+      end
+
       def self.capture_limits
         {"max_lines" => {"type" => "integer", "minimum" => 1, "maximum" => 1000},
           "max_bytes" => {"type" => "integer", "minimum" => 1, "maximum" => 262144},
@@ -159,6 +177,8 @@ module LibTmux
           wait_output
         elsif name == "tmux_capabilities"
           object({"endpoint" => text, "server_identity" => identity,
+            "features" => {"type" => "array", "items" => feature_decision},
+            "workarounds" => {"type" => "array", "items" => workaround_decision},
             "enabled_tools" => {"type" => "array", "items" => text},
             "criteria_schema" => {"type" => "object"},
             "limits" => {"type" => "object", "additionalProperties" => {"type" => "number"}},
@@ -248,7 +268,7 @@ module LibTmux
         elsif name == "tmux_close"
           "Destroy one exact session, window or pane. Opt-in destructive operation; closing a session or window also removes its contained topology. Never selects by name or closes the daemon directly. Returns the final tmux client outcome."
         elsif name == "tmux_capabilities"
-          "Discover the fixed endpoint, server binding, enabled tools, criteria schema and limits. Acquires metadata; starts no daemon."
+          "Discover the bound daemon's optional features, required releases and active workarounds, plus enabled tools, criteria schema and limits. Feature IDs match capabilities.json. Starts no daemon; feature support does not grant tool permission."
         else
           "Capture ordered metadata and evaluate Ruby criteria locally. Pages retain one immutable capture; expired cursors require a new query. Limit defaults to 50 records, maximum 200."
         end

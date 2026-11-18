@@ -70,6 +70,12 @@ consumer = SignatureConsumer.new
 LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |server|
   case package
   when "libtmux"
+    capabilities = consumer.call("::LibTmux::Server", server, :capabilities, expected: "::LibTmux::Capabilities")
+    consumer.verify_rejects_wrong_return
+    feature = consumer.call("::LibTmux::Capabilities", capabilities, :feature, "layout-json",
+      expected: "::LibTmux::Capabilities::Feature")
+    consumer.call("::LibTmux::Capabilities::Feature", feature, :supported?, expected: "bool")
+    consumer.call("::LibTmux::Capabilities", capabilities, :supports?, "control-mode", expected: "bool")
     consumer.call("::LibTmux::Server", server, :diagnostics,
       expected: "{admitted_requests: Integer, reserved_process_slots: Integer, control_connections: Integer, closed: bool, limits: Hash[Symbol, Numeric]}")
     receipt = consumer.call("::LibTmux::Server", server, :new_session, name: "types", command: ["/bin/cat"], receipt: true,
@@ -138,6 +144,7 @@ LibTmux::Server.start(executable: ENV.fetch("LIBTMUX_TEST_TMUX", "tmux")) do |se
     control_daemon = server.supports_control?
     Async do |parent|
       consumer.call("singleton(::LibTmux::Async)", LibTmux::Async, :open, parent: parent, server: server, expected: ":checked") do |scope|
+        consumer.call("::LibTmux::Async::Server", scope.server, :capabilities, expected: "::LibTmux::Capabilities")
         facade = consumer.call("::LibTmux::Async::Scope", scope, :server, expected: "::LibTmux::Async::Server")
         consumer.call("::LibTmux::Async::Scope", scope, :diagnostics, expected: "::LibTmux::Async::scope_diagnostics")
         consumer.call("::LibTmux::Server", facade, :diagnostics,

@@ -11,6 +11,11 @@ in the [main changelog](../../CHANGELOG.md).
 
 ## 0.1.3 (unreleased)
 
+- `Async::Server#capabilities` reads the bound daemon through the fiber-aware
+  dispatcher. Pending discovery yields to sibling tasks and honors request
+  cancellation. Its immutable report remains usable after the scope closes.
+  (#112)
+
 ## 0.1.2 (2026-11-04)
 
 No entries for `libtmux-async`.

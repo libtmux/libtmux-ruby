@@ -232,6 +232,22 @@ module LibTmux
       Internal::Capabilities.capability("control-mode").available?(@release)
     end
 
+    # Read immutable feature and workaround decisions from the bound daemon.
+    # This bounded request fires no user hook and never refreshes the server's
+    # original version fence. Closed or unavailable servers raise instead of
+    # reporting cached support. Async facades use their fiber-aware dispatch.
+    def capabilities(timeout: 5.0, cancel: nil)
+      arguments, marker = Internal::TmuxVersion.identity_argv(%w[pid start_time version])
+      result = dispatch(arguments, timeout: timeout, cancel: cancel)
+      values = Internal::TmuxVersion.parse_identity(result, marker, 3)
+      unless values.take(2).all? { |value| /\A[1-9][0-9]*\z/.match?(value) } && values.last == @release.text
+        raise ProtocolError.new("tmux did not report the bound daemon identity", delivery: :observed, phase: :decode)
+      end
+
+      Capabilities.__send__(:new, binding_key: @pin.key, pid: Integer(values[0], 10),
+        start_time: Integer(values[1], 10), release: @release)
+    end
+
     # Raw tmux arguments retain tmux's separators and format semantics.
     def run(argv, input: "".b, timeout: 5.0, cancel: nil)
       dispatch(argv, input: input, timeout: timeout, cancel: cancel)

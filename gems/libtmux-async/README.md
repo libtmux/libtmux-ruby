@@ -168,6 +168,35 @@ every scope:
 
 The contract is in [Async map][behavior-async-map].
 
+## Check optional features
+
+### [`Async::Server#capabilities`][async-server-capabilities]: read the bound daemon
+
+The report uses the same feature registry as the core and a fiber-aware
+request. Its immutable decisions remain usable after the scope closes.
+
+<!-- example: api_async_capabilities/main -->
+```ruby
+require "libtmux"
+require "libtmux/async"
+
+LibTmux::Server.start do |server|
+  Async do |parent|
+    LibTmux::Async.open(parent: parent, server: server) do |scope|
+      report = scope.server.capabilities
+      puts "Control mode requires tmux #{report.feature('control-mode').since}"
+    end
+  end.wait
+end
+```
+<!-- /example -->
+
+```text
+Control mode requires tmux 3.7
+```
+
+More: [Support queries and snapshot limits][behavior-capabilities].
+
 ## Read control events in a scope
 
 ### [`Async::Server#open_control`][async-server-open_control]: replies and events
@@ -288,3 +317,6 @@ The contract is in [Control connections][behavior-control].
 [server]: https://libtmux.org/en/ruby/latest/reference/libtmux-server/
 [server-start]: https://libtmux.org/en/ruby/latest/reference/libtmux-server-start/
 [unsupportedfeatureerror]: https://libtmux.org/en/ruby/latest/reference/libtmux-unsupportedfeatureerror/
+
+[async-server-capabilities]: https://libtmux.org/en/ruby/latest/reference/libtmux-async-server-capabilities/
+[behavior-capabilities]: ../../docs/reference/behavior.md#daemon-capabilities

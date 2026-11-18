@@ -407,9 +407,9 @@ module LibTmux
       end
 
       def capabilities(cancel)
-        snapshot = acquire(cancel)
-        observation = Observation.capabilities(snapshot.server_info.fetch(:version))
-        {"endpoint" => @endpoint, "server_identity" => identity(snapshot), "enabled_tools" => @enabled,
+        report = @server.capabilities(timeout: @limits.fetch("request_timeout_seconds"), cancel: cancel)
+        observation = Observation.capabilities(report.version)
+        report.to_h.merge("endpoint" => @endpoint, "enabled_tools" => @enabled,
           "criteria_schema" => FilterExpr.json_schema, "limits" => @limits,
           "owns_daemon" => false, "resource_subscriptions" => false,
           "observation" => observation,
@@ -417,7 +417,7 @@ module LibTmux
             "shell_profile" => "zsh-5.9-zle", "enrollment" => "explicit_source",
             "authorization" => "exact_generation_at_queue_grant", "stdin" => "closed",
             "persistent_shell_changes" => false, "descendant_termination" => "unobserved",
-            "requirements" => observation.fetch("requirements") + ["explicit idle/empty ZLE enrollment", "installed Ruby/core helper dependencies"]}}
+            "requirements" => observation.fetch("requirements") + ["explicit idle/empty ZLE enrollment", "installed Ruby/core helper dependencies"]})
       end
 
       def snapshot(arguments, cancel)

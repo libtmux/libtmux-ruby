@@ -11,6 +11,11 @@ in the [main changelog](../../CHANGELOG.md).
 
 ## 0.1.3 (unreleased)
 
+- `Server#capabilities` returns immutable feature requirements, support
+  decisions and release-specific workarounds for its bound daemon. Named
+  lookups and support queries use the existing registry; closed or unavailable
+  daemons raise instead of returning a live claim from cached data. (#112)
+
 ## 0.1.2 (2026-11-04)
 
 No entries for `libtmux`.

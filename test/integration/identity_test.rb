@@ -156,7 +156,9 @@ class IdentityTest < Minitest::Test
       LibTmuxTest::TmuxFixture.open do |second|
         endpoint = LibTmux::Endpoint.new(socket_path: first.socket_path)
         pin = LibTmux::Internal::SocketIdentity.new(endpoint)
+        server = LibTmux::Server.open(endpoint: endpoint)
         begin
+          before = server.capabilities
           first.tmux("set-option", "-g", "@identity_test", "first")
           second.tmux("set-option", "-g", "@identity_test", "second")
           File.unlink(first.socket_path)
@@ -165,10 +167,12 @@ class IdentityTest < Minitest::Test
           stdout, stderr, status = route(pin, "show-option", "-gv", "@identity_test")
           assert status.success?, stderr
           assert_equal "first\n", stdout
+          assert_equal before.to_h, server.capabilities.to_h
           _, stderr, status = route(pin, "set-option", "-g", "@identity_test", "changed")
           assert status.success?, stderr
           assert_equal "second\n", second.tmux("show-option", "-gv", "@identity_test").first
         ensure
+          server&.close
           pin.close
         end
         assert_raises(LibTmux::ClosedError) { pin.command_prefix }

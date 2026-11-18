@@ -19,6 +19,9 @@ class McpApplicationTest < Minitest::Test
             assert_equal "test", capabilities.fetch("data").fetch("endpoint")
             assert_equal %w[tmux_capabilities tmux_snapshot], capabilities.fetch("data").fetch("enabled_tools")
             assert_equal LibTmux::FilterExpr.json_schema, capabilities.fetch("data").fetch("criteria_schema")
+            report = scope.server.capabilities
+            assert_equal report.to_h.fetch("features"), capabilities.fetch("data").fetch("features")
+            assert_equal report.to_h.fetch("workarounds"), capabilities.fetch("data").fetch("workarounds")
             assert app.tools.first.call.structured_content.fetch("ok")
             first = app.call("tmux_snapshot", {"entity" => "pane", "limit" => 1}).structured_content
             assert first.fetch("ok")

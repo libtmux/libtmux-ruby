@@ -10,6 +10,52 @@ require_relative "../support/control_support"
 class TmuxFeaturesTest < Minitest::Test
   include LibTmuxTest::ControlSupport
 
+  def test_public_capabilities_describe_the_bound_daemon_and_remain_immutable
+    with_server do |server, fixture|
+      report = server.capabilities(timeout: 0.5)
+      assert_instance_of LibTmux::Capabilities, report
+      assert_equal server.tmux_version, report.version
+      assert_equal fixture.tmux("display-message", "-p", '#{pid}').first.to_i, report.pid
+      assert_equal fixture.tmux("display-message", "-p", '#{start_time}').first.to_i, report.start_time
+      registry = LibTmux::Internal::Capabilities
+      release = LibTmux::Internal::TmuxVersion.parse(report.version)
+      assert_equal registry::CAPABILITIES.map(&:id), report.features.map(&:id)
+      registry::CAPABILITIES.each do |entry|
+        feature = report.feature(entry.id)
+        assert_equal entry.available?(release), report.supports?(entry.id)
+        assert_equal entry.available?(release), feature.supported?
+        assert_equal entry.since, feature.since
+        assert_equal entry.handling, feature.handling
+        assert_raises(FrozenError) { feature.apis << "changed" }
+        assert_raises(FrozenError) { feature.commands.first.command << "changed" }
+      end
+      registry::WORKAROUNDS.each do |entry|
+        assert_equal entry.applies?(release), report.workaround(entry.id).active?
+      end
+      assert_raises(KeyError) { report.feature("missing") }
+      assert_raises(KeyError) { report.supports?("missing") }
+      assert_raises(KeyError) { report.workaround("missing") }
+      assert_raises(FrozenError) { report.features.clear }
+      assert_raises(FrozenError) { report.version << "changed" }
+      token = LibTmux::Cancellation.new
+      begin
+        token.cancel
+        assert_raises(LibTmux::Cancelled) { server.capabilities(cancel: token) }
+        Async do |parent|
+          LibTmux::Async.open(parent: parent, server: server) do |scope|
+            assert_equal report.to_h, scope.server.capabilities(timeout: 0.5).to_h
+            assert_raises(LibTmux::Cancelled) { scope.server.capabilities(cancel: token) }
+          end
+        end.wait
+      ensure
+        token.close
+      end
+      server.close
+      assert_raises(LibTmux::ClosedError) { server.capabilities }
+      assert_equal release.text, report.version
+    end
+  end
+
   def test_control_clients_attach_only_to_tmux_3_7_and_newer
     with_server do |server, fixture|
       session = server.list_sessions.first
@@ -120,6 +166,7 @@ class TmuxFeaturesTest < Minitest::Test
     with_server do |server, fixture|
       assert fixture.tmux("set-hook", "-g", "after-display-message", "set-option -g @hook-display fired ; wait-for -S hook-display").last.success?
       snapshot = server.snapshot
+      assert_equal snapshot.server_info.fetch(:version), server.capabilities.version
       assert_equal server.__send__(:tmux_release).text, snapshot.server_info.fetch(:version)
       home = server.list_sessions.first
       other = server.new_session(name: "other", command: ["/bin/cat"])

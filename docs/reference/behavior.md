@@ -119,6 +119,32 @@ link context changes. Names are never fallback command targets.
 Reading an ID or a ref performs no I/O. `list_*`, `snapshot` and the command
 methods do.
 
+## Daemon capabilities
+
+`Server#capabilities(timeout: 5.0, cancel: nil)` reads the bound daemon's
+identity and returns an immutable `Capabilities` report. `pid`, `start_time`,
+`binding_key` and `version` describe that observation. The read uses the
+existing retained socket and version fence, starts no daemon and fires no
+user hook. Closed, dead, changed or malformed daemon responses raise the
+existing typed errors. A later call never refreshes mutation authority.
+
+`features` lists the registry's optional operations. `feature(id)` returns
+one feature's `since`, `handling`, `error`, `apis`, native `commands` and
+`supported?` decision; `supports?(id)` is the Boolean shortcut. `workarounds`
+and `workaround(id)` describe exact-release repairs or refusals, including
+`active?` and affected `releases`. Unknown IDs raise `KeyError`. The registry
+contains implemented feature gates, not every tmux command or planned API.
+
+Reports and their nested values are frozen. `to_h` returns a JSON-compatible
+projection with `server_identity`, `features` and `workarounds`; modifying its
+outer containers cannot alter the report. A report remains historical after
+its daemon changes or the server closes. It grants no operation authority.
+
+The Async facade inherits this API and performs its request through the
+existing fiber-aware dispatcher. The MCP `tmux_capabilities` operation returns
+the same feature and workaround rows. Its `enabled_tools` remains the policy
+boundary: native feature support does not enable a disabled tool.
+
 ## Supported tmux
 
 The suite supports tmux 3.3a and newer. Releases compare in full, patch
