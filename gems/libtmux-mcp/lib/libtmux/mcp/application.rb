@@ -83,7 +83,7 @@ module LibTmux
         application = self
         @tools = @enabled.map do |name|
           CatalogTool.define(name: name, description: Catalog.description(name),
-            input_schema: Catalog.input(name), output_schema: Catalog.output(name),
+            input_schema: Catalog.input(name), output_schema: Catalog.output(name), meta: Catalog.meta(name),
             annotations: {read_only_hint: false, destructive_hint: Catalog::MUTATIONS.include?(name), idempotent_hint: false, open_world_hint: false}) do |server_context: nil, **arguments|
             application.call(name, arguments, cancellation: server_context&.cancellation)
           end

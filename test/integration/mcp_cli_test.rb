@@ -90,7 +90,12 @@ class McpCLIIntegrationTest < Minitest::Test
         assert_equal "2025-11-25", frame(output).dig("result", "protocolVersion")
         send_frame(input, method: "notifications/initialized")
         send_frame(input, id: 2, method: "tools/list")
-        assert_equal %w[tmux_capabilities tmux_snapshot], frame(output).fetch("result").fetch("tools").map { |tool| tool.fetch("name") }
+        tools = frame(output).fetch("result").fetch("tools")
+        assert_equal %w[tmux_capabilities tmux_snapshot], tools.map { |tool| tool.fetch("name") }
+        tools.each do |tool|
+          assert_equal({"toolset" => "inspect", "processReach" => "none", "tmuxEffects" => ["observe"]},
+            tool.dig("_meta", "com.git-pull.libtmux-mcp/capability"), "#{tool.fetch("name")} capability on the wire")
+        end
         send_frame(input, id: 3, method: "tools/call", params: {name: "tmux_capabilities", arguments: {}})
         result = frame(output).dig("result", "structuredContent")
         assert result.fetch("ok")

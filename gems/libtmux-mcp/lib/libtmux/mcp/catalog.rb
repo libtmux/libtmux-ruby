@@ -3,12 +3,33 @@
 module LibTmux
   module MCP
     module Catalog
+      CAPABILITY_KEY = "com.git-pull.libtmux-mcp/capability"
+      # Toolset, process reach and tmux effects of each tool's own operation, in
+      # the capability model's vocabulary. tmux_create starts the caller's argv
+      # in a pane of its own with no shell, so it is pane-program. tmux_run
+      # runs a script in an existing pane's shell, so it is pane-command.
+      CAPABILITIES = {
+        "tmux_capabilities" => ["inspect", "none", %w[observe]],
+        "tmux_snapshot" => ["inspect", "none", %w[observe]],
+        "tmux_capture" => ["inspect", "none", %w[observe]],
+        "tmux_wait" => ["inspect", "none", %w[observe]],
+        "tmux_create" => ["execute", "pane-program", %w[observe change]],
+        "tmux_send" => ["execute", "pane-input", %w[observe change]],
+        "tmux_run" => ["execute", "pane-command", %w[observe change]],
+        "tmux_close" => ["teardown", "none", %w[observe delete]]
+      }.freeze
+
       READ_ONLY = %w[tmux_capabilities tmux_snapshot].freeze
       MUTATIONS = %w[tmux_send tmux_create tmux_close tmux_run].freeze
       OBSERVATIONS = %w[tmux_capture tmux_wait].freeze
       NAMES = (READ_ONLY + MUTATIONS + OBSERVATIONS).freeze
       MUTATION_BYTES = 1 << 16
       MIN_MUTATION_RESPONSE_BYTES = 4096
+
+      def self.meta(name)
+        toolset, process_reach, tmux_effects = CAPABILITIES.fetch(name)
+        {CAPABILITY_KEY => {"toolset" => toolset, "processReach" => process_reach, "tmuxEffects" => tmux_effects.dup}}
+      end
 
       def self.object(properties, required = properties.keys)
         {"type" => "object", "properties" => properties, "required" => required, "additionalProperties" => false}

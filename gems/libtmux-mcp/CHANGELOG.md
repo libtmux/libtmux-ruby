@@ -11,6 +11,12 @@ in the [main changelog](../../CHANGELOG.md).
 
 ## 0.1.3 (unreleased)
 
+- `tools/list` states each tool's toolset, process reach and tmux effects under
+  `_meta["com.git-pull.libtmux-mcp/capability"]`, so a client, and libtmux.org,
+  can show how far a tool reaches without inferring it from its name.
+  `tmux_capabilities`, `tmux_snapshot`, `tmux_capture` and `tmux_wait` are
+  `inspect`, `tmux_create`, `tmux_send` and `tmux_run` are `execute`, and
+  `tmux_close` is `teardown`. The annotations are unchanged. (#133)
 - `libtmux-mcp --start-session NAME` starts a tmux server on the chosen socket
   when none answers there, with an empty configuration and a session named
   `NAME`, and stops it at exit. `--keep` leaves it running. A server that
