@@ -5,14 +5,15 @@ module LibTmux
     module Catalog
       CAPABILITY_KEY = "com.git-pull.libtmux-mcp/capability"
       # Toolset, process reach and tmux effects of each tool's own operation, in
-      # the capability model's vocabulary. tmux_create names the program the
-      # pane starts, so it reaches pane-command, not configured-process.
+      # the capability model's vocabulary. tmux_create starts the caller's argv
+      # in a pane of its own with no shell, so it is pane-program. tmux_run
+      # runs a script in an existing pane's shell, so it is pane-command.
       CAPABILITIES = {
         "tmux_capabilities" => ["inspect", "none", %w[observe]],
         "tmux_snapshot" => ["inspect", "none", %w[observe]],
         "tmux_capture" => ["inspect", "none", %w[observe]],
         "tmux_wait" => ["inspect", "none", %w[observe]],
-        "tmux_create" => ["execute", "pane-command", %w[observe change]],
+        "tmux_create" => ["execute", "pane-program", %w[observe change]],
         "tmux_send" => ["execute", "pane-input", %w[observe change]],
         "tmux_run" => ["execute", "pane-command", %w[observe change]],
         "tmux_close" => ["teardown", "none", %w[observe delete]]

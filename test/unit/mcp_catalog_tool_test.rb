@@ -6,7 +6,7 @@ require "libtmux/mcp"
 class MCPCatalogToolTest < Minitest::Test
   CAPABILITY_KEY = "com.git-pull.libtmux-mcp/capability"
   TOOLSETS = %w[inspect manage execute teardown].freeze
-  PROCESS_REACH = %w[none configured-process pane-input pane-command].freeze
+  PROCESS_REACH = %w[none configured-process pane-input pane-command pane-program].freeze
   TMUX_EFFECTS = %w[observe change delete].freeze
   ALL_TOOLS = %w[tmux_capabilities tmux_snapshot tmux_send tmux_create tmux_close tmux_run tmux_capture tmux_wait].freeze
   CAPABILITIES = {
@@ -14,7 +14,7 @@ class MCPCatalogToolTest < Minitest::Test
     "tmux_snapshot" => ["inspect", "none", %w[observe]],
     "tmux_capture" => ["inspect", "none", %w[observe]],
     "tmux_wait" => ["inspect", "none", %w[observe]],
-    "tmux_create" => ["execute", "pane-command", %w[observe change]],
+    "tmux_create" => ["execute", "pane-program", %w[observe change]],
     "tmux_send" => ["execute", "pane-input", %w[observe change]],
     "tmux_run" => ["execute", "pane-command", %w[observe change]],
     "tmux_close" => ["teardown", "none", %w[observe delete]]
