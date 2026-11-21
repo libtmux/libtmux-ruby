@@ -11,7 +11,11 @@ module LibTmux
       end
       private_constant :Notification
 
+      private_class_method :new
+
       def initialize(scope:, **options)
+        raise ArgumentError, "scope must be a LibTmux::Async::Scope" unless scope.is_a?(Scope)
+
         super(**options)
         @scope = scope
         @changed = Notification.new
@@ -62,7 +66,11 @@ module LibTmux
     end
 
     class ControlConnection < LibTmux::ControlConnection
+      private_class_method :new
+
       def initialize(scope:, binding:, session_id:, reconnect: nil, **limits)
+        raise ArgumentError, "scope must be a LibTmux::Async::Scope" unless scope.is_a?(Scope)
+
         @scope = scope
         @release = binding.release
         @writer_changed = ::Async::Notification.new
@@ -211,7 +219,7 @@ module LibTmux
       end
 
       def build_subscription(**options)
-        ControlSubscription.new(scope: @scope, **options)
+        ControlSubscription.__send__(:new, scope: @scope, **options)
       end
 
       def wake(writer)

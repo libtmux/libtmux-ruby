@@ -52,10 +52,9 @@ class CapabilitiesTest < Minitest::Test
   end
 
   def test_control_mode_lists_its_routes_to_the_refusal
-    # The refusal is raised in ControlConnection#initialize and in
-    # Async::Scope#open_control, which Async::Server#open_control calls.
-    expected = %w[LibTmux::Server#open_control LibTmux::Async::Server#open_control
-      LibTmux::ControlConnection.open LibTmux::ControlConnection.new]
+    # The refusal is raised in ControlConnection#initialize, which only
+    # Server#open_control reaches, and in Async::Scope#open_control.
+    expected = %w[LibTmux::Server#open_control LibTmux::Async::Server#open_control]
     assert_equal expected.sort, REGISTRY.capability("control-mode").apis.sort
   end
 

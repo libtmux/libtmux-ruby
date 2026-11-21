@@ -75,13 +75,19 @@ class ControlTest < Minitest::Test
     control&.events&.close
   end
 
+  def test_connections_open_only_through_a_server
+    # The constructors need the server's private socket binding.
+    refute_respond_to LibTmux::ControlConnection, :new
+    refute_respond_to LibTmux::ControlConnection, :open
+  end
+
   def test_scope_preserves_original_failure_and_attaches_cleanup_diagnostics
     connection = Object.new
     connection.define_singleton_method(:close) { raise LibTmux::TransportError, "cleanup injection" }
     factory = Class.new(LibTmux::ControlConnection)
     factory.define_singleton_method(:new) { |**_| connection }
     original = RuntimeError.new("original consumer failure")
-    assert_same original, assert_raises(RuntimeError) { factory.open { raise original } }
+    assert_same original, assert_raises(RuntimeError) { factory.__send__(:open) { raise original } }
     assert_equal ["control cleanup failed (LibTmux::TransportError)"], original.control_cleanup_errors
   end
 

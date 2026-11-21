@@ -30,7 +30,7 @@ module LibTmuxTest
       return true if (release <=> LibTmux::Internal::TmuxVersion.parse("3.7")) >= 0
 
       error = assert_raises(LibTmux::UnsupportedFeatureError) do
-        LibTmux::ControlConnection.new(binding: pin, session_id: "$0")
+        LibTmux::ControlConnection.__send__(:new, binding: pin, session_id: "$0")
       end
       assert_equal [:not_sent, :admission], [error.delivery, error.phase]
       false

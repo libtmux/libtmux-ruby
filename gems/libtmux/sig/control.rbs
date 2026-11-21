@@ -60,7 +60,8 @@ module LibTmux
     attr_reader previous_generation: String?
     attr_reader events: ControlSubscription
     attr_reader cleanup_errors: Array[String]
-    def self.open: [T] (binding: untyped, session_id: String, ?reconnect: ControlConnection?, **Integer) { (ControlConnection) -> T } -> T
+    private def self.new: (*untyped, **untyped) -> instance
+    private def self.open: [T] (binding: untyped, session_id: String, ?reconnect: ControlConnection?, **Integer) { (ControlConnection) -> T } -> T
                  | (binding: untyped, session_id: String, ?reconnect: ControlConnection?, **Integer) -> ControlConnection
     def initialize: (binding: untyped, session_id: String, ?reconnect: ControlConnection?, ?max_requests: Integer, ?max_command_bytes: Integer, ?max_queue_bytes: Integer, ?max_line_bytes: Integer, ?max_reply_bytes: Integer, ?max_stderr_bytes: Integer, ?max_subscriptions: Integer) -> void
     def exchange: (String, ?timeout: Numeric, ?cancel: untyped) -> GuardedReply
