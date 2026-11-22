@@ -48,10 +48,10 @@ $ mise exec -- bundle exec rake 'version:bump[<version>]'
 ```
 
 The task updates each conventional `version.rb`, exact sibling dependencies,
-local entries in `Gemfile.lock`, and the README artifact example. External
-dependency versions stay unchanged. It rejects missing or invalid versions,
-inconsistent input files and backward bumps. Repeating the same version is
-safe.
+local entries in `Gemfile.lock`, and the `.github/CONTRIBUTING.md` artifact
+example. External dependency versions stay unchanged. It rejects missing or
+invalid versions, inconsistent input files and backward bumps. Repeating the
+same version is safe.
 
 For each release, pass the next number in the `0.1.N` series. Review and update
 [CHANGELOG.md](../CHANGELOG.md) and the `CHANGELOG.md` of each gem for every

@@ -12,7 +12,9 @@ begin
   require "libtmux"
 
   LibTmux::Server.start do |server|
-    session = server.new_session(name: "work", window_name: "editor", command: ["/bin/cat"])
+    session = server.new_session(
+      name: "work", window_name: "editor", command: ["/bin/cat"]
+    )
     window = session.list_windows.fetch(0)
 
     held = window.snapshot

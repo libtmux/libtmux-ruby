@@ -12,7 +12,10 @@ begin
       puts "reply: #{reply.blocks.last.body.strip}"
       events = control.subscribe(max_events: 64, max_bytes: 65_536)
       window.rename("renamed")
-      event = events.next(timeout: 5) until event&.raw&.start_with?("%window-renamed")
+      event = nil
+      until event&.raw&.start_with?("%window-renamed")
+        event = events.next(timeout: 5)
+      end
       puts "event: #{event.raw.strip}"
     end
   end

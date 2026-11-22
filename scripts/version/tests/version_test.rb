@@ -34,8 +34,8 @@ class VersionTest < Minitest::Test
       assert_equal external, external_lock_content(lock)
       assert_includes lock, "libtmux-mcp (0.1.0.alpha.1)"
       assert_includes lock, "libtmux-async (= 0.1.0.alpha.1)"
-      readme = File.read(File.join(root, "README.md"))
-      assert_includes readme, "pkg/libtmux-0.1.0.alpha.1.gem"
+      contributing = File.read(File.join(root, ".github/CONTRIBUTING.md"))
+      assert_includes contributing, "pkg/libtmux-0.1.0.alpha.1.gem"
     end
   end
 
@@ -193,7 +193,7 @@ class VersionTest < Minitest::Test
         write(root, "gems/#{name}/#{name}.gemspec",
           gemspec(name, sibling_dependencies(name), version, version_path, constants.fetch(version_path)))
       end
-      write(root, "README.md", "Install pkg/libtmux-#{version}.gem from the build output.\n")
+      write(root, ".github/CONTRIBUTING.md", "Install pkg/libtmux-#{version}.gem from the build output.\n")
       write(root, "Gemfile.lock", lockfile(version))
       yield root
     end
@@ -275,7 +275,7 @@ class VersionTest < Minitest::Test
   end
 
   def contents(root)
-    Dir.glob("{README.md,Gemfile.lock,gems/**/*}", base: root).select do |path|
+    Dir.glob("{.github/CONTRIBUTING.md,Gemfile.lock,gems/**/*}", base: root).select do |path|
       File.file?(File.join(root, path))
     end.to_h { |path| [path, File.binread(File.join(root, path))] }
   end

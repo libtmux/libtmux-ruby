@@ -65,7 +65,9 @@ LibTmux::Server.start do |server|
   Async do |parent|
     LibTmux::Async.open(parent: parent, server: server) do |scope|
       refs = scope.server.list_panes.map(&:ref)
-      screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
+      screens = scope.map(refs, concurrency: 2) do |ref|
+        scope.server.pane(ref).capture
+      end
       puts "captured panes: #{screens.length}"
       puts "all succeeded: #{screens.all?(&:success?)}"
     end

@@ -67,7 +67,9 @@ window with its panes:
 require "libtmux"
 
 snapshot = LibTmux::Server.start do |server|
-  session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
+  session = server.new_session(
+    name: "work", window_name: "main", command: ["/bin/cat"]
+  )
   window = session.new_window(name: "logs", command: ["/bin/cat"])
   window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
@@ -142,7 +144,9 @@ make no tmux calls:
 require "libtmux"
 
 snapshot = LibTmux::Server.start do |server|
-  session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
+  session = server.new_session(
+    name: "work", window_name: "main", command: ["/bin/cat"]
+  )
   window = session.new_window(name: "logs", command: ["/bin/cat"])
   window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
@@ -566,7 +570,10 @@ LibTmux::Server.start do |server|
     puts "reply: #{reply.blocks.last.body.strip}"
     events = control.subscribe(max_events: 64, max_bytes: 65_536)
     window.rename("renamed")
-    event = events.next(timeout: 5) until event&.raw&.start_with?("%window-renamed")
+    event = nil
+    until event&.raw&.start_with?("%window-renamed")
+      event = events.next(timeout: 5)
+    end
     puts "event: #{event.raw.strip}"
   end
 end
@@ -684,7 +691,9 @@ LibTmux::Server.start do |server|
   Async do |parent|
     LibTmux::Async.open(parent: parent, server: server) do |scope|
       refs = scope.server.list_panes.map(&:ref)
-      screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
+      screens = scope.map(refs, concurrency: 2) do |ref|
+        scope.server.pane(ref).capture
+      end
       puts "captured panes: #{screens.length}"
       puts "all succeeded: #{screens.all?(&:success?)}"
     end

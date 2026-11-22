@@ -1,183 +1,101 @@
 # Writing
 
-This guide governs documentation, user-facing text, source comments, commit
-messages, changelogs, and release notes. [CONTRIBUTING.md](CONTRIBUTING.md)
-governs development workflow.
+Repository-specific rules for documentation, YARD and source comments,
+changelogs, release notes, and commits in `libtmux-ruby`. Organization-wide
+voice, CommonMark wrapping, and commit conventions live in
+[libtmux/.github `WRITING.md`](https://github.com/libtmux/.github/blob/main/WRITING.md);
+development workflow and gates live in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Voice
+## Terminology and API documentation
 
-Lead with the conclusion or observable behavior, then give the evidence or
-constraints needed to understand it. Use active voice, present tense, concrete
-nouns, and short sentences. Assume the reader has no conversation history.
+Use literal identifiers and consistent domain nouns: Ruby, `libtmux`, tmux
+(lowercase everywhere; rewrite a sentence rather than capitalizing it), server,
+session, window, and pane.
 
-State facts rather than praising them. Replace vague claims such as "robust"
-or "optimized" with the handled failure or measured improvement. Remove filler,
-promotional language, emoji, agent attribution, and tool metadata.
+Document what exists in this port. Distinguish a bootstrap, an implemented
+capability, a tested capability, and a published release; do not copy
+compatibility promises, installation commands, or gem names from another port
+without evidence. A performance claim requires a measurement and a command that
+reproduces it.
 
-Use literal identifiers and consistent names: Ruby, libtmux, tmux, server,
-session, window, and pane. Explain what a referenced issue or decision means;
-its identifier alone is not an explanation.
+Public API documentation uses YARD Markdown paired with RBS declarations in
+`gems/*/sig`. `scripts/docs/docs` renders YARD with `--markup markdown
+--markup-provider yard` and treats any `[warn]` or `[error]` as a failure;
+`scripts/types --check` audits RBS coverage, source links, and behavioral
+mappings.
 
-## Documentation
-
-Document what exists. Distinguish a bootstrap, an implemented capability, a
-tested capability, and a published release. Do not copy compatibility promises,
-installation commands, or package names from another port without evidence.
-
-A README should explain the purpose, status, requirements, installation, and
-smallest working example. Keep detailed API contracts in API documentation.
-
-A README follows [README shape](#readme-shape).
-
-Commands must work as written; examples must use real interfaces and state
-their prerequisites. A performance claim needs a measurement and a command
-that reproduces it.
-
-For public APIs, describe what callers can rely on: inputs, defaults, empty
-values, ownership, mutation, ordering, blocking, concurrency, and errors where
-relevant. Use the documentation syntax chosen by the repository's tooling.
-Do not repeat a signature in prose or invent removal versions.
-
-Error messages name the failed operation, the concrete cause, and a useful
-next action when one exists. Help text states option semantics and defaults.
+Describe what callers rely on beyond the RBS signature: inputs, defaults, empty
+values, ownership, mutation, ordering, blocking, concurrency, and raised errors.
+Do not repeat a signature in prose or invent removal versions. Error messages
+name the failed operation, the concrete cause, and a useful next action when one
+exists; CLI `--help` states option semantics and defaults.
 
 ## README shape
 
-A README is built to be scanned, like a sign read from a highway.
+Both the root `README.md` and each gem's `README.md` are built to be scanned:
 
-- The header is the logo, a centred title, one line, and badges in a fixed
-  order: CI, gem version, libtmux.org, license. Add a badge or link only when
-  its page returns 200.
-- Each `##` section is a task in the reader's words, ordered from first use to
-  deeper use.
-- Each `###` heading names a linked API, a colon, and its job in plain words,
-  such as ``### [`Server#snapshot`][server-snapshot]: one read, many queries``.
-  The link goes to the API's page on libtmux.org.
-- Under a heading go a line or two that link sibling APIs, an example, what it
-  prints, at most one short note, and a `More:` link to the guide.
-- No paragraph runs past three lines. A list of facts is a bullet list.
-- No feature inventory. The sections and their examples show what exists.
-- Requirements are floors a reader can act on, such as "tmux 3.3a or newer".
-  Leave out patch versions, CI matrices and kernel details, and link the page
-  that holds them.
-- Leave out what a reader would assume or never need: that examples are tested,
-  how docs are built, what the checks cover, and "evidence" or "contract"
-  boilerplate.
-- Every API, tool and command the prose names is linked. Reference-style links
-  sit at the foot of the file, and no link appears inside a code fence.
-- Examples start with their imports, so a reader can paste one into a file and
-  run it.
-- An example starts its own private tmux server through the library with
-  `Server.start` and removes it when the block exits. It needs no `tmux` shell
-  command to create the server or to clean up after it.
-- Every displayed example comes from a file CI runs: a program under
-  `examples/`, registered in `examples/manifest.json` and shown through its
-  `<!-- example: id -->` markers.
-- Show the query, planner, chaining and control-mode features this port has:
-  `Server#snapshot`, `Server#explain_panes`, `Server#run_group` and
+- Open with the logo block, a centered `#` title, a short pitch linking core
+  APIs, and four badges in fixed order (CI, RubyGems version, `libtmux.org`, MIT
+  license), followed by `gem install` and the Ruby and tmux 3.3a runtime floors
+  ahead of `## Quick start`. Link only pages that return HTTP 200.
+- Make each `##` heading a task in the reader's words, and each `###` heading a
+  linked API name, a colon, and its job in plain words, such as
+  ``### [`Server#snapshot`][server-snapshot]: one read, many queries``, linking
+  its page on `libtmux.org`.
+- Under each `###` heading, give a line or two linking sibling APIs, a
+  self-contained example starting with its `require` calls, what it prints, at
+  most one short note, and a `More:` link to the guide.
+- Keep paragraphs to three lines or fewer. Omit feature inventories, patch
+  versions, CI matrices, host details, and check boilerplate.
+- Link every API, MCP tool, and command named in prose via reference-style links
+  at the foot of the file; keep links out of code fences.
+- Start a private tmux server in each example with `Server.start` rather than
+  shell `tmux` setup or cleanup. Every `ruby`, `yaml`, and `json` block in a
+  checked document comes from `examples/` via `<!-- example: id -->` markers
+  registered in `examples/manifest.json` (`scripts/examples/examples --check`).
+- Show `Server#snapshot`, `Server#explain_panes`, `Server#run_group`, and
   `Server#open_control`, each under its own heading with a tested example.
-- The packages section keeps its table, then gives each gem a `###` heading
-  that links its directory on GitHub, one line on what it is, and a link line
-  for the API reference, the guides and RubyGems.
-- "What it leaves out" and "Support and status" are short bullets, each with a
-  bold lead.
-- Package tables and lists stay when a README is restructured.
+- Keep the `Gem | Require | Use it for` table in `## Packages`, then give each
+  gem a `###` heading linking its GitHub directory, one summary line, and links
+  to its API reference, guides, and RubyGems.
+- Close with short bold-lead bullets under `## What it leaves out` and
+  `## Support and status`, followed by a compact documentation and policy link
+  row and the [libtmux.org](https://libtmux.org/) family line.
 
-## Source comments
+## Source comments and code blocks
 
-Keep comments that preserve a non-obvious invariant, protocol constraint,
-platform quirk, upstream workaround, or ordering requirement. Prefer one or
-two lines. A comment must save rediscovery work, state its fact directly, and
-remain true without hand-syncing values owned by the code.
+Keep source comments only for non-obvious invariants, protocol constraints,
+platform quirks, upstream workarounds, or ordering requirements, in one or two
+lines. Omit narration of surrounding code, duplicated counts or defaults, and
+history recorded by Git. Preserve tool directives and markers such as
+`# frozen_string_literal: true` and `# docs:begin` / `# docs:end`.
 
-Delete narration of the next lines, duplicated defaults or counts, speculative
-future work, and history already recorded by Git. Put rejected alternatives
-and the reasoning behind a change in the commit message. Preserve directives
-and markers used by tools.
+Code blocks are paste-and-run units enforced by
+`test/unit/readme_blocks_test.rb` and
+`test/integration/readme_commands_test.rb`:
 
-Public documentation and examples may explain minimal usage and contracts;
-they still need to be concise and accurate.
-
-## Markdown and examples
-
-Use plain CommonMark with descriptive headings and links. Put a blank line
-before lists and after headings. Wrap repository prose at 80 columns where
-practical; do not break URLs, identifiers, or tables to meet the width. Do not
-hard-wrap issue or pull request bodies.
-
-Avoid personal information, machine-specific paths, brittle line references,
-bare commit hashes, and counts that duplicate source state.
-
-Code blocks are paste-and-run units:
-
-- Put one command in each block. An explicit `&&`, `;`, or `\` continuation
-  counts as one command.
-- Put explanations in prose above the block, not comments inside it.
-- Mark shell commands as `console` and prefix them with `$ `.
+- Put one command per `console` block, prefixed with `$ `, and put explanations
+  in prose above the fence rather than comments inside it.
 - Split long commands with `\`, one flag or flag-value pair per continuation
   line, with positional arguments last.
-- Use the actual language tag for source examples. Keep executed examples
-  valid for their runner.
+- Tag source fences with their language and wrap displayed code lines within 80
+  columns.
 
-Show recent commits as a graph:
+## Commits, changelogs, and releases
 
-```console
-$ git log \
-    --max-count=10 \
-    --graph \
-    --oneline
-```
+Follow the scoped commit and pull request rules in
+[libtmux/.github `WRITING.md`](https://github.com/libtmux/.github/blob/main/WRITING.md#commits-and-pull-requests)
+(`Scope(type[detail]): Concise description`, imperative subject <= 50
+characters, `why:` and `what:` body lines <= 72 characters, no emoji,
+attribution trailers, or pull request numbers in ordinary commits). Agent
+guidance may use `ai(rules[AGENTS])`, and a single configuration file change may
+use `filename: Description`.
 
-## Commit messages
-
-Use the sibling ports' scoped format:
-
-```text
-Scope(type[detail]): Concise description
-
-why: Explain the reason or effect.
-
-what:
-- State the concrete change
-```
-
-Use an imperative subject of at most 50 characters and body lines of at most
-72 characters. Keep each commit focused on one topic. Separate `why:` and
-`what:` with a blank line; a self-explanatory single-file change may omit the
-body. Preserve URLs and identifiers when wrapping.
-
-Common types are `feat`, `fix`, `refactor`, `docs`, `chore`, `test`, and `style`.
-Agent guidance may use `ai(rules[AGENTS])`. A change confined to a configuration
-file may use `filename: Description`. Include the reason and concrete changes
-when a commit spans multiple files or needs context.
-
-Do not use vague subjects, emoji, attribution trailers, or pull request
-numbers in ordinary commits. Keep intermediate attempts and rejected
-approaches in commit history when they explain a decision, not in product
-documentation.
-
-## Pull requests, changelogs, and releases
-
-Describe the final change for someone who has not read the conversation. Lead
-with the problem and resulting behavior, then give relevant validation and
-limits. Name the checks that ran and distinguish passing, failing, skipped,
-and unverified work.
-
-When a changelog exists, record caller-visible changes under its unreleased
-section. State changed defaults and incompatibilities with migration guidance.
-Do not invent versions or release dates. Mention old behavior only when users
-of a published release experienced it.
-
-Each gem keeps its own changelog, `gems/libtmux/CHANGELOG.md` for `libtmux` and
-likewise for `libtmux-async`, `libtmux-mcp` and `libtmux-workspace`, and an
-entry goes in the file of the gem it changes. The root `CHANGELOG.md` holds what
-belongs to no single gem: a change that spans gems, documentation, CI, release
-tooling and the notes that cover a whole release. An entry lives in exactly one
-file. The gems share one version, so every release has a section in each file,
-and a release with nothing for a gem says ``No entries for `libtmux-mcp`.``
-under its heading. A link into the repository is relative to the file that holds
-it, so one in a gem's changelog starts with `../../`.
-
-Release notes explain why an upgrader should care and what action is needed.
-Link the detailed changelog instead of repeating it. Internal refactors and
-branch history belong in commits unless they affect users.
+Each published gem keeps its own changelog (`gems/libtmux/CHANGELOG.md` and
+likewise for `libtmux-async`, `libtmux-mcp`, and `libtmux-workspace`) for
+changes to that gem. Root `CHANGELOG.md` holds cross-gem, documentation, CI, and
+release-tooling changes plus whole-release notes. Every entry lives in exactly
+one file under its unreleased heading, using relative `../../` repository links
+inside gem changelogs. All four gems share one `0.1.N` version; when a release
+has no entries for a gem, write ``No entries for `libtmux-mcp`.`` under its
+heading (`test/unit/changelog_test.rb`).

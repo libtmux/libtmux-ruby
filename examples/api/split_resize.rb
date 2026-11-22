@@ -5,7 +5,9 @@ begin
   require "libtmux"
 
   LibTmux::Server.start do |server|
-    created = server.new_session(name: "work", command: ["/bin/sh"], receipt: true)
+    created = server.new_session(
+      name: "work", command: ["/bin/sh"], receipt: true
+    )
     pane = created.pane
     side = pane.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
@@ -13,7 +15,9 @@ begin
     pane.send_keys("Enter")
     line = nil
     50.times do
-      line = pane.capture.stdout.lines(chomp: true).find { |text| text == "ready" }
+      line = pane.capture.stdout.lines(chomp: true).find do |text|
+        text == "ready"
+      end
       break if line
       sleep 0.1
     end

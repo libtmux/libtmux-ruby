@@ -16,11 +16,6 @@ Ruby. Read server state into a [snapshot][snapshot], then query it with
 [`where`][selection-where], [`select`][selection-select], and the rest of
 `Enumerable`.
 
-[Quick start](#quick-start) · [Find things](#find-things-in-a-snapshot) ·
-[Packages](#packages) · [Guide](docs/index.md) ·
-[API reference](docs/reference/api.md) · [Recipes](docs/recipes.md) ·
-[API on libtmux.org](https://libtmux.org/en/ruby/latest/reference/)
-
 [![compatibility](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml/badge.svg)](https://github.com/libtmux/libtmux-ruby/actions/workflows/compatibility.yml)
 [![libtmux](https://img.shields.io/gem/v/libtmux?label=libtmux)](https://rubygems.org/gems/libtmux)
 [![libtmux.org](https://img.shields.io/badge/docs-libtmux.org-0b7285)](https://libtmux.org/en/ruby/)
@@ -28,38 +23,29 @@ Ruby. Read server state into a [snapshot][snapshot], then query it with
 
 </div>
 
-It suits scripts, tests that need a real tmux, and tools that drive a terminal
-program. An [MCP server][mcp-application], an Async adapter and a workspace
-loader ship beside the core: see [Packages](#packages).
-
-**Contents** — [Quick start](#quick-start) ·
-[Drive a pane](#drive-a-pane) ·
-[Find things](#find-things-in-a-snapshot) ·
-[Several commands](#run-several-commands-in-order) ·
-[Watch tmux](#watch-tmux-change) ·
-[Your own server](#use-the-tmux-server-you-already-run) ·
-[Packages](#packages) · [Build from source](#build-from-source) ·
-[Leaves out](#what-it-leaves-out) · [Support](#support-and-status) ·
-[Documentation](#documentation)
-
-## Quick start
-
-Install the core gem. It needs Ruby 3.3 or newer and tmux 3.3a or newer on
-`PATH`:
+Install the core gem:
 
 ```console
 $ gem install libtmux
 ```
 
-This program creates a session, adds a window, splits it, and prints each
-window with its panes:
+It needs Ruby 3.3 or newer and tmux 3.3a or newer on `PATH`; a
+[server handle][server] refuses an older daemon before running a command. An
+[MCP server][mcp-application], an Async adapter, and a workspace loader ship
+beside the core under [Packages](#packages).
+
+## Quick start
+
+Create a session, add a window, split it, and print each window with its panes:
 
 <!-- example: quickstart/main -->
 ```ruby
 require "libtmux"
 
 snapshot = LibTmux::Server.start do |server|
-  session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
+  session = server.new_session(
+    name: "work", window_name: "main", command: ["/bin/cat"]
+  )
   window = session.new_window(name: "logs", command: ["/bin/cat"])
   window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
@@ -103,7 +89,9 @@ cells:
 require "libtmux"
 
 LibTmux::Server.start do |server|
-  created = server.new_session(name: "work", command: ["/bin/sh"], receipt: true)
+  created = server.new_session(
+    name: "work", command: ["/bin/sh"], receipt: true
+  )
   pane = created.pane
   side = pane.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
@@ -111,7 +99,9 @@ LibTmux::Server.start do |server|
   pane.send_keys("Enter")
   line = nil
   50.times do
-    line = pane.capture.stdout.lines(chomp: true).find { |text| text == "ready" }
+    line = pane.capture.stdout.lines(chomp: true).find do |text|
+      text == "ready"
+    end
     break if line
     sleep 0.1
   end
@@ -142,7 +132,9 @@ locally and make no tmux calls:
 require "libtmux"
 
 snapshot = LibTmux::Server.start do |server|
-  session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
+  session = server.new_session(
+    name: "work", window_name: "main", command: ["/bin/cat"]
+  )
   window = session.new_window(name: "logs", command: ["/bin/cat"])
   window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
@@ -230,7 +222,9 @@ hold as it was. [`Session#snapshot`][session-snapshot] and
 require "libtmux"
 
 LibTmux::Server.start do |server|
-  session = server.new_session(name: "work", window_name: "editor", command: ["/bin/cat"])
+  session = server.new_session(
+    name: "work", window_name: "editor", command: ["/bin/cat"]
+  )
   window = session.list_windows.fetch(0)
 
   held = window.snapshot
@@ -311,7 +305,10 @@ LibTmux::Server.start do |server|
     puts "reply: #{reply.blocks.last.body.strip}"
     events = control.subscribe(max_events: 64, max_bytes: 65_536)
     window.rename("renamed")
-    event = events.next(timeout: 5) until event&.raw&.start_with?("%window-renamed")
+    event = nil
+    until event&.raw&.start_with?("%window-renamed")
+      event = events.next(timeout: 5)
+    end
     puts "event: #{event.raw.strip}"
   end
 end
@@ -425,7 +422,9 @@ LibTmux::Server.start do |server|
   Async do |parent|
     LibTmux::Async.open(parent: parent, server: server) do |scope|
       refs = scope.server.list_panes.map(&:ref)
-      screens = scope.map(refs, concurrency: 2) { |ref| scope.server.pane(ref).capture }
+      screens = scope.map(refs, concurrency: 2) do |ref|
+        scope.server.pane(ref).capture
+      end
       puts "captured panes: #{screens.length}"
       puts "all succeeded: #{screens.all?(&:success?)}"
     end
@@ -517,42 +516,6 @@ Workspace configuration is valid.
 More: the [workspace README](gems/libtmux-workspace/README.md) loads it into a
 running server and lists every option.
 
-## Build from source
-
-From a checkout, install the Ruby pinned in [.tool-versions](.tool-versions),
-then the development bundle:
-
-```console
-$ mise install
-```
-
-```console
-$ mise exec -- bundle config set --local path vendor/bundle
-```
-
-```console
-$ mise exec -- bundle install
-```
-
-To use the core outside the checkout, build the artifacts:
-
-```console
-$ mise exec -- bundle exec rake build
-```
-
-Install the core into the Ruby that will run your application. Its runtime
-dependencies must already be installed:
-
-```console
-$ gem install \
-    --local \
-    --no-document \
-    pkg/libtmux-0.1.2.gem
-```
-
-Companion gems need their runtime dependencies too. See
-[Contributing](.github/CONTRIBUTING.md#checks) for the checks.
-
 ## What it leaves out
 
 - **Live objects.** A [snapshot][snapshot] record is what tmux said when you
@@ -579,55 +542,24 @@ Companion gems need their runtime dependencies too. See
   refuses an older daemon before it runs a command. Release candidates are not
   supported. See [Release candidates][rc-policy].
 - **Control connections need tmux 3.7 or newer.** On an older daemon
-  `open_control` raises `UnsupportedFeatureError`, and `Server#supports_control?`
-  returns false. The [optional-feature table][doc-optional-features] and
+  `open_control` raises `UnsupportedFeatureError`, and
+  `Server#supports_control?` returns false. The
+  [optional-feature table][doc-optional-features] and
   [`capabilities.json`][capabilities-json] list the other releases.
 - **Linux, including WSL, and macOS.** CI runs on Linux; macOS is best effort.
   See the [compatibility workflow][compat] and the
   [CI matrix](.github/CONTRIBUTING.md#running-ci-against-any-tmux).
 
-## Documentation
+[Guide](docs/index.md) · [Recipes](docs/recipes.md) ·
+[API reference](docs/reference/api.md) · [Benchmarks](docs/benchmark.md) ·
+[Changelog](CHANGELOG.md) · [Contributing](.github/CONTRIBUTING.md) ·
+[AI policy][ai-policy] · [Citation](CITATION.cff) · [MIT License](LICENSE)
 
-- [Send text and capture output](examples/layout_io.rb): split panes, wait for
-  output events, and round-trip binary buffers.
-- [Work with linked windows](examples/window_links.rb): address one window at
-  several session indexes.
-- [Capture concurrently](examples/async_cancel.rb): read panes while another
-  request waits, then cancel it.
-- [Load a workspace](examples/workspace_apply.rb): parse a configuration, plan,
-  and apply it.
-- [All recipes](docs/recipes.md): cancellation, control streams, command groups,
-  and MCP.
-- [API reference](docs/reference/api.md): public methods, source links, and
-  behavioral contracts.
-- [Benchmarks](docs/benchmark.md): workloads, measurements, and their limits.
+Part of the [libtmux.org](https://libtmux.org/) family alongside Python
+[`libtmux`](https://github.com/tmux-python/libtmux) and sibling
+[language ports](https://github.com/libtmux).
 
-See [Contributing](.github/CONTRIBUTING.md) for setup and checks.
-
-## AI policy
-
-Use these packages with AI tools as you like. When contributing, check what you
-submit and wait for a maintainer's invitation before preparing a pull request.
-See the [AI policy](https://libtmux.org/en/meta/ai-policy/), also kept as
-[AI_POLICY.md](https://github.com/libtmux/.github/blob/HEAD/AI_POLICY.md).
-
-## Attribution
-
-Please use the following BibTeX template to cite libtmux-ruby in scientific discourse:
-
-```bibtex
-@misc{libtmux-ruby,
-   author = {Tony Narlock},
-   year = {2026},
-   note = {https://libtmux.org/en/ruby/},
-   title = {libtmux-ruby: Ruby wrapper for tmux}
-}
-```
-
-## License
-
-MIT. See [LICENSE](LICENSE).
-
+[ai-policy]: https://libtmux.org/en/meta/ai-policy/
 [async-open]: https://libtmux.org/en/ruby/latest/reference/libtmux-async-open/
 [async-scope-map]: https://libtmux.org/en/ruby/latest/reference/libtmux-async-scope-map/
 [capabilities-json]: capabilities.json
