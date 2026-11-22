@@ -105,6 +105,16 @@ $ mise exec -- bundle exec rake build
 ```
 
 Artifacts appear in ignored `pkg/`. No publication happens during the build.
+To install the core artifact into the Ruby that will run your application once
+its runtime dependencies are installed (companion gems need theirs too):
+
+```console
+$ gem install \
+    --local \
+    --no-document \
+    pkg/libtmux-0.1.2.gem
+```
+
 The [release guide](../docs/releasing.md) covers coordinated version bumps,
 retained-artifact dry runs and first-time trusted-publisher setup.
 The mid loop checks generated fields/schema/signatures, the public API

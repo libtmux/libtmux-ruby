@@ -21,6 +21,7 @@ class VersionBump
     "gems/libtmux-mcp/libtmux-mcp.gemspec" => %w[libtmux libtmux-async],
     "gems/libtmux-workspace/libtmux-workspace.gemspec" => %w[libtmux]
   }.freeze
+  ARTIFACT_DOC = ".github/CONTRIBUTING.md"
   VERSION_PATTERN = /^(\s*VERSION = )"([^"]+)"$/
   SIBLING_PATTERN = /^\s*spec\.add_dependency "(libtmux(?:-(?:async|mcp|workspace))?)", "([^"]+)"\s*$/
   DERIVED_CONSTRAINT = "= \#{spec.version}"
@@ -77,7 +78,7 @@ class VersionBump
   private
 
   def owned_paths
-    PACKAGE_FILES.values + GEMSPEC_DEPENDENCIES.keys + %w[Gemfile.lock README.md]
+    PACKAGE_FILES.values + GEMSPEC_DEPENDENCIES.keys + ["Gemfile.lock", ARTIFACT_DOC]
   end
 
   def full_path(path)
@@ -88,7 +89,7 @@ class VersionBump
     current = package_version(documents)
     validate_gemspecs(documents, current, root: root)
     validate_lockfile(documents.fetch("Gemfile.lock"), current)
-    validate_readme(documents.fetch("README.md"), current)
+    validate_artifact_doc(documents.fetch(ARTIFACT_DOC), current)
     current
   end
 
@@ -202,10 +203,10 @@ class VersionBump
     end
   end
 
-  def validate_readme(readme, current)
-    artifacts = readme.scan(%r{pkg/libtmux-([0-9A-Za-z.-]+)\.gem}).flatten
+  def validate_artifact_doc(document, current)
+    artifacts = document.scan(%r{pkg/libtmux-([0-9A-Za-z.-]+)\.gem}).flatten
     unless artifacts == [current.to_s]
-      raise Error, "README artifact version is inconsistent"
+      raise Error, "#{ARTIFACT_DOC} artifact version is inconsistent"
     end
   end
 
@@ -248,7 +249,7 @@ class VersionBump
     updated["Gemfile.lock"] = documents.fetch("Gemfile.lock").lines.map do |line|
       lock_lines.include?(line.chomp) ? line.sub(current.to_s, target.to_s) : line
     end.join
-    updated["README.md"] = documents.fetch("README.md").sub(
+    updated[ARTIFACT_DOC] = documents.fetch(ARTIFACT_DOC).sub(
       "pkg/libtmux-#{current}.gem", "pkg/libtmux-#{target}.gem"
     )
     updated

@@ -124,13 +124,15 @@ class ReadmeBlocksTest < Minitest::Test
     refute_empty Blocks.gem_index_problems(without, "control.md", gems: Blocks::GEMS, link: "[%s](gems/%s/README.md)")
   end
 
-  def test_the_root_readme_names_the_one_artifact_the_version_bump_rewrites
+  def test_contributing_names_the_one_artifact_the_version_bump_rewrites
     load File.join(Blocks::ROOT, "scripts/version/version.rb") unless defined?(VersionBump)
     current = Gem::Specification.load(File.join(Blocks::ROOT, "gems/libtmux/libtmux.gemspec")).version
     bump = VersionBump.new(Blocks::ROOT)
-    bump.send(:validate_readme, Blocks.read("README.md"), current)
-    twice = "#{Blocks.read('README.md')}\n$ gem install pkg/libtmux-#{current}.gem\n"
-    assert_raises(VersionBump::Error) { bump.send(:validate_readme, twice, current) }
+    contributing = Blocks.read(".github/CONTRIBUTING.md")
+    bump.send(:validate_artifact_doc, contributing, current)
+    refute_match(%r{pkg/libtmux-}, Blocks.read("README.md"))
+    twice = "#{contributing}\n$ gem install pkg/libtmux-#{current}.gem\n"
+    assert_raises(VersionBump::Error) { bump.send(:validate_artifact_doc, twice, current) }
   end
 
   def test_links_stay_out_of_code_fences

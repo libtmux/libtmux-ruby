@@ -12,7 +12,9 @@ begin
   require "libtmux"
 
   snapshot = LibTmux::Server.start do |server|
-    session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
+    session = server.new_session(
+      name: "work", window_name: "main", command: ["/bin/cat"]
+    )
     window = session.new_window(name: "logs", command: ["/bin/cat"])
     window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
@@ -31,7 +33,9 @@ begin
   require "libtmux"
 
   snapshot = LibTmux::Server.start do |server|
-    session = server.new_session(name: "work", window_name: "main", command: ["/bin/cat"])
+    session = server.new_session(
+      name: "work", window_name: "main", command: ["/bin/cat"]
+    )
     window = session.new_window(name: "logs", command: ["/bin/cat"])
     window.split(direction: :horizontal, size: "40%", command: ["/bin/cat"])
 
