@@ -30,7 +30,7 @@ module LibTmux
         @requests, @waiting, @maps = [], [], []
         @active = @queued_bytes = @output_bytes = 0
         @changed = ::Async::Notification.new
-        @server = Server.new(self, server)
+        @server = Server.__send__(:new, self, server)
       end
 
       def close

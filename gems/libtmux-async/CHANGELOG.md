@@ -11,6 +11,15 @@ in the [main changelog](../../CHANGELOG.md).
 
 ## 0.1.3 (unreleased)
 
+- `Async::Server.open` raises `UnsupportedFeatureError` in the `admission`
+  phase, as `Async::Server.start` does. In 0.1.2 it raised `ArgumentError`,
+  because it ran the core factory against the facade's constructor. Open the
+  core server and pass it to `LibTmux::Async.open(server:)`.
+- **Behavior change:** `Async::Server.new`, `Async::ControlConnection.new` and
+  `Async::ControlSubscription.new` are private. Read the facade from
+  `scope.server` and open control connections with
+  `scope.server.open_control(session:)`.
+
 ## 0.1.2 (2026-11-04)
 
 No entries for `libtmux-async`.

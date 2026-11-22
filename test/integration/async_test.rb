@@ -4,6 +4,7 @@ require_relative "../test_helper"
 require_relative "../support/tmux_fixture"
 require_relative "../support/control_support"
 require_relative "../support/control_assertions"
+require_relative "../support/ivar_reach"
 require "libtmux/async"
 require "socket"
 
@@ -34,6 +35,16 @@ class AsyncTest < Minitest::Test
         end.wait
         assert source.run(["has-session", "-t", "$0"]).success?
       end
+    end
+  end
+
+  def test_facade_built_by_a_scope_sets_what_its_hooks_read
+    with_scope do |scope, _parent|
+      reads = %i[run dispatch ensure_owner ensure_open].flat_map do |hook|
+        LibTmuxTest::IvarReach.new(LibTmux::Async::Server).walk(hook, only_core: false).reads.keys
+      end
+      unset = reads.uniq.select { |ivar| scope.server.instance_variable_get(ivar).nil? }
+      assert_empty unset, "facade hooks read variables the scope-built facade leaves unset"
     end
   end
 

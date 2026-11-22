@@ -14,9 +14,7 @@
       "error": "LibTmux::UnsupportedFeatureError",
       "apis": [
         "LibTmux::Server#open_control",
-        "LibTmux::Async::Server#open_control",
-        "LibTmux::ControlConnection.open",
-        "LibTmux::ControlConnection.new"
+        "LibTmux::Async::Server#open_control"
       ],
       "commands": [
         {

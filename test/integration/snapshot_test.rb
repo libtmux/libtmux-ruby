@@ -137,7 +137,7 @@ class SnapshotIntegrationTest < Minitest::Test
         pin = LibTmux::Internal::SocketIdentity.new(server.endpoint)
         begin
           if require_control_binding(pin)
-            LibTmux::ControlConnection.open(binding: pin, session_id: "$0") do |control|
+            LibTmux::ControlConnection.__send__(:open, binding: pin, session_id: "$0") do |control|
               control.exchange("display-message -p ready", timeout: 0.5)
               capture = acquire(server, clients: true)
               client = capture.clients.one

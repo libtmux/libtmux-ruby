@@ -375,6 +375,9 @@ module LibTmux
       nil
     end
     private_class_method :attach_cleanup_details
+    # Server#open_control supplies the binding and session ID and accounts for
+    # the connection; callers never hold a binding to pass here.
+    private_class_method :new, :open
 
     def initialize(binding:, session_id:, reconnect: nil, max_requests: 32, max_command_bytes: 1 << 18,
       max_queue_bytes: 1 << 20, max_line_bytes: 1 << 18, max_reply_bytes: 1 << 20,
